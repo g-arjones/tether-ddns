@@ -20,7 +20,7 @@ export default defineConfig({
   webServer: {
     command:
       'npm run build && cd .. && TETHER_DDNS_CONFIG_PATH=$(mktemp -d)/e2e-config.json ' +
-      '/home/arjones/dev/tether-ddns/.venv/bin/python -m tether_ddns',
+      '.venv/bin/python -m tether_ddns',
     url: 'http://localhost:8000',
     reuseExistingServer: !process.env.CI,
     timeout: 120000,

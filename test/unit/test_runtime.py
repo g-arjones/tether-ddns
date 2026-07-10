@@ -27,3 +27,27 @@ def test_set_status_notifies_listeners() -> None:
     state.set_status('a', 'synced', ip='1.2.3.4')
     assert state.domains['a'].status == 'synced'
     assert seen and seen[-1]['public_ip'] is None
+
+
+def test_public_ip_and_online_emit_snapshots() -> None:
+    """Setting public IP and online status notifies listeners."""
+    state = RuntimeState()
+    seen: list[dict[str, object]] = []
+    state.add_listener(seen.append)
+    state.set_public_ip('9.9.9.9')
+    state.set_online(True)
+    assert state.public_ip == '9.9.9.9'
+    assert state.online is True
+    assert seen[-1]['online'] is True
+    assert seen[-2]['public_ip'] == '9.9.9.9'
+
+
+def test_remove_listener_and_unknown_status() -> None:
+    """Removed listeners stop receiving and unknown ids are ignored."""
+    state = RuntimeState()
+    seen: list[dict[str, object]] = []
+    state.add_listener(seen.append)
+    state.remove_listener(seen.append)  # not registered: no-op
+    state.remove_listener(seen.append)
+    state.set_status('missing', 'synced')  # unknown id: no emit
+    assert seen == []

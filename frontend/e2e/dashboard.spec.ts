@@ -27,7 +27,9 @@ test('add a domain and see it listed', async ({ page }) => {
   await modal.locator('.modal-foot').getByRole('button', { name: 'Add Domain' }).click();
 
   // The new domain appears in a DomainCard.
-  await expect(page.getByText('home.example.com')).toBeVisible();
+  await expect(
+    page.locator('.name').filter({ hasText: 'home.example.com' }),
+  ).toBeVisible();
 });
 
 test('log viewer is visible', async ({ page }) => {

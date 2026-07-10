@@ -8,7 +8,13 @@ from fastapi import APIRouter, FastAPI, HTTPException, WebSocket, WebSocketDisco
 
 from pydantic import BaseModel
 
-from tether_ddns.config import DomainConfig, HookConfig, mask_secrets, merge_secrets
+from tether_ddns.config import (
+    AppSettings,
+    DomainConfig,
+    HookConfig,
+    mask_secrets,
+    merge_secrets,
+)
 from tether_ddns.hooks.base import HOOK_REGISTRY, SUPPORTED_EVENTS
 from tether_ddns.ip_sources.base import IP_SOURCE_REGISTRY
 from tether_ddns.providers.base import PROVIDER_REGISTRY
@@ -185,7 +191,8 @@ def register_routes(app: FastAPI) -> None:
 
     @router.put('/settings')
     def put_settings(payload: dict[str, Any]) -> dict[str, object]:
-        merged = app.state.config.settings.model_copy(update=payload)
+        current = app.state.config.settings
+        merged = AppSettings(**{**current.model_dump(), **payload})
         app.state.config.settings = merged
         _persist(app)
         dumped: dict[str, object] = merged.model_dump()

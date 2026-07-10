@@ -8,7 +8,8 @@ dependencies = [
   "pydantic",
   "aiodns",
   "aiohttp",
-  "uvicorn"
+  "uvicorn",
+  "websockets"
 ]
 
 [dependency-groups]
