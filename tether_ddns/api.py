@@ -2,11 +2,9 @@
 # pyright: reportUnusedFunction=false
 from __future__ import annotations
 
-from typing import Any
-
 from fastapi import APIRouter, FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 from tether_ddns.config import (
     AppSettings,
@@ -18,8 +16,6 @@ from tether_ddns.config import (
 from tether_ddns.hooks.base import HOOK_REGISTRY, SUPPORTED_EVENTS
 from tether_ddns.ip_sources.base import IP_SOURCE_REGISTRY
 from tether_ddns.providers.base import PROVIDER_REGISTRY
-
-router = APIRouter(prefix='/api')
 
 
 class DomainInput(BaseModel):
@@ -41,6 +37,18 @@ class HookInput(BaseModel):
     enabled: bool = True
     events: list[str] = []
     config: dict[str, object] = {}
+
+
+class SettingsUpdate(BaseModel):
+    """Partial settings update; rejects unknown keys and bad types."""
+
+    model_config = ConfigDict(extra='forbid')
+
+    check_interval: int | None = None
+    ip_source: str | None = None
+    update_on_startup: bool | None = None
+    retry_on_failure: bool | None = None
+    notify: bool | None = None
 
 
 def _provider_schema(provider: str) -> dict[str, object]:
@@ -71,6 +79,7 @@ def _persist(app: FastAPI) -> None:
 
 def register_routes(app: FastAPI) -> None:
     """Attach all API routes to the app."""
+    router = APIRouter(prefix='/api')
 
     @router.get('/state')
     def get_state() -> dict[str, object]:
@@ -142,11 +151,19 @@ def register_routes(app: FastAPI) -> None:
 
     @router.post('/domains/{domain_id}/sync')
     async def sync_now(domain_id: str) -> dict[str, bool]:
+        from tether_ddns.ip_sources.base import detect_public_ip
         from tether_ddns.scheduler import sync_domain
         for d in app.state.config.domains:
             if d.id == domain_id:
-                ip = app.state.runtime.public_ip or ''
-                await sync_domain(d, ip, app.state.runtime)
+                runtime = app.state.runtime
+                ip = runtime.public_ip
+                if not ip:
+                    ip = await detect_public_ip(app.state.config.settings.ip_source)
+                    if not ip:
+                        raise HTTPException(
+                            status_code=503, detail='public IP unknown')
+                    runtime.set_public_ip(ip)
+                await sync_domain(d, ip, runtime)
                 return {'ok': True}
         raise HTTPException(status_code=404, detail='domain not found')
 
@@ -190,9 +207,10 @@ def register_routes(app: FastAPI) -> None:
         return settings
 
     @router.put('/settings')
-    def put_settings(payload: dict[str, Any]) -> dict[str, object]:
+    def put_settings(payload: SettingsUpdate) -> dict[str, object]:
         current = app.state.config.settings
-        merged = AppSettings(**{**current.model_dump(), **payload})
+        set_fields = payload.model_dump(exclude_unset=True)
+        merged = AppSettings(**{**current.model_dump(), **set_fields})
         app.state.config.settings = merged
         _persist(app)
         dumped: dict[str, object] = merged.model_dump()

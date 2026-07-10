@@ -34,3 +34,20 @@ async def test_config_schema_returns_json_schema() -> None:
     provider_cls = base.PROVIDER_REGISTRY['duckdns']
     schema = provider_cls.config_schema()
     assert 'properties' in schema
+
+
+def test_default_config_model_is_empty_config() -> None:
+    """Providers that omit ConfigModel default to EmptyConfig, not bare BaseModel."""
+    @base.register_provider
+    class _NoConfig(base.DDNSProvider):
+        key = 'noconfig'
+        display_name = 'NoConfig'
+
+        async def update(
+            self, hostname: str, record_type: str, ip: str, config: BaseModel,
+        ) -> base.UpdateResult:
+            return base.UpdateResult(success=True, ip=ip)
+
+    assert _NoConfig.ConfigModel is base.EmptyConfig
+    validated = _NoConfig.ConfigModel.model_validate({})
+    assert isinstance(validated, base.EmptyConfig)

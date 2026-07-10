@@ -60,6 +60,28 @@ describe('useLiveState', () => {
     expect(instance?.url).toContain('/api/ws');
   });
 
+  it('uses ws:// on http pages and wss:// on https pages', () => {
+    renderHook(() => useLiveState());
+    expect(instance?.url.startsWith('ws://')).toBe(true);
+
+    const original = window.location;
+    Object.defineProperty(window, 'location', {
+      value: { ...original, protocol: 'https:', host: 'example.com' },
+      writable: true,
+      configurable: true,
+    });
+    try {
+      renderHook(() => useLiveState());
+      expect(instance?.url).toBe('wss://example.com/api/ws');
+    } finally {
+      Object.defineProperty(window, 'location', {
+        value: original,
+        writable: true,
+        configurable: true,
+      });
+    }
+  });
+
   it('applies state messages to snapshot', () => {
     const { result } = renderHook(() => useLiveState());
     expect(result.current.snapshot).toBeNull();

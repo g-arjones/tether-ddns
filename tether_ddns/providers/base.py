@@ -22,12 +22,16 @@ class UpdateResult(BaseModel):
     message: str = ''
 
 
+class EmptyConfig(BaseModel):
+    """Default provider config model for providers without configuration."""
+
+
 class DDNSProvider(ABC):
     """Base class for DDNS provider plugins."""
 
     key: str = ''
     display_name: str = ''
-    ConfigModel: type[BaseModel] = BaseModel
+    ConfigModel: type[BaseModel] = EmptyConfig
 
     @classmethod
     def config_schema(cls) -> dict[str, object]:
