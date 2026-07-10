@@ -21,8 +21,15 @@ scheduled jobs) is rebuilt from configuration on application start.
   events (push). REST is used for mutations and initial snapshots.
 - **Secrets:** provider credentials are stored in plaintext in the config JSON but are
   **write-only over the API** — never returned to the frontend; read responses mask them.
-- **V1 plugin scope:** one DDNS provider (DuckDNS) and one example hook, to establish
-  the plugin framework end-to-end.
+- **V1 plugin scope:** one DDNS provider (DuckDNS), one example hook, and the IP-source
+  registry with a built-in HTTP source (ipify), to establish the plugin framework
+  end-to-end.
+- **Reachability:** assessed by resolving a stable hostname against a quorum of
+  independent public DNS resolvers (default 2-of-3: Cloudflare/Google/Quad9) using
+  `aiodns`, following the reference `ReachabilityService`.
+- **IP sources:** the mechanism for detecting the public IP is itself a plugin registry
+  (same auto-load/decorator pattern as providers and hooks), surfaced as a selectable
+  option in app settings.
 - **Logs:** captured by a custom `logging.Handler` into an in-memory ring buffer
   (last N records) and pushed over the WebSocket. Nothing persisted to disk.
 - **Exception isolation:** exceptions raised inside a provider `update()` or a hook
@@ -61,8 +68,8 @@ Package: `tether_ddns/` (Python 3.12, strict typing — flake8, mypy, pyright st
     `ConfigModel`).
   - `HookConfig`: `id`, `hook` (registry key), `enabled`, `events` (subset of
     supported events), and `config` (dict validated against the hook's config model).
-  - `AppSettings`: `check_interval` (seconds), `ip_source`, `update_on_startup`,
-    `retry_on_failure`, `notify`.
+  - `AppSettings`: `check_interval` (seconds), `ip_source` (IP-source registry key),
+    `update_on_startup`, `retry_on_failure`, `notify`.
   - `AppConfig`: `settings`, `domains: list[DomainConfig]`, `hooks: list[HookConfig]`.
 - `ConfigStore`: resolves path from `TETHER_DDNS_CONFIG_PATH` env var, else
   `./tether-ddns.json` in cwd. Handles load (missing file -> defaults), atomic save
@@ -86,6 +93,14 @@ Package: `tether_ddns/` (Python 3.12, strict typing — flake8, mypy, pyright st
 - `duckdns.py`: `DuckDNSProvider` with a `ConfigModel` (token `SecretStr`, domain
   token). Calls the DuckDNS HTTP API via aiohttp.
 
+### 3.3a IP-source registry — `ip_sources/base.py`
+- `IPSource` ABC: `key`, `display_name`, `async def detect() -> str | None`.
+- `@register_ip_source` decorator populates `IP_SOURCE_REGISTRY: dict[str, type[IPSource]]`.
+- Auto-loaded from `ip_sources/registered_sources/` like the other registries; a
+  failing plugin import is logged and skipped.
+- Ships an `ipify` HTTP source (and `icanhazip`). The active source key comes from
+  `AppSettings.ip_source`; `GET /api/ip-sources` surfaces the list for the settings UI.
+
 ### 3.4 Hook registry — `hooks/base.py`
 - `Hook` ABC:
   - `key`, `display_name`, `ConfigModel`, `config_schema()`.
@@ -95,6 +110,13 @@ Package: `tether_ddns/` (Python 3.12, strict typing — flake8, mypy, pyright st
 - `HookEvent`: typed payloads (e.g. old/new IP, old/new reachability).
 - Auto-loaded from `hooks/registered_hooks/` similarly to providers.
 - Example hook: a "log hook" that logs event details.
+
+### 3.4a Reachability — `reachability.py`
+- `ReachabilityService` (adapted from the reference): resolves a stable hostname
+  (`cloudflare.com`) against a list of independent public resolvers via `aiodns`,
+  each query bounded by a per-query timeout, requiring a configurable quorum.
+- `async def check() -> ReachabilityResult` (`online`, `successes`, `total`, per-resolver
+  `details`). Individual resolver failures never raise; the whole check is exception-safe.
 
 ### 3.5 Runtime state — `runtime.py`
 - Holds: current public IP, reachability (online/offline), and per-domain runtime
@@ -106,9 +128,11 @@ Package: `tether_ddns/` (Python 3.12, strict typing — flake8, mypy, pyright st
 ### 3.6 Scheduler — `scheduler.py`
 - APScheduler `AsyncIOScheduler` bound to the uvicorn loop.
 - Jobs:
-  - Reachability + public-IP check on `settings.check_interval`. On IP change: update
-    runtime, fire `ip_changed` hooks, mark affected enabled domains `pending`, trigger
-    their syncs. On reachability transition: fire `reachability_changed` hooks.
+  - Reachability (DNS quorum) + public-IP check (via the selected IP source) on
+    `settings.check_interval`. On IP change: update runtime, fire `ip_changed` hooks,
+    mark affected enabled domains `pending`, trigger their syncs. On reachability
+    transition: fire `reachability_changed` hooks. Public-IP detection is skipped/
+    deferred when reachability reports offline.
   - Per-domain DDNS sync respecting each domain's `update_period`.
 - **Exception isolation:** every provider call and hook dispatch is wrapped so a raised
   exception is caught and logged; a provider failure sets the domain status to `error`
@@ -129,6 +153,7 @@ Package: `tether_ddns/` (Python 3.12, strict typing — flake8, mypy, pyright st
   - `GET /api/state` — snapshot (public IP, reachability, settings, domains+status).
   - `GET /api/providers` — list of providers with `display_name` and config JSON schema.
   - `GET /api/hooks` — list of hooks with `display_name`, supported events, config schema.
+  - `GET /api/ip-sources` — list of IP sources with `key`/`display_name` for settings.
   - `GET/POST /api/domains`, `PUT/DELETE /api/domains/{id}`, `POST /api/domains/{id}/sync`.
   - `GET/POST /api/hooks-config`, `PUT/DELETE /api/hooks-config/{id}` — configured hook
     instances (the registry list vs configured instances are distinct).
@@ -159,7 +184,8 @@ React + TS app reproducing the mockup styling (reuse CSS tokens). Components:
   their events and enabled state, plus an Add/Edit Hook modal that dynamically renders
   the selected hook's config form from `/api/hooks` (same schema-driven approach as
   providers) and lets the user pick which events trigger it.
-- Settings modal (interval chips, IP source, behavior toggles).
+- Settings modal (interval chips, IP-source dropdown populated from `/api/ip-sources`,
+  behavior toggles).
 - **Log viewer:** a live panel showing streamed log records from the WebSocket, seeded
   by the buffered history on connect.
 - Toasts, theme toggle (mockup behavior).
@@ -185,8 +211,10 @@ Honor existing lint/type gates (flake8, mypy, pyright strict, ruff).
 
 **Backend (pytest):**
 - `ConfigStore` load/save/round-trip, env-var path resolution, secret masking.
-- Registry auto-loading (providers + hooks), decorator registration.
+- Registry auto-loading (providers + hooks + IP sources), decorator registration.
 - DuckDNS provider `update()` with mocked HTTP (success + failure paths).
+- IP-source registry + ipify source with mocked HTTP.
+- `ReachabilityService` quorum logic with mocked resolvers (online/offline/partial).
 - Exception isolation: a provider/hook raising does not crash the scheduler and yields
   the expected `error`/logged outcome.
 - Runtime state transitions and event emission.
