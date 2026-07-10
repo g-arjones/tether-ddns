@@ -90,3 +90,42 @@ class ConfigStore:
         finally:
             if os.path.exists(tmp):
                 os.unlink(tmp)
+
+
+MASK = '********'
+
+
+def _password_fields(schema: dict[str, object]) -> set[str]:
+    props = schema.get('properties', {})
+    assert isinstance(props, dict)
+    fields: set[str] = set()
+    for name, spec in props.items():
+        if isinstance(spec, dict) and spec.get('format') == 'password':
+            fields.add(str(name))
+    return fields
+
+
+def mask_secrets(
+    schema: dict[str, object], data: dict[str, object],
+) -> dict[str, object]:
+    """Return a copy of data with password fields masked."""
+    out = dict(data)
+    for field in _password_fields(schema):
+        if out.get(field):
+            out[field] = MASK
+    return out
+
+
+def merge_secrets(
+    schema: dict[str, object],
+    incoming: dict[str, object],
+    existing: dict[str, object],
+) -> dict[str, object]:
+    """Merge incoming config, preserving existing masked secrets."""
+    out = dict(incoming)
+    for field in _password_fields(schema):
+        value = out.get(field)
+        if not value or value == MASK:
+            if field in existing:
+                out[field] = existing[field]
+    return out
