@@ -6,12 +6,17 @@ from unittest.mock import AsyncMock, patch
 from fastapi.testclient import TestClient
 
 from tether_ddns.app import create_app
-from tether_ddns.config import ConfigStore
+from tether_ddns.config import AppConfig, ConfigStore
 from tether_ddns.reachability import ReachabilityResult
 
 
 def _client(tmp_path: Path) -> Any:
-    return TestClient(create_app(ConfigStore(tmp_path / 'cfg.json')))
+    """Build a TestClient with startup checks disabled for hermetic tests."""
+    store = ConfigStore(tmp_path / 'cfg.json')
+    config = AppConfig()
+    config.settings.update_on_startup = False
+    store.save(config)
+    return TestClient(create_app(store))
 
 
 def test_state_endpoint_returns_snapshot(tmp_path: Path) -> None:
