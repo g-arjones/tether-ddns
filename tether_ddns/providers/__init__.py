@@ -1,0 +1,1 @@
+"""DDNS provider plugin framework."""
