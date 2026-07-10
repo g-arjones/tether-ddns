@@ -27,7 +27,8 @@ class RuntimeState:
 
     def __init__(self) -> None:
         """Create an empty runtime state."""
-        self.public_ip: str | None = None
+        self.public_ipv4: str | None = None
+        self.public_ipv6: str | None = None
         self.online: bool = False
         self.domains: dict[str, DomainRuntime] = {}
         self._listeners: list[Listener] = []
@@ -49,9 +50,14 @@ class RuntimeState:
         }
         self._emit()
 
-    def set_public_ip(self, ip: str | None) -> None:
-        """Update the current public IP and notify listeners."""
-        self.public_ip = ip
+    def set_public_ipv4(self, ip: str | None) -> None:
+        """Update the current public IPv4 and notify listeners."""
+        self.public_ipv4 = ip
+        self._emit()
+
+    def set_public_ipv6(self, ip: str | None) -> None:
+        """Update the current public IPv6 and notify listeners."""
+        self.public_ipv6 = ip
         self._emit()
 
     def set_online(self, online: bool) -> None:
@@ -76,7 +82,8 @@ class RuntimeState:
     def snapshot(self) -> dict[str, object]:
         """Return a serialisable snapshot of the state."""
         return {
-            'public_ip': self.public_ip,
+            'public_ipv4': self.public_ipv4,
+            'public_ipv6': self.public_ipv6,
             'online': self.online,
             'domains': [d.model_dump() for d in self.domains.values()],
         }
