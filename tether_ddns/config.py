@@ -4,7 +4,7 @@ from __future__ import annotations
 import os
 import tempfile
 from pathlib import Path
-from typing import Literal
+from typing import Literal, cast
 from uuid import uuid4
 
 from pydantic import BaseModel, Field
@@ -96,12 +96,15 @@ MASK = '********'
 
 
 def _password_fields(schema: dict[str, object]) -> set[str]:
-    props = schema.get('properties', {})
-    assert isinstance(props, dict)
+    props = schema.get('properties')
+    if not isinstance(props, dict):
+        return set()
     fields: set[str] = set()
-    for name, spec in props.items():
-        if isinstance(spec, dict) and spec.get('format') == 'password':
-            fields.add(str(name))
+    for name, spec in cast('dict[object, object]', props).items():
+        if isinstance(spec, dict):
+            spec_typed = cast('dict[object, object]', spec)
+            if spec_typed.get('format') == 'password':
+                fields.add(str(name))
     return fields
 
 

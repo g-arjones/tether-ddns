@@ -1,13 +1,15 @@
 """Tests for the DuckDNS provider."""
 from unittest.mock import AsyncMock, MagicMock, patch
 
+from pydantic import BaseModel, SecretStr
+
 import pytest
 
 from tether_ddns.providers.ddns_providers.duckdns import DuckDNSProvider
 
 
-def _cfg() -> object:
-    return DuckDNSProvider.ConfigModel(token='secret', domain='myhost')
+def _cfg() -> BaseModel:
+    return DuckDNSProvider.ConfigModel(token=SecretStr('secret'), domain='myhost')
 
 
 @pytest.mark.asyncio

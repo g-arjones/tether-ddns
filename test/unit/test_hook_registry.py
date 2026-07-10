@@ -1,4 +1,6 @@
 """Tests for the hook registry and the built-in log hook."""
+from pydantic import BaseModel
+
 import pytest
 
 from tether_ddns.hooks import base
@@ -11,7 +13,7 @@ def test_register_hook_adds_to_registry() -> None:
         key = 'dummy-hook'
         display_name = 'Dummy'
 
-        async def handle(self, event, config):  # type: ignore[override]
+        async def handle(self, event: base.HookEvent, config: BaseModel) -> None:
             return None
 
     assert base.HOOK_REGISTRY['dummy-hook'] is _Dummy

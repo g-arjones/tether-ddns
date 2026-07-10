@@ -1,7 +1,9 @@
 """APScheduler-driven periodic jobs with exception-isolated dispatch."""
 from __future__ import annotations
 
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from apscheduler.schedulers.asyncio import (  # pyright: ignore[reportMissingTypeStubs]
+    AsyncIOScheduler,
+)
 
 from tether_ddns.config import AppConfig, DomainConfig
 from tether_ddns.hooks.base import HOOK_REGISTRY, HookEvent
@@ -60,7 +62,7 @@ class Scheduler:
 
     def start(self, cfg: AppConfig, state: RuntimeState) -> None:
         """Schedule the periodic check job and start the scheduler."""
-        self._scheduler.add_job(
+        self._scheduler.add_job(  # pyright: ignore[reportUnknownMemberType]
             self.check_once, 'interval', seconds=cfg.settings.check_interval,
             args=[cfg, state], id='check', replace_existing=True,
         )

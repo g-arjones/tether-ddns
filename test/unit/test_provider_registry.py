@@ -1,4 +1,6 @@
 """Tests for the DDNS provider registry and auto-loader."""
+from pydantic import BaseModel
+
 import pytest
 
 from tether_ddns.providers import base
@@ -11,7 +13,9 @@ def test_register_provider_adds_to_registry() -> None:
         key = 'dummy'
         display_name = 'Dummy'
 
-        async def update(self, hostname, record_type, ip, config):  # type: ignore[override]
+        async def update(
+            self, hostname: str, record_type: str, ip: str, config: BaseModel,
+        ) -> base.UpdateResult:
             return base.UpdateResult(success=True, ip=ip)
 
     assert base.PROVIDER_REGISTRY['dummy'] is _Dummy

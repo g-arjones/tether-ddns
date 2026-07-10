@@ -1,7 +1,7 @@
 """Tests for secret masking/merging helpers."""
 from tether_ddns.config import MASK, mask_secrets, merge_secrets
 
-SCHEMA = {'properties': {'token': {'format': 'password'}, 'domain': {}}}
+SCHEMA: dict[str, object] = {'properties': {'token': {'format': 'password'}, 'domain': {}}}
 
 
 def test_mask_secrets_masks_password_fields() -> None:
