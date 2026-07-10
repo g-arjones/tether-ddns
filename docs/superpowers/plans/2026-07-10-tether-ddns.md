@@ -33,6 +33,9 @@ Backend (`tether_ddns/`):
 - `hooks/base.py` — `Hook`, `HookEvent`, `register_hook`, `HOOK_REGISTRY`, `load_hooks()`.
 - `hooks/registered_hooks/__init__.py`, `hooks/registered_hooks/log_hook.py`.
 - `ip_detect.py` — public IP + reachability detection.
+- `ip_sources/base.py` — `IPSource`, `register_ip_source`, `IP_SOURCE_REGISTRY`, `load_ip_sources()`, `detect_public_ip()`.
+- `ip_sources/registered_sources/http_sources.py` — ipify/icanhazip sources.
+- `reachability.py` — `ReachabilityService` (DNS quorum via aiodns).
 - `runtime.py` — `RuntimeState`, `DomainStatus`, event emission.
 - `scheduler.py` — APScheduler jobs + exception-isolated dispatch.
 - `ws.py` — `ConnectionManager`.
@@ -799,96 +802,338 @@ git commit -m "feat: hook base class, registry and log hook"
 
 ---
 
-## Phase 5 — IP detection, runtime state, scheduler
+## Phase 5 — IP sources, reachability, runtime state, scheduler
 
-### Task 6: IP + reachability detection
+### Task 6: IP-source registry + ipify source
 
 **Files:**
-- Create: `tether_ddns/ip_detect.py`
-- Test: `test/unit/test_ip_detect.py`
+- Create: `tether_ddns/ip_sources/__init__.py`, `tether_ddns/ip_sources/base.py`, `tether_ddns/ip_sources/registered_sources/__init__.py`, `tether_ddns/ip_sources/registered_sources/http_sources.py`
+- Test: `test/unit/test_ip_sources.py`
 
 **Interfaces:**
-- Produces: `async def detect_public_ip(source: str = 'ipify') -> str | None` (GET `https://api.ipify.org` via aiohttp; returns text or `None` on error) and `async def check_reachable() -> bool` (True if IP detection succeeds).
+- Produces:
+  - `IPSource` ABC: class attrs `key: str`, `display_name: str`; abstract `async def detect(self) -> str | None`.
+  - `register_ip_source(cls) -> type[IPSource]` decorator populating `IP_SOURCE_REGISTRY: dict[str, type[IPSource]]`.
+  - `load_ip_sources() -> None` importing every submodule of `ip_sources.registered_sources`, logging+skipping failures.
+  - `async def detect_public_ip(source_key: str = 'ipify') -> str | None` — looks up the registry, instantiates, calls `detect()`, returns `None` (logged) on unknown key or exception.
+  - `IpifySource(key='ipify', display_name='ipify.org')` and `IcanhazipSource(key='icanhazip', display_name='icanhazip.com')` — GET their endpoint via aiohttp, return trimmed body or `None` on error.
 
 - [ ] **Step 1: Write the failing test**
 
 ```python
-"""Tests for public IP and reachability detection."""
+"""Tests for the IP-source registry and built-in HTTP sources."""
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from tether_ddns import ip_detect
+from tether_ddns import ip_sources
+from tether_ddns.ip_sources import base
+
+
+def test_load_ip_sources_registers_ipify() -> None:
+    """Auto-loading discovers the built-in ipify source."""
+    base.load_ip_sources()
+    assert 'ipify' in base.IP_SOURCE_REGISTRY
 
 
 @pytest.mark.asyncio
-async def test_detect_public_ip_returns_text() -> None:
-    """A successful HTTP response yields the IP string."""
+async def test_detect_public_ip_uses_source() -> None:
+    """detect_public_ip returns the source's detected IP."""
+    base.load_ip_sources()
+    with patch.object(
+        base.IP_SOURCE_REGISTRY['ipify'], 'detect',
+        new=AsyncMock(return_value='203.0.113.9'),
+    ):
+        assert await base.detect_public_ip('ipify') == '203.0.113.9'
+
+
+@pytest.mark.asyncio
+async def test_detect_public_ip_unknown_source_returns_none() -> None:
+    """An unknown source key yields None rather than raising."""
+    assert await base.detect_public_ip('nope') is None
+
+
+@pytest.mark.asyncio
+async def test_ipify_source_reads_http_body() -> None:
+    """The ipify source returns the trimmed HTTP body."""
+    base.load_ip_sources()
+    source = base.IP_SOURCE_REGISTRY['ipify']()
     resp = MagicMock()
-    resp.text = AsyncMock(return_value='203.0.113.5')
+    resp.text = AsyncMock(return_value=' 203.0.113.7\n')
     session = MagicMock()
     session.get.return_value.__aenter__ = AsyncMock(return_value=resp)
     session.get.return_value.__aexit__ = AsyncMock(return_value=False)
-    with patch('tether_ddns.ip_detect.aiohttp.ClientSession') as cs:
+    with patch('tether_ddns.ip_sources.registered_sources.http_sources.aiohttp.ClientSession') as cs:
         cs.return_value.__aenter__ = AsyncMock(return_value=session)
         cs.return_value.__aexit__ = AsyncMock(return_value=False)
-        assert await ip_detect.detect_public_ip() == '203.0.113.5'
-
-
-@pytest.mark.asyncio
-async def test_detect_public_ip_returns_none_on_error() -> None:
-    """Network errors yield None rather than raising."""
-    with patch('tether_ddns.ip_detect.aiohttp.ClientSession') as cs:
-        cs.side_effect = OSError('boom')
-        assert await ip_detect.detect_public_ip() is None
+        assert await source.detect() == '203.0.113.7'
 ```
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `pytest test/unit/test_ip_detect.py -v`
+Run: `pytest test/unit/test_ip_sources.py -v`
 Expected: FAIL with import error.
 
 - [ ] **Step 3: Write minimal implementation**
 
+`tether_ddns/ip_sources/__init__.py`:
 ```python
-"""Public IP address and internet reachability detection."""
+"""IP-source plugin framework."""
+```
+
+`tether_ddns/ip_sources/registered_sources/__init__.py`:
+```python
+"""Built-in IP-source plugins (auto-loaded)."""
+```
+
+`tether_ddns/ip_sources/base.py`:
+```python
+"""IP-source base class, registry and auto-loader."""
 from __future__ import annotations
 
-import aiohttp
+import importlib
+import pkgutil
+from abc import ABC, abstractmethod
 
 from tether_ddns.logging_setup import get_logger
 
 _log = get_logger()
-_SOURCES = {'ipify': 'https://api.ipify.org', 'icanhazip': 'https://icanhazip.com'}
+
+IP_SOURCE_REGISTRY: dict[str, type['IPSource']] = {}
 
 
-async def detect_public_ip(source: str = 'ipify') -> str | None:
-    """Return the current public IP, or None on failure."""
-    url = _SOURCES.get(source, _SOURCES['ipify'])
-    try:
-        async with aiohttp.ClientSession() as session:
-            async with session.get(url) as resp:
-                return (await resp.text()).strip()
-    except Exception:  # noqa: BLE001 - detection failure must not raise
-        _log.warning('Public IP detection failed via %s', source)
+class IPSource(ABC):
+    """Base class for public-IP detection plugins."""
+
+    key: str = ''
+    display_name: str = ''
+
+    @abstractmethod
+    async def detect(self) -> str | None:
+        """Return the detected public IP, or None on failure."""
+        raise NotImplementedError
+
+
+def register_ip_source(cls: type[IPSource]) -> type[IPSource]:
+    """Register an IP-source class in the global registry."""
+    IP_SOURCE_REGISTRY[cls.key] = cls
+    return cls
+
+
+def load_ip_sources() -> None:
+    """Import all IP-source submodules so they self-register."""
+    from tether_ddns.ip_sources import registered_sources
+
+    for info in pkgutil.iter_modules(registered_sources.__path__):
+        name = f'{registered_sources.__name__}.{info.name}'
+        try:
+            importlib.import_module(name)
+        except Exception:  # noqa: BLE001 - a bad plugin must not break loading
+            _log.exception('Failed to load IP-source module %s', name)
+
+
+async def detect_public_ip(source_key: str = 'ipify') -> str | None:
+    """Detect the public IP via the named source, or None on failure."""
+    cls = IP_SOURCE_REGISTRY.get(source_key)
+    if cls is None:
+        _log.warning('Unknown IP source %s', source_key)
         return None
+    try:
+        return await cls().detect()
+    except Exception:  # noqa: BLE001 - detection failure must not raise
+        _log.exception('IP source %s failed', source_key)
+        return None
+```
+
+`tether_ddns/ip_sources/registered_sources/http_sources.py`:
+```python
+"""HTTP-based public IP sources."""
+from __future__ import annotations
+
+import aiohttp
+
+from tether_ddns.ip_sources.base import IPSource, register_ip_source
 
 
-async def check_reachable() -> bool:
-    """Return True if the internet is reachable."""
-    return await detect_public_ip() is not None
+async def _fetch(url: str) -> str | None:
+    async with aiohttp.ClientSession() as session:
+        async with session.get(url) as resp:
+            return (await resp.text()).strip()
+
+
+@register_ip_source
+class IpifySource(IPSource):
+    """Detects the public IP via api.ipify.org."""
+
+    key = 'ipify'
+    display_name = 'ipify.org'
+
+    async def detect(self) -> str | None:
+        """Return the public IP from ipify."""
+        return await _fetch('https://api.ipify.org')
+
+
+@register_ip_source
+class IcanhazipSource(IPSource):
+    """Detects the public IP via icanhazip.com."""
+
+    key = 'icanhazip'
+    display_name = 'icanhazip.com'
+
+    async def detect(self) -> str | None:
+        """Return the public IP from icanhazip."""
+        return await _fetch('https://icanhazip.com')
 ```
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `pytest test/unit/test_ip_detect.py -v`
+Run: `pytest test/unit/test_ip_sources.py -v`
 Expected: PASS.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add tether_ddns/ip_detect.py test/unit/test_ip_detect.py
-git commit -m "feat: public IP and reachability detection"
+git add tether_ddns/ip_sources test/unit/test_ip_sources.py
+git commit -m "feat: IP-source registry with ipify/icanhazip sources"
+```
+
+### Task 6b: Reachability service (DNS quorum)
+
+**Files:**
+- Create: `tether_ddns/reachability.py`
+- Test: `test/unit/test_reachability.py`
+
+**Interfaces:**
+- Produces:
+  - `ReachabilityResult(online: bool, successes: int, total: int, details: dict[str, str])` (pydantic model).
+  - `ReachabilityService(resolvers: list[str] | None = None, query_host: str = 'cloudflare.com', per_query_timeout: float = 2.0, quorum: int = 2)` with `async def check() -> ReachabilityResult`. Defaults resolve against Cloudflare/Google/Quad9 via `aiodns`; a single resolver failure never raises; `online = successes >= quorum`.
+
+- [ ] **Step 1: Write the failing test**
+
+```python
+"""Tests for the DNS-quorum reachability service."""
+from unittest.mock import AsyncMock, patch
+
+import pytest
+
+from tether_ddns.reachability import ReachabilityService
+
+
+@pytest.mark.asyncio
+async def test_online_when_quorum_met() -> None:
+    """Two of three successful resolvers report online."""
+    service = ReachabilityService(resolvers=['1.1.1.1', '8.8.8.8', '9.9.9.9'], quorum=2)
+    with patch.object(
+        service, '_query_one',
+        new=AsyncMock(side_effect=[('1.1.1.1', 'ok'), ('8.8.8.8', 'ok'), ('9.9.9.9', 'timeout')]),
+    ):
+        result = await service.check()
+    assert result.online is True
+    assert result.successes == 2
+
+
+@pytest.mark.asyncio
+async def test_offline_when_quorum_not_met() -> None:
+    """Only one successful resolver reports offline."""
+    service = ReachabilityService(resolvers=['1.1.1.1', '8.8.8.8', '9.9.9.9'], quorum=2)
+    with patch.object(
+        service, '_query_one',
+        new=AsyncMock(side_effect=[('1.1.1.1', 'ok'), ('8.8.8.8', 'timeout'), ('9.9.9.9', 'timeout')]),
+    ):
+        result = await service.check()
+    assert result.online is False
+    assert result.successes == 1
+```
+
+- [ ] **Step 2: Run test to verify it fails**
+
+Run: `pytest test/unit/test_reachability.py -v`
+Expected: FAIL with import error.
+
+- [ ] **Step 3: Write minimal implementation**
+
+```python
+"""Internet reachability via a DNS-resolution quorum (adapted reference)."""
+from __future__ import annotations
+
+import asyncio
+
+import aiodns
+from pydantic import BaseModel, Field
+
+from tether_ddns.logging_setup import get_logger
+
+_log = get_logger()
+
+DEFAULT_RESOLVERS = ['1.1.1.1', '8.8.8.8', '9.9.9.9']
+DEFAULT_QUERY_HOST = 'cloudflare.com'
+
+
+class ReachabilityResult(BaseModel):
+    """Outcome of a reachability check."""
+
+    online: bool
+    successes: int
+    total: int
+    details: dict[str, str] = Field(default_factory=dict)
+
+
+class ReachabilityService:
+    """Checks reachability via a quorum of independent DNS resolvers."""
+
+    def __init__(
+        self,
+        resolvers: list[str] | None = None,
+        query_host: str = DEFAULT_QUERY_HOST,
+        per_query_timeout: float = 2.0,
+        quorum: int = 2,
+    ) -> None:
+        """Configure resolvers, query host, timeout and quorum."""
+        self._resolver_ips = resolvers or DEFAULT_RESOLVERS
+        self._query_host = query_host
+        self._timeout = per_query_timeout
+        self._quorum = quorum
+
+    async def _query_one(self, resolver_ip: str) -> tuple[str, str]:
+        """Resolve against one resolver; return (ip, 'ok' | error)."""
+        resolver = aiodns.DNSResolver(nameservers=[resolver_ip])
+        try:
+            await asyncio.wait_for(
+                resolver.query(self._query_host, 'A'), timeout=self._timeout)
+            return resolver_ip, 'ok'
+        except asyncio.TimeoutError:
+            return resolver_ip, 'timeout'
+        except aiodns.error.DNSError as exc:
+            return resolver_ip, f'dns_error: {exc}'
+        except Exception as exc:  # noqa: BLE001 - one bad resolver must not kill the check
+            return resolver_ip, f'error: {exc}'
+
+    async def check(self) -> ReachabilityResult:
+        """Query all resolvers concurrently and evaluate the quorum."""
+        results = await asyncio.gather(
+            *(self._query_one(ip) for ip in self._resolver_ips))
+        details = dict(results)
+        successes = sum(1 for _, status in results if status == 'ok')
+        online = successes >= self._quorum
+        if not online:
+            _log.warning(
+                'Reachability failed: %d/%d resolvers ok (%s)',
+                successes, len(self._resolver_ips), details)
+        return ReachabilityResult(
+            online=online, successes=successes,
+            total=len(self._resolver_ips), details=details)
+```
+
+- [ ] **Step 4: Run test to verify it passes**
+
+Run: `pytest test/unit/test_reachability.py -v`
+Expected: PASS.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add tether_ddns/reachability.py test/unit/test_reachability.py
+git commit -m "feat: DNS-quorum reachability service"
 ```
 
 ### Task 7: Runtime state
@@ -1053,11 +1298,11 @@ git commit -m "feat: runtime state container with change listeners"
 - Test: `test/unit/test_scheduler.py`
 
 **Interfaces:**
-- Consumes: `AppConfig`, `DomainConfig`, `HookConfig` (Task 2); `PROVIDER_REGISTRY` (Task 3); `HOOK_REGISTRY`, `HookEvent` (Task 5); `detect_public_ip`, `check_reachable` (Task 6); `RuntimeState` (Task 7).
+- Consumes: `AppConfig`, `DomainConfig`, `HookConfig` (Task 2); `PROVIDER_REGISTRY` (Task 3); `HOOK_REGISTRY`, `HookEvent` (Task 5); `detect_public_ip` (Task 6); `ReachabilityService` (Task 6b); `RuntimeState` (Task 7).
 - Produces:
   - `async def sync_domain(domain: DomainConfig, ip: str, state: RuntimeState) -> None` — instantiates the provider, validates `provider_config` into its `ConfigModel`, calls `update()`; on success sets domain `synced` (with ip/message), on `UpdateResult.success is False` or any exception sets `error` and logs (never raises).
   - `async def dispatch_hooks(event: HookEvent, cfg: AppConfig) -> None` — for each enabled hook whose `events` includes `event.type`, instantiate and `await handle()`, catching+logging exceptions per hook.
-  - `class Scheduler` wrapping `AsyncIOScheduler` with `start(cfg, state)`, `shutdown()`, and `async def check_once(cfg, state)` (detect IP/reachability, fire transitions + hooks, mark and sync affected domains).
+  - `class Scheduler` wrapping `AsyncIOScheduler` with `start(cfg, state)`, `shutdown()`, and `async def check_once(cfg, state)` (run `ReachabilityService.check()` for reachability transitions+hooks; when online, detect IP via `detect_public_ip(cfg.settings.ip_source)`, fire `ip_changed` and sync affected domains).
 
 - [ ] **Step 1: Write the failing test**
 
@@ -1120,9 +1365,10 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from tether_ddns.config import AppConfig, DomainConfig
 from tether_ddns.hooks.base import HOOK_REGISTRY, HookEvent
-from tether_ddns.ip_detect import detect_public_ip
+from tether_ddns.ip_sources.base import detect_public_ip
 from tether_ddns.logging_setup import get_logger
 from tether_ddns.providers.base import PROVIDER_REGISTRY
+from tether_ddns.reachability import ReachabilityService
 from tether_ddns.runtime import RuntimeState
 
 _log = get_logger()
@@ -1170,6 +1416,7 @@ class Scheduler:
     def __init__(self) -> None:
         """Create an unstarted scheduler."""
         self._scheduler = AsyncIOScheduler()
+        self._reachability = ReachabilityService()
 
     def start(self, cfg: AppConfig, state: RuntimeState) -> None:
         """Schedule the periodic check job and start the scheduler."""
@@ -1186,20 +1433,20 @@ class Scheduler:
 
     async def check_once(self, cfg: AppConfig, state: RuntimeState) -> None:
         """Run one reachability/IP check cycle, firing hooks and syncs."""
-        ip = await detect_public_ip(cfg.settings.ip_source)
-        online = ip is not None
-        if online != state.online:
-            state.set_online(online)
+        reach = await self._reachability.check()
+        if reach.online != state.online:
+            old = 'online' if state.online else 'offline'
+            new = 'online' if reach.online else 'offline'
+            state.set_online(reach.online)
             await dispatch_hooks(
-                HookEvent(type='reachability_changed',
-                          old='online' if not online else 'offline',
-                          new='online' if online else 'offline'),
-                cfg,
-            )
+                HookEvent(type='reachability_changed', old=old, new=new), cfg)
+        if not reach.online:
+            return
+        ip = await detect_public_ip(cfg.settings.ip_source)
         if ip is not None and ip != state.public_ip:
-            old = state.public_ip
+            old_ip = state.public_ip
             state.set_public_ip(ip)
-            await dispatch_hooks(HookEvent(type='ip_changed', old=old, new=ip), cfg)
+            await dispatch_hooks(HookEvent(type='ip_changed', old=old_ip, new=ip), cfg)
             for domain in cfg.domains:
                 if domain.enabled:
                     await sync_domain(domain, ip, state)
@@ -1434,11 +1681,12 @@ git commit -m "feat: secret masking and merge helpers"
 **Interfaces:**
 - Consumes: all prior modules.
 - Produces:
-  - `create_app(store: ConfigStore | None = None) -> FastAPI`. On lifespan startup: install ring handler, load providers+hooks, load config, build `RuntimeState`, wire log+state listeners to `ConnectionManager.sync_broadcast`, start `Scheduler`. Stored on `app.state`: `store`, `config`, `runtime`, `scheduler`, `manager`, `log_handler`.
+  - `create_app(store: ConfigStore | None = None) -> FastAPI`. On lifespan startup: install ring handler, load providers+hooks+IP sources, load config, build `RuntimeState`, wire log+state listeners to `ConnectionManager.sync_broadcast`, start `Scheduler`. Stored on `app.state`: `store`, `config`, `runtime`, `scheduler`, `manager`, `log_handler`.
   - REST routes on `app`:
     - `GET /api/state` -> `{settings, ...runtime.snapshot(), logs: log_handler.snapshot()}`.
     - `GET /api/providers` -> `[{key, display_name, schema}]`.
     - `GET /api/hooks` -> `[{key, display_name, events: SUPPORTED_EVENTS, schema}]`.
+    - `GET /api/ip-sources` -> `[{key, display_name}]`.
     - `GET /api/domains` -> masked domain list; `POST /api/domains` (body: DomainConfig minus id) -> created (masked); `PUT /api/domains/{id}`; `DELETE /api/domains/{id}`; `POST /api/domains/{id}/sync`.
     - `GET/POST /api/hooks-config`, `PUT/DELETE /api/hooks-config/{id}`.
     - `GET /api/settings`, `PUT /api/settings`.
@@ -1512,6 +1760,7 @@ from pydantic import BaseModel
 
 from tether_ddns.config import DomainConfig, HookConfig, mask_secrets, merge_secrets
 from tether_ddns.hooks.base import HOOK_REGISTRY, SUPPORTED_EVENTS
+from tether_ddns.ip_sources.base import IP_SOURCE_REGISTRY
 from tether_ddns.providers.base import PROVIDER_REGISTRY
 
 router = APIRouter(prefix='/api')
@@ -1588,6 +1837,13 @@ def register_routes(app: FastAPI) -> None:
             {'key': k, 'display_name': c.display_name,
              'events': list(SUPPORTED_EVENTS), 'schema': c.config_schema()}
             for k, c in HOOK_REGISTRY.items()
+        ]
+
+    @router.get('/ip-sources')
+    def get_ip_sources() -> list[dict[str, object]]:
+        return [
+            {'key': k, 'display_name': c.display_name}
+            for k, c in IP_SOURCE_REGISTRY.items()
         ]
 
     @router.get('/domains')
@@ -1719,6 +1975,7 @@ from fastapi.staticfiles import StaticFiles
 from tether_ddns.api import register_routes
 from tether_ddns.config import ConfigStore
 from tether_ddns.hooks.base import load_hooks
+from tether_ddns.ip_sources.base import load_ip_sources
 from tether_ddns.logging_setup import LogRingHandler, install_ring_handler
 from tether_ddns.providers.base import load_providers
 from tether_ddns.runtime import RuntimeState
@@ -1738,6 +1995,7 @@ def create_app(store: ConfigStore | None = None) -> FastAPI:
         install_ring_handler(handler)
         load_providers()
         load_hooks()
+        load_ip_sources()
         config = resolved_store.load()
         runtime = RuntimeState()
         runtime.rebuild(config)
@@ -1900,6 +2158,7 @@ const jbody = (data: unknown): RequestInit => ({
 export const getState = () => json<StateSnapshot>('/api/state');
 export const getProviders = () => json<Provider[]>('/api/providers');
 export const getHooks = () => json<HookDef[]>('/api/hooks');
+export const getIpSources = () => json<{ key: string; display_name: string }[]>('/api/ip-sources');
 export const getSettings = () => json<Settings>('/api/settings');
 export const putSettings = (patch: Partial<Settings>) => json<Settings>('/api/settings', { ...jbody(patch), method: 'PUT' });
 export const createDomain = (input: unknown) => json('/api/domains', jbody(input));
@@ -2065,7 +2324,7 @@ Expected: FAIL (components not defined).
 
 - [ ] **Step 3: Implement the components**
 
-Implement `SchemaForm` iterating `schema.properties` (password/number/boolean/text inputs, labelled by `title` or key). Implement `DomainCard` mirroring the mockup card markup and wiring the four action buttons (titles: `Pause`/`Resume`, `Force update now`, `Edit`, `Delete`) to the callbacks. Implement `DomainModal` (hostname, provider `<select>` from `/api/providers`, record type, ttl, enabled toggle, plus `SchemaForm` for the selected provider schema), `HookModal` (hook `<select>` from `/api/hooks`, event checkboxes, `SchemaForm`), `Toasts`, and `App` composing the header, stats, domain grid, **Hooks section**, settings modal, and **log viewer** panel driven by `useLiveState`. Port `mockup.html`'s CSS into `styles.css`.
+Implement `SchemaForm` iterating `schema.properties` (password/number/boolean/text inputs, labelled by `title` or key). Implement `DomainCard` mirroring the mockup card markup and wiring the four action buttons (titles: `Pause`/`Resume`, `Force update now`, `Edit`, `Delete`) to the callbacks. Implement `DomainModal` (hostname, provider `<select>` from `/api/providers`, record type, ttl, enabled toggle, plus `SchemaForm` for the selected provider schema), `HookModal` (hook `<select>` from `/api/hooks`, event checkboxes, `SchemaForm`), `Toasts`, and `App` composing the header, stats, domain grid, **Hooks section**, settings modal (with an **IP-source dropdown** populated from `/api/ip-sources`), and **log viewer** panel driven by `useLiveState`. Port `mockup.html`'s CSS into `styles.css`.
 
 - [ ] **Step 4: Run tests to verify they pass**
 
@@ -2167,6 +2426,6 @@ git commit -m "chore: enforce coverage gates and add README"
 
 ## Self-Review Notes
 
-- **Spec coverage:** ConfigStore+models (T2), provider registry+auto-load+DuckDNS (T3–T4), hook registry+example+events (T5), reachability/IP (T6), runtime state (T7), scheduler with exception isolation for providers **and** hooks (T8), logging ring buffer+uvicorn wiring (T1), WebSocket push (T9), secret masking/write-only (T10), REST+WS+static serving+lifespan (T11), React SPA incl. schema-driven provider **and** hook forms, Hooks section (mockup extension), and log viewer (T13–T15), full backend+frontend tests incl. Vitest+Playwright and coverage gates (T12, T16–T17). All spec sections map to tasks.
+- **Spec coverage:** ConfigStore+models (T2), provider registry+auto-load+DuckDNS (T3–T4), hook registry+example+events (T5), IP-source registry+ipify/icanhazip (T6), DNS-quorum reachability (T6b), runtime state (T7), scheduler with exception isolation for providers **and** hooks and quorum-based reachability (T8), logging ring buffer+uvicorn wiring (T1), WebSocket push (T9), secret masking/write-only (T10), REST+WS+static serving+lifespan incl. `/api/ip-sources` (T11), React SPA incl. schema-driven provider **and** hook forms, Hooks section (mockup extension), IP-source settings dropdown, and log viewer (T13–T15), full backend+frontend tests incl. Vitest+Playwright and coverage gates (T12, T16–T17). All spec sections map to tasks.
 - **Type consistency:** `UpdateResult`, `HookEvent`, `DomainRuntime`, `RuntimeState.set_status`, `mask_secrets`/`merge_secrets`, `ConnectionManager.broadcast/sync_broadcast`, and API payload shapes are used consistently across tasks.
 - **Placeholders:** none — each code step contains runnable content. Frontend component bodies in T15 are described precisely against ported mockup markup; the two component tests pin the required interfaces.
