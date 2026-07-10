@@ -209,6 +209,7 @@ def register_routes(app: FastAPI) -> None:
         await ws.send_json({'kind': 'state', 'payload': app.state.runtime.snapshot()})
         for entry in app.state.log_handler.snapshot():
             await ws.send_json({'kind': 'log', 'payload': entry})
+        app.state.manager.register(ws)
         try:
             while True:
                 await ws.receive_text()

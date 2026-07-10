@@ -17,8 +17,11 @@ class ConnectionManager:
         self.connections: list[Any] = []
 
     async def connect(self, ws: Any) -> None:
-        """Accept and register a WebSocket connection."""
+        """Accept a WebSocket connection without registering it."""
         await ws.accept()
+
+    def register(self, ws: Any) -> None:
+        """Register an accepted socket to receive broadcasts."""
         self.connections.append(ws)
 
     def disconnect(self, ws: Any) -> None:

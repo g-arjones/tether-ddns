@@ -14,6 +14,7 @@ async def test_broadcast_sends_to_all() -> None:
     ws.accept = AsyncMock()
     ws.send_json = AsyncMock()
     await mgr.connect(ws)
+    mgr.register(ws)
     await mgr.broadcast('log', {'message': 'hi'})
     ws.send_json.assert_awaited_with({'kind': 'log', 'payload': {'message': 'hi'}})
 
@@ -26,5 +27,20 @@ async def test_broadcast_drops_broken_sockets() -> None:
     ws.accept = AsyncMock()
     ws.send_json = AsyncMock(side_effect=RuntimeError('closed'))
     await mgr.connect(ws)
+    mgr.register(ws)
     await mgr.broadcast('log', {'message': 'hi'})
     assert ws not in mgr.connections
+
+
+@pytest.mark.asyncio
+async def test_connect_accepts_without_registering() -> None:
+    """Connect accepts the socket but does not register it for broadcasts."""
+    mgr = ConnectionManager()
+    ws = MagicMock()
+    ws.accept = AsyncMock()
+    ws.send_json = AsyncMock()
+    await mgr.connect(ws)
+    ws.accept.assert_awaited_once()
+    assert ws not in mgr.connections
+    await mgr.broadcast('log', {'message': 'hi'})
+    ws.send_json.assert_not_awaited()

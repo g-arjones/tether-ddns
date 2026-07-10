@@ -68,6 +68,13 @@ class Scheduler:
         )
         self._scheduler.start()
 
+    def run_startup_check(self, cfg: AppConfig, state: RuntimeState) -> None:
+        """Schedule one immediate, non-blocking check cycle at startup."""
+        self._scheduler.add_job(  # pyright: ignore[reportUnknownMemberType]
+            self.check_once, 'date', args=[cfg, state],
+            id='startup', replace_existing=True,
+        )
+
     def shutdown(self) -> None:
         """Stop the scheduler."""
         if self._scheduler.running:
@@ -85,6 +92,7 @@ class Scheduler:
         if not reach.online:
             return
         ip = await detect_public_ip(cfg.settings.ip_source)
+        synced: set[str] = set()
         if ip is not None and ip != state.public_ip:
             old_ip = state.public_ip
             state.set_public_ip(ip)
@@ -92,3 +100,10 @@ class Scheduler:
             for domain in cfg.domains:
                 if domain.enabled:
                     await sync_domain(domain, ip, state)
+                    synced.add(domain.id)
+        if cfg.settings.retry_on_failure and state.public_ip is not None:
+            for domain in cfg.domains:
+                runtime = state.domains.get(domain.id)
+                if (domain.enabled and domain.id not in synced
+                        and runtime is not None and runtime.status == 'error'):
+                    await sync_domain(domain, state.public_ip, state)

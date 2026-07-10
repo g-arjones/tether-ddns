@@ -40,6 +40,8 @@ def create_app(store: ConfigStore | None = None) -> FastAPI:
         runtime.add_listener(lambda snap: manager.sync_broadcast('state', snap))
         scheduler = Scheduler()
         scheduler.start(config, runtime)
+        if config.settings.update_on_startup:
+            scheduler.run_startup_check(config, runtime)
         app.state.store = resolved_store
         app.state.config = config
         app.state.runtime = runtime

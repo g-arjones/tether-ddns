@@ -1,5 +1,5 @@
 """Tests for scheduler dispatch and exception isolation."""
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -134,3 +134,80 @@ async def test_scheduler_start_and_shutdown() -> None:
     sched.start(cfg, state)
     sched.shutdown()
     sched.shutdown()  # idempotent when already stopped
+
+
+def test_run_startup_check_registers_immediate_job() -> None:
+    """run_startup_check adds a one-shot job with id 'startup'."""
+    cfg = AppConfig()
+    state = RuntimeState()
+    sched = scheduler.Scheduler()
+    fake = MagicMock()
+    with patch.object(sched, '_scheduler', fake):
+        sched.run_startup_check(cfg, state)
+    kwargs = fake.add_job.call_args.kwargs
+    assert kwargs['id'] == 'startup'
+    assert kwargs['args'] == [cfg, state]
+    assert fake.add_job.call_args.args[1] == 'date'
+
+
+@pytest.mark.asyncio
+async def test_check_once_retries_error_domain_without_ip_change() -> None:
+    """Retry re-syncs an error domain even when the IP is unchanged."""
+    load_providers()
+    domain = DomainConfig(
+        id='a', hostname='myhost', provider='duckdns',
+        provider_config={'token': 'x', 'domain': 'myhost'},
+    )
+    cfg = AppConfig(domains=[domain])
+    cfg.settings.retry_on_failure = True
+    state = RuntimeState()
+    state.rebuild(cfg)
+    state.online = True
+    state.set_public_ip('9.9.9.9')
+    state.set_status('a', 'error', message='earlier failure')
+    sched = scheduler.Scheduler()
+    from tether_ddns.providers.base import UpdateResult
+    with patch(
+        'tether_ddns.scheduler.ReachabilityService.check',
+        new=AsyncMock(return_value=_online(True)),
+    ), patch(
+        'tether_ddns.scheduler.detect_public_ip',
+        new=AsyncMock(return_value='9.9.9.9'),
+    ), patch(
+        'tether_ddns.providers.ddns_providers.duckdns.DuckDNSProvider.update',
+        new=AsyncMock(return_value=UpdateResult(success=True, ip='9.9.9.9')),
+    ):
+        await sched.check_once(cfg, state)
+    assert state.domains['a'].status == 'synced'
+
+
+@pytest.mark.asyncio
+async def test_check_once_no_retry_when_disabled() -> None:
+    """With retry disabled an error domain is left untouched."""
+    load_providers()
+    domain = DomainConfig(
+        id='a', hostname='myhost', provider='duckdns',
+        provider_config={'token': 'x', 'domain': 'myhost'},
+    )
+    cfg = AppConfig(domains=[domain])
+    cfg.settings.retry_on_failure = False
+    state = RuntimeState()
+    state.rebuild(cfg)
+    state.online = True
+    state.set_public_ip('9.9.9.9')
+    state.set_status('a', 'error', message='earlier failure')
+    sched = scheduler.Scheduler()
+    update = AsyncMock()
+    with patch(
+        'tether_ddns.scheduler.ReachabilityService.check',
+        new=AsyncMock(return_value=_online(True)),
+    ), patch(
+        'tether_ddns.scheduler.detect_public_ip',
+        new=AsyncMock(return_value='9.9.9.9'),
+    ), patch(
+        'tether_ddns.providers.ddns_providers.duckdns.DuckDNSProvider.update',
+        new=update,
+    ):
+        await sched.check_once(cfg, state)
+    assert state.domains['a'].status == 'error'
+    update.assert_not_called()
