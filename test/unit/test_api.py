@@ -7,6 +7,7 @@ from fastapi.testclient import TestClient
 
 from tether_ddns.app import create_app
 from tether_ddns.config import AppConfig, ConfigStore
+from tether_ddns.providers.base import UpdateResult
 from tether_ddns.reachability import ReachabilityResult
 
 
@@ -97,6 +98,20 @@ def test_settings_update_round_trips(tmp_path: Path) -> None:
     assert read_back.json()['check_interval'] == 42
 
 
+def test_settings_update_bad_type_returns_422(tmp_path: Path) -> None:
+    """A wrong-typed settings value is rejected with 422, not 500."""
+    with _client(tmp_path) as client:
+        resp: Any = client.put('/api/settings', json={'check_interval': 'soon'})
+    assert resp.status_code == 422
+
+
+def test_settings_update_unknown_key_returns_422(tmp_path: Path) -> None:
+    """An unknown settings key is rejected with 422."""
+    with _client(tmp_path) as client:
+        resp: Any = client.put('/api/settings', json={'nope': 1})
+    assert resp.status_code == 422
+
+
 def test_sync_and_delete_domain(tmp_path: Path) -> None:
     """Sync triggers an update and delete removes the domain."""
     with _client(tmp_path) as client:
@@ -105,7 +120,12 @@ def test_sync_and_delete_domain(tmp_path: Path) -> None:
             'provider_config': {'token': 'realsecret', 'domain': 'home'},
         })
         domain_id = created.json()['id']
-        synced: Any = client.post(f'/api/domains/{domain_id}/sync')
+        client.app.state.runtime.public_ip = '203.0.113.1'
+        with patch(
+            'tether_ddns.providers.ddns_providers.duckdns.DuckDNSProvider.update',
+            new=AsyncMock(return_value=UpdateResult(success=True, ip='203.0.113.1')),
+        ):
+            synced: Any = client.post(f'/api/domains/{domain_id}/sync')
         assert synced.status_code == 200
         deleted: Any = client.delete(f'/api/domains/{domain_id}')
         assert deleted.json() == {'ok': True}
@@ -113,6 +133,41 @@ def test_sync_and_delete_domain(tmp_path: Path) -> None:
         assert missing.status_code == 404
         sync_missing: Any = client.post('/api/domains/nope/sync')
         assert sync_missing.status_code == 404
+
+
+def test_sync_detects_ip_when_unknown(tmp_path: Path) -> None:
+    """Forced sync with no known IP detects one, then syncs the domain."""
+    with _client(tmp_path) as client:
+        created: Any = client.post('/api/domains', json={
+            'hostname': 'home.example.com', 'provider': 'duckdns',
+            'provider_config': {'token': 'x', 'domain': 'home'},
+        }).json()
+        with patch(
+            'tether_ddns.ip_sources.base.detect_public_ip',
+            new=AsyncMock(return_value='203.0.113.9'),
+        ), patch(
+            'tether_ddns.providers.ddns_providers.duckdns.DuckDNSProvider.update',
+            new=AsyncMock(return_value=UpdateResult(success=True, ip='203.0.113.9')),
+        ) as upd:
+            resp: Any = client.post(f'/api/domains/{created["id"]}/sync')
+        assert resp.status_code == 200
+        assert upd.await_args is not None
+        assert upd.await_args.args[2] == '203.0.113.9'
+
+
+def test_sync_returns_503_when_ip_undetectable(tmp_path: Path) -> None:
+    """Forced sync returns 503 when no public IP can be determined."""
+    with _client(tmp_path) as client:
+        created: Any = client.post('/api/domains', json={
+            'hostname': 'home.example.com', 'provider': 'duckdns',
+            'provider_config': {'token': 'x', 'domain': 'home'},
+        }).json()
+        with patch(
+            'tether_ddns.ip_sources.base.detect_public_ip',
+            new=AsyncMock(return_value=None),
+        ):
+            resp: Any = client.post(f'/api/domains/{created["id"]}/sync')
+    assert resp.status_code == 503
 
 
 def test_update_domain_round_trip(tmp_path: Path) -> None:
