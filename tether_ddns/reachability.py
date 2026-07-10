@@ -45,7 +45,7 @@ class ReachabilityService:
         resolver = aiodns.DNSResolver(nameservers=[resolver_ip])
         try:
             await asyncio.wait_for(
-                resolver.query(self._query_host, 'A'), timeout=self._timeout)
+                resolver.query_dns(self._query_host, 'A'), timeout=self._timeout)
             return resolver_ip, 'ok'
         except asyncio.TimeoutError:
             return resolver_ip, 'timeout'
