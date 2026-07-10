@@ -1,4 +1,4 @@
-import type { Provider, HookDef, Settings, StateSnapshot } from './types';
+import type { Provider, HookDef, Settings, StateSnapshot, DomainConfig, HookConfig } from './types';
 
 async function json<T>(url: string, init?: RequestInit): Promise<T> {
   const res = init ? await fetch(url, init) : await fetch(url);
@@ -10,6 +10,8 @@ const jbody = (data: unknown): RequestInit => ({
 });
 
 export const getState = () => json<StateSnapshot>('/api/state');
+export const getDomains = () => json<DomainConfig[]>('/api/domains');
+export const getHooksConfig = () => json<HookConfig[]>('/api/hooks-config');
 export const getProviders = () => json<Provider[]>('/api/providers');
 export const getHooks = () => json<HookDef[]>('/api/hooks');
 export const getIpSources = () => json<{ key: string; display_name: string }[]>('/api/ip-sources');
