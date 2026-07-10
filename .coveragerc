@@ -1,0 +1,10 @@
+[run]
+omit =
+    setup.py
+    test/*
+
+[report]
+exclude_also =
+    def main().*:
+    raise NotImplementedError
+    if TYPE_CHECKING:

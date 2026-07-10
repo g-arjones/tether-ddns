@@ -1,0 +1,35 @@
+[project]
+name = "tether-dns"
+version = "0.0.1"
+requires-python = ">=3.12"
+dependencies = [
+  "apscheduler",
+  "fastapi",
+  "pydantic",
+  "aiodns",
+  "aiohttp"
+]
+
+[dependency-groups]
+dev = [
+  "flake8",
+  "flake8-blind-except",
+  "flake8-builtins",
+  "flake8-class-newline",
+  "flake8-comprehensions",
+  "flake8-deprecated",
+  "flake8-docstrings",
+  "flake8-import-order",
+  "flake8-quotes",
+  "mypy",
+  "pep8-naming",
+  "pyright",
+  "pytest-cov",
+  "ruff"
+]
+
+[tool.setuptools.package-data]
+tether_dns = ['py.typed']
+
+[tool.ruff.lint.pydocstyle]
+convention = "pep257"

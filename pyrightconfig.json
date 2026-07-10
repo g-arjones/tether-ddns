@@ -1,0 +1,19 @@
+{
+  "exclude": ["test/integration/images", "**/__pycache__", "**/.*"],
+  "strictListInference": true,
+  "strictDictionaryInference": true,
+  "strictSetInference": true,
+  "reportUnusedImport": "error",
+  "reportUntypedNamedTuple": "error",
+  "reportIncompatibleMethodOverride": "error",
+  "reportMissingParameterType": "error",
+  "reportMissingTypeArgument": "error",
+  "reportSelfClsParameterName": "error",
+  "reportUnusedVariable": "error",
+  "reportDuplicateImport": "error",
+  "reportUnnecessaryTypeIgnoreComment": "error",
+  "useLibraryCodeForTypes": true,
+  "typeCheckingMode": "strict",
+  // "reportUnknownParameterType": "error",
+  // "reportUnknownVariableType": "error"
+}
