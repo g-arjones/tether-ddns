@@ -7,13 +7,20 @@ from apscheduler.schedulers.asyncio import (  # pyright: ignore[reportMissingTyp
 
 from tether_ddns.config import AppConfig, DomainConfig
 from tether_ddns.hooks.base import HOOK_REGISTRY, HookEvent
-from tether_ddns.ip_sources.base import detect_public_ip
+from tether_ddns.ip_sources.base import IPFamily, detect_public_ip
 from tether_ddns.logging_setup import get_logger
 from tether_ddns.providers.base import PROVIDER_REGISTRY
 from tether_ddns.reachability import ReachabilityService
 from tether_ddns.runtime import RuntimeState
 
 _log = get_logger()
+
+REACHABILITY_INTERVAL_SECONDS = 30
+
+
+def _family_for(record_type: str) -> IPFamily:
+    """Return the IP family a record type resolves against."""
+    return 'ipv6' if record_type == 'AAAA' else 'ipv4'
 
 
 async def sync_domain(domain: DomainConfig, ip: str, state: RuntimeState) -> None:
@@ -61,10 +68,15 @@ class Scheduler:
         self._reachability = ReachabilityService()
 
     def start(self, cfg: AppConfig, state: RuntimeState) -> None:
-        """Schedule the periodic check job and start the scheduler."""
+        """Schedule the reachability and IP-sync jobs and start."""
         self._scheduler.add_job(  # pyright: ignore[reportUnknownMemberType]
-            self.check_once, 'interval', seconds=cfg.settings.check_interval,
-            args=[cfg, state], id='check', replace_existing=True,
+            self.check_reachability, 'interval',
+            seconds=REACHABILITY_INTERVAL_SECONDS,
+            args=[cfg, state], id='reachability', replace_existing=True,
+        )
+        self._scheduler.add_job(  # pyright: ignore[reportUnknownMemberType]
+            self.sync_ips, 'interval', seconds=cfg.settings.check_interval,
+            args=[cfg, state], id='sync', replace_existing=True,
         )
         self._scheduler.start()
 
@@ -80,8 +92,8 @@ class Scheduler:
         if self._scheduler.running:
             self._scheduler.shutdown(wait=False)
 
-    async def check_once(self, cfg: AppConfig, state: RuntimeState) -> None:
-        """Run one reachability/IP check cycle, firing hooks and syncs."""
+    async def check_reachability(self, cfg: AppConfig, state: RuntimeState) -> None:
+        """Run the DNS-quorum check; fire reachability_changed on transition."""
         reach = await self._reachability.check()
         if reach.online != state.online:
             old = 'online' if state.online else 'offline'
@@ -89,21 +101,42 @@ class Scheduler:
             state.set_online(reach.online)
             await dispatch_hooks(
                 HookEvent(type='reachability_changed', old=old, new=new), cfg)
-        if not reach.online:
+
+    async def sync_ips(self, cfg: AppConfig, state: RuntimeState) -> None:
+        """When online, refresh both IP families and sync domains."""
+        if not state.online:
             return
-        ip = await detect_public_ip(cfg.settings.ip_source)
-        synced: set[str] = set()
-        if ip is not None and ip != state.public_ip:
-            old_ip = state.public_ip
-            state.set_public_ip(ip)
-            await dispatch_hooks(HookEvent(type='ip_changed', old=old_ip, new=ip), cfg)
-            for domain in cfg.domains:
-                if domain.enabled:
-                    await sync_domain(domain, ip, state)
-                    synced.add(domain.id)
-        if cfg.settings.retry_on_failure and state.public_ip is not None:
-            for domain in cfg.domains:
-                runtime = state.domains.get(domain.id)
-                if (domain.enabled and domain.id not in synced
-                        and runtime is not None and runtime.status == 'error'):
-                    await sync_domain(domain, state.public_ip, state)
+        ipv4 = await detect_public_ip(cfg.settings.ip_source, 'ipv4')
+        ipv6 = await detect_public_ip(cfg.settings.ip_source, 'ipv6')
+        changed: set[IPFamily] = set()
+        if ipv4 is not None and ipv4 != state.public_ipv4:
+            old = state.public_ipv4
+            state.set_public_ipv4(ipv4)
+            changed.add('ipv4')
+            await dispatch_hooks(HookEvent(type='ip_changed', old=old, new=ipv4), cfg)
+        if ipv6 is not None and ipv6 != state.public_ipv6:
+            old6 = state.public_ipv6
+            state.set_public_ipv6(ipv6)
+            changed.add('ipv6')
+            await dispatch_hooks(HookEvent(type='ip_changed', old=old6, new=ipv6), cfg)
+        by_family: dict[IPFamily, str | None] = {
+            'ipv4': state.public_ipv4, 'ipv6': state.public_ipv6}
+        for domain in cfg.domains:
+            if not domain.enabled:
+                continue
+            family = _family_for(domain.record_type)
+            ip = by_family[family]
+            if ip is None:
+                continue
+            runtime = state.domains.get(domain.id)
+            needs_retry = (cfg.settings.retry_on_failure and runtime is not None
+                           and runtime.status == 'error')
+            is_fresh = runtime is None or runtime.status == 'pending'
+            if family in changed or is_fresh or needs_retry:
+                await sync_domain(domain, ip, state)
+
+    async def check_once(self, cfg: AppConfig, state: RuntimeState) -> None:
+        """Run reachability then, if online, an IP sync (startup/refresh)."""
+        await self.check_reachability(cfg, state)
+        if state.online:
+            await self.sync_ips(cfg, state)

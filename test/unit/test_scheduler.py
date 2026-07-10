@@ -105,7 +105,7 @@ async def test_check_once_online_transition_and_ip_change() -> None:
     ):
         await sched.check_once(cfg, state)
     assert state.online is True
-    assert state.public_ip == '9.9.9.9'
+    assert state.public_ipv4 == '9.9.9.9'
     assert state.domains['a'].status == 'synced'
 
 
@@ -163,7 +163,7 @@ async def test_check_once_retries_error_domain_without_ip_change() -> None:
     state = RuntimeState()
     state.rebuild(cfg)
     state.online = True
-    state.set_public_ip('9.9.9.9')
+    state.set_public_ipv4('9.9.9.9')
     state.set_status('a', 'error', message='earlier failure')
     sched = scheduler.Scheduler()
     from tether_ddns.providers.base import UpdateResult
@@ -194,7 +194,7 @@ async def test_check_once_no_retry_when_disabled() -> None:
     state = RuntimeState()
     state.rebuild(cfg)
     state.online = True
-    state.set_public_ip('9.9.9.9')
+    state.set_public_ipv4('9.9.9.9')
     state.set_status('a', 'error', message='earlier failure')
     sched = scheduler.Scheduler()
     update = AsyncMock()
@@ -211,3 +211,49 @@ async def test_check_once_no_retry_when_disabled() -> None:
         await sched.check_once(cfg, state)
     assert state.domains['a'].status == 'error'
     update.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_reachability_transition_fires_hook_only_on_change() -> None:
+    """check_reachability fires reachability_changed only on an online transition."""
+    load_hooks()
+    cfg = AppConfig(hooks=[HookConfig(id='h', hook='log', events=['reachability_changed'])])
+    state = RuntimeState()
+    sched = scheduler.Scheduler()
+    with patch.object(sched, '_reachability') as reach:
+        reach.check = AsyncMock(return_value=_online(True))
+        with patch('tether_ddns.scheduler.dispatch_hooks', new=AsyncMock()) as dh:
+            await sched.check_reachability(cfg, state)
+            assert state.online is True
+            dh.assert_awaited_once()
+            dh.reset_mock()
+            await sched.check_reachability(cfg, state)  # no transition
+            dh.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_sync_ips_updates_families_and_syncs_by_record_type() -> None:
+    """sync_ips detects both families and syncs A from v4, AAAA from v6."""
+    load_providers()
+    cfg = AppConfig(domains=[
+        DomainConfig(id='a', hostname='a', provider='duckdns', record_type='A',
+                     provider_config={'token': 'x', 'domain': 'a'}),
+        DomainConfig(id='b', hostname='b', provider='duckdns', record_type='AAAA',
+                     provider_config={'token': 'x', 'domain': 'b'}),
+    ])
+    state = RuntimeState()
+    state.rebuild(cfg)
+    state.online = True
+    sched = scheduler.Scheduler()
+
+    async def _detect(source: str, family: str) -> str:
+        return '203.0.113.5' if family == 'ipv4' else '2001:db8::5'
+
+    with patch('tether_ddns.scheduler.detect_public_ip', new=AsyncMock(side_effect=_detect)), \
+         patch('tether_ddns.scheduler.sync_domain', new=AsyncMock()) as sd:
+        await sched.sync_ips(cfg, state)
+    assert state.public_ipv4 == '203.0.113.5'
+    assert state.public_ipv6 == '2001:db8::5'
+    calls = {c.args[0].id: c.args[1] for c in sd.await_args_list}
+    assert calls['a'] == '203.0.113.5'
+    assert calls['b'] == '2001:db8::5'
