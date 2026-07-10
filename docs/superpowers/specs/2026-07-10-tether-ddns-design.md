@@ -176,14 +176,33 @@ React + TS app reproducing the mockup styling (reuse CSS tokens). Components:
 
 ## 7. Testing
 
-Honor existing lint/type gates (flake8, mypy, pyright strict, ruff). Add pytest tests:
+We aim for **full test coverage across backend and frontend**. The test suite doubles
+as living documentation of the system's behavior, so tests are written and maintained
+with the same care as production code: clear names describing behavior, meaningful
+assertions, no dead or flaky tests, and kept in sync with every change.
+
+Honor existing lint/type gates (flake8, mypy, pyright strict, ruff).
+
+**Backend (pytest):**
 - `ConfigStore` load/save/round-trip, env-var path resolution, secret masking.
 - Registry auto-loading (providers + hooks), decorator registration.
 - DuckDNS provider `update()` with mocked HTTP (success + failure paths).
 - Exception isolation: a provider/hook raising does not crash the scheduler and yields
   the expected `error`/logged outcome.
-- API routes via FastAPI `TestClient` / httpx (domains, hooks, settings, providers).
-Frontend kept thin; optional Vitest smoke test.
+- Runtime state transitions and event emission.
+- Scheduler jobs (IP change, reachability change) with mocked detection.
+- Logging bridge ring buffer + fan-out.
+- API routes via FastAPI `TestClient` / httpx (domains, hooks, settings, providers)
+  and WebSocket messages.
+- Coverage enforced via `pytest-cov`.
+
+**Frontend:**
+- **Vitest** unit/component tests for schema-driven forms, domain/hook cards,
+  the WebSocket state hook, toasts, and settings — covering rendering and interaction.
+- **Playwright** end-to-end tests against the built SPA served by FastAPI: add/edit/
+  delete a domain, configure a hook, force sync, observe live log streaming and status
+  transitions.
+- Coverage enforced via Vitest's coverage reporter.
 
 ## 8. Out of scope (V1)
 
