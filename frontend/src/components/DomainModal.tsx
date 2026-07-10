@@ -16,7 +16,7 @@ export interface DomainFormValue {
   record_type: string;
   ttl: string;
   enabled: boolean;
-  config: Record<string, unknown>;
+  provider_config: Record<string, unknown>;
 }
 
 const EMPTY: DomainFormValue = {
@@ -25,7 +25,7 @@ const EMPTY: DomainFormValue = {
   record_type: 'A',
   ttl: '300',
   enabled: true,
-  config: {},
+  provider_config: {},
 };
 
 export function DomainModal({ open, providers, editing, onClose, onSave }: DomainModalProps) {
@@ -39,7 +39,7 @@ export function DomainModal({ open, providers, editing, onClose, onSave }: Domai
         record_type: editing.record_type,
         ttl: String(editing.ttl),
         enabled: editing.enabled,
-        config: editing.config ?? {},
+        provider_config: editing.provider_config ?? {},
       });
     } else {
       setForm({ ...EMPTY, provider: providers[0]?.key ?? '' });
@@ -73,7 +73,7 @@ export function DomainModal({ open, providers, editing, onClose, onSave }: Domai
           <div className="field-row">
             <div className="field">
               <label htmlFor="fProvider">DNS Provider</label>
-              <select id="fProvider" value={form.provider} onChange={(e) => setForm({ ...form, provider: e.target.value, config: {} })}>
+              <select id="fProvider" value={form.provider} onChange={(e) => setForm({ ...form, provider: e.target.value, provider_config: {} })}>
                 {providers.map((p) => (
                   <option key={p.key} value={p.key}>{p.display_name}</option>
                 ))}
@@ -98,7 +98,7 @@ export function DomainModal({ open, providers, editing, onClose, onSave }: Domai
               <option value="3600">3600</option>
             </select>
           </div>
-          <SchemaForm schema={schema} value={form.config} onChange={(config) => setForm({ ...form, config })} />
+          <SchemaForm schema={schema} value={form.provider_config} onChange={(provider_config) => setForm({ ...form, provider_config })} />
           <div className="switch-row">
             <div className="sr-text">
               <div className="t">Enable auto-update</div>
