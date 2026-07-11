@@ -190,6 +190,34 @@ def test_sync_and_delete_domain(tmp_path: Path) -> None:
         assert sync_missing.status_code == 404
 
 
+def test_manual_sync_fires_no_domain_update_events(tmp_path: Path) -> None:
+    """POST /domains/{id}/sync must not fire any domain-update hook events."""
+    with _client(tmp_path) as client:
+        created: Any = client.post('/api/domains', json={
+            'hostname': 'home.example.com', 'provider': 'duckdns',
+            'provider_config': {'token': 'x', 'domain': 'home'},
+        }).json()
+        client.app.state.runtime.public_ipv4 = '203.0.113.1'
+        captured: list[str] = []
+
+        async def _spy(event: object, _cfg: object) -> None:
+            captured.append(type(event).__name__)
+
+        with patch(
+            'tether_ddns.providers.ddns_providers.duckdns.DuckDNSProvider.update',
+            new=AsyncMock(return_value=UpdateResult(success=True, ip='203.0.113.1')),
+        ), patch(
+            'tether_ddns.scheduler.dispatch_domain_update_success', new=_spy,
+        ), patch(
+            'tether_ddns.scheduler.dispatch_domain_update_error', new=_spy,
+        ), patch(
+            'tether_ddns.scheduler.dispatch_domain_update_pending', new=_spy,
+        ):
+            resp: Any = client.post(f'/api/domains/{created["id"]}/sync')
+        assert resp.status_code == 200
+        assert captured == []
+
+
 def test_sync_detects_ip_when_unknown(tmp_path: Path) -> None:
     """Forced sync with no known IP detects one, then syncs the domain."""
     with _client(tmp_path) as client:
