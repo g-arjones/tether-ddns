@@ -7,12 +7,13 @@ from apscheduler.schedulers.asyncio import (  # pyright: ignore[reportMissingTyp
 
 from tether_ddns.config import AppConfig, DomainConfig, HookConfig
 from tether_ddns.hooks.base import (
-    HOOK_REGISTRY, IpChangedEvent, ReachabilityChangedEvent)
+    HOOK_REGISTRY, DomainUpdateErrorEvent, DomainUpdatePendingEvent,
+    DomainUpdateSuccessEvent, IpChangedEvent, ReachabilityChangedEvent)
 from tether_ddns.ip_sources.base import IPFamily, detect_public_ip
 from tether_ddns.logging_setup import get_logger
 from tether_ddns.providers.base import PROVIDER_REGISTRY
 from tether_ddns.reachability import ReachabilityService
-from tether_ddns.runtime import RuntimeState
+from tether_ddns.runtime import RuntimeState, Status
 
 _log = get_logger()
 
@@ -24,12 +25,16 @@ def _family_for(record_type: str) -> IPFamily:
     return 'ipv6' if record_type == 'AAAA' else 'ipv4'
 
 
-async def sync_domain(domain: DomainConfig, ip: str, state: RuntimeState) -> None:
-    """Update a single domain, isolating provider exceptions."""
+async def sync_domain(domain: DomainConfig, ip: str, state: RuntimeState) -> Status:
+    """Update a single domain, isolating provider exceptions.
+
+    Returns the terminal status ('synced' or 'error'). Does not dispatch
+    hook events; the scheduler decides whether a transition occurred.
+    """
     provider_cls = PROVIDER_REGISTRY.get(domain.provider)
     if provider_cls is None:
         state.set_status(domain.id, 'error', message=f'Unknown provider {domain.provider}')
-        return
+        return 'error'
     state.set_status(domain.id, 'updating')
     try:
         config = provider_cls.ConfigModel.model_validate(domain.provider_config)
@@ -37,11 +42,12 @@ async def sync_domain(domain: DomainConfig, ip: str, state: RuntimeState) -> Non
     except Exception as exc:  # noqa: BLE001 - provider errors must be contained
         _log.exception('Provider %s failed for %s', domain.provider, domain.hostname)
         state.set_status(domain.id, 'error', message=str(exc))
-        return
+        return 'error'
     if result.success:
         state.set_status(domain.id, 'synced', ip=result.ip or ip, message=result.message)
-    else:
-        state.set_status(domain.id, 'error', message=result.message)
+        return 'synced'
+    state.set_status(domain.id, 'error', message=result.message)
+    return 'error'
 
 
 async def _dispatch(event_key: str, event: object, cfg: AppConfig) -> None:
@@ -72,6 +78,24 @@ async def dispatch_reachability_changed(
         event: ReachabilityChangedEvent, cfg: AppConfig) -> None:
     """Dispatch a reachability_changed event to matching hooks."""
     await _dispatch('reachability_changed', event, cfg)
+
+
+async def dispatch_domain_update_pending(
+        event: DomainUpdatePendingEvent, cfg: AppConfig) -> None:
+    """Dispatch a domain_update_pending event to matching hooks."""
+    await _dispatch('domain_update_pending', event, cfg)
+
+
+async def dispatch_domain_update_success(
+        event: DomainUpdateSuccessEvent, cfg: AppConfig) -> None:
+    """Dispatch a domain_update_success event to matching hooks."""
+    await _dispatch('domain_update_success', event, cfg)
+
+
+async def dispatch_domain_update_error(
+        event: DomainUpdateErrorEvent, cfg: AppConfig) -> None:
+    """Dispatch a domain_update_error event to matching hooks."""
+    await _dispatch('domain_update_error', event, cfg)
 
 
 async def run_hook_now(
@@ -187,7 +211,12 @@ class Scheduler:
             family = _family_for(domain.record_type)
             ip = by_family[family]
             if not domain.enabled:
-                state.set_freshness(domain.id, ip)
+                if state.set_freshness(domain.id, ip) == 'pending':
+                    await dispatch_domain_update_pending(
+                        DomainUpdatePendingEvent(
+                            domain_id=domain.id, hostname=domain.hostname,
+                            record_type=domain.record_type, family=family,
+                            current_ip=ip), cfg)
                 continue
             if ip is None:
                 continue
@@ -195,8 +224,25 @@ class Scheduler:
             needs_retry = (cfg.settings.retry_on_failure and runtime is not None
                            and runtime.status == 'error')
             is_fresh = runtime is None or runtime.status == 'pending'
-            if family in changed or is_fresh or needs_retry:
-                await sync_domain(domain, ip, state)
+            if not (family in changed or is_fresh or needs_retry):
+                continue
+            before = runtime.status if runtime is not None else None
+            terminal = await sync_domain(domain, ip, state)
+            if terminal == before:
+                continue
+            if terminal == 'synced':
+                await dispatch_domain_update_success(
+                    DomainUpdateSuccessEvent(
+                        domain_id=domain.id, hostname=domain.hostname,
+                        record_type=domain.record_type, family=family,
+                        ip=ip), cfg)
+            elif terminal == 'error':
+                message = state.domains[domain.id].message
+                await dispatch_domain_update_error(
+                    DomainUpdateErrorEvent(
+                        domain_id=domain.id, hostname=domain.hostname,
+                        record_type=domain.record_type, family=family,
+                        ip=ip, message=message), cfg)
 
     async def check_once(self, cfg: AppConfig, state: RuntimeState) -> None:
         """Run reachability then, if online, an IP sync (startup/refresh)."""

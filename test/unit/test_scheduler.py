@@ -8,6 +8,7 @@ import pytest
 from tether_ddns import scheduler
 from tether_ddns.config import AppConfig, DomainConfig, HookConfig
 from tether_ddns.hooks.base import (
+    DomainUpdateErrorEvent, DomainUpdatePendingEvent, DomainUpdateSuccessEvent,
     IpChangedEvent, ReachabilityChangedEvent, load_hooks)
 from tether_ddns.providers.base import load_providers
 from tether_ddns.reachability import ReachabilityResult
@@ -16,6 +17,11 @@ from tether_ddns.runtime import RuntimeState
 
 def _online(online: bool) -> ReachabilityResult:
     return ReachabilityResult(online=online, successes=3 if online else 0, total=3)
+
+
+def _ok_result(ip: str) -> object:
+    from tether_ddns.providers.base import UpdateResult
+    return UpdateResult(success=True, ip=ip, message='ok')
 
 
 @pytest.mark.asyncio
@@ -448,3 +454,147 @@ async def test_sync_ips_keeps_disabled_domain_synced_when_matching() -> None:
         await sched.check_once(cfg, state)
     assert state.domains['a'].status == 'synced'
     update.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_sync_ips_fires_success_on_transition() -> None:
+    """An enabled domain going pending->synced fires domain_update_success."""
+    load_providers()
+    load_hooks()
+    domain = DomainConfig(
+        id='a', hostname='myhost', provider='duckdns',
+        provider_config={'token': 'x', 'domain': 'myhost'})
+    cfg = AppConfig(domains=[domain], hooks=[HookConfig(
+        id='h', hook='log', enabled=True,
+        events=['domain_update_success'], config={})])
+    state = RuntimeState()
+    state.rebuild(cfg)
+    state.online = True
+    sched = scheduler.Scheduler()
+    seen: list[object] = []
+
+    async def _capture(event: object, _cfg: object) -> None:
+        seen.append(event)
+
+    with patch(
+        'tether_ddns.scheduler.ReachabilityService.check',
+        new=AsyncMock(return_value=_online(True)),
+    ), patch(
+        'tether_ddns.scheduler.detect_public_ip',
+        new=AsyncMock(return_value='9.9.9.9'),
+    ), patch(
+        'tether_ddns.providers.ddns_providers.duckdns.DuckDNSProvider.update',
+        new=AsyncMock(return_value=_ok_result('9.9.9.9')),
+    ), patch(
+        'tether_ddns.scheduler.dispatch_domain_update_success', new=_capture,
+    ):
+        await sched.check_once(cfg, state)
+    assert len(seen) == 1
+    from tether_ddns.hooks.base import DomainUpdateSuccessEvent
+    assert isinstance(seen[0], DomainUpdateSuccessEvent)
+    assert seen[0].ip == '9.9.9.9'
+
+
+@pytest.mark.asyncio
+async def test_sync_ips_fires_error_on_transition() -> None:
+    """An enabled domain going pending->error fires domain_update_error."""
+    load_providers()
+    domain = DomainConfig(
+        id='a', hostname='myhost', provider='duckdns',
+        provider_config={'token': 'x', 'domain': 'myhost'})
+    cfg = AppConfig(domains=[domain])
+    state = RuntimeState()
+    state.rebuild(cfg)
+    state.online = True
+    sched = scheduler.Scheduler()
+    seen: list[object] = []
+
+    async def _capture(event: object, _cfg: object) -> None:
+        seen.append(event)
+
+    with patch(
+        'tether_ddns.scheduler.ReachabilityService.check',
+        new=AsyncMock(return_value=_online(True)),
+    ), patch(
+        'tether_ddns.scheduler.detect_public_ip',
+        new=AsyncMock(return_value='9.9.9.9'),
+    ), patch(
+        'tether_ddns.providers.ddns_providers.duckdns.DuckDNSProvider.update',
+        new=AsyncMock(side_effect=RuntimeError('boom')),
+    ), patch(
+        'tether_ddns.scheduler.dispatch_domain_update_error', new=_capture,
+    ):
+        await sched.check_once(cfg, state)
+    assert len(seen) == 1
+    from tether_ddns.hooks.base import DomainUpdateErrorEvent
+    assert isinstance(seen[0], DomainUpdateErrorEvent)
+    assert 'boom' in seen[0].message
+
+
+@pytest.mark.asyncio
+async def test_sync_ips_fires_pending_for_disabled_transition() -> None:
+    """A disabled domain going synced->pending fires domain_update_pending."""
+    load_providers()
+    domain = DomainConfig(
+        id='a', hostname='myhost', provider='duckdns',
+        provider_config={'token': 'x', 'domain': 'myhost'}, enabled=False)
+    cfg = AppConfig(domains=[domain])
+    state = RuntimeState()
+    state.rebuild(cfg)
+    state.online = True
+    state.set_status('a', 'synced', ip='1.1.1.1')
+    sched = scheduler.Scheduler()
+    seen: list[object] = []
+
+    async def _capture(event: object, _cfg: object) -> None:
+        seen.append(event)
+
+    with patch(
+        'tether_ddns.scheduler.ReachabilityService.check',
+        new=AsyncMock(return_value=_online(True)),
+    ), patch(
+        'tether_ddns.scheduler.detect_public_ip',
+        new=AsyncMock(return_value='2.2.2.2'),
+    ), patch(
+        'tether_ddns.scheduler.dispatch_domain_update_pending', new=_capture,
+    ):
+        await sched.check_once(cfg, state)
+    assert len(seen) == 1
+    from tether_ddns.hooks.base import DomainUpdatePendingEvent
+    assert isinstance(seen[0], DomainUpdatePendingEvent)
+    assert seen[0].current_ip == '2.2.2.2'
+
+
+@pytest.mark.asyncio
+async def test_sync_ips_no_event_without_transition() -> None:
+    """A re-confirmed synced domain fires no domain-update event."""
+    load_providers()
+    domain = DomainConfig(
+        id='a', hostname='myhost', provider='duckdns',
+        provider_config={'token': 'x', 'domain': 'myhost'})
+    cfg = AppConfig(domains=[domain])
+    state = RuntimeState()
+    state.rebuild(cfg)
+    state.online = True
+    state.set_public_ipv4('9.9.9.9')
+    state.set_status('a', 'synced', ip='9.9.9.9')
+    sched = scheduler.Scheduler()
+    seen: list[object] = []
+
+    async def _capture(event: object, _cfg: object) -> None:
+        seen.append(event)
+
+    with patch(
+        'tether_ddns.scheduler.ReachabilityService.check',
+        new=AsyncMock(return_value=_online(True)),
+    ), patch(
+        'tether_ddns.scheduler.detect_public_ip',
+        new=AsyncMock(return_value='9.9.9.9'),
+    ), patch(
+        'tether_ddns.providers.ddns_providers.duckdns.DuckDNSProvider.update',
+        new=AsyncMock(return_value=_ok_result('9.9.9.9')),
+    ), patch(
+        'tether_ddns.scheduler.dispatch_domain_update_success', new=_capture,
+    ):
+        await sched.check_once(cfg, state)
+    assert seen == []
