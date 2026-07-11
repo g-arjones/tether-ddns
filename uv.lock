@@ -1360,7 +1360,7 @@ wheels = [
 [[package]]
 name = "tether-dns"
 version = "0.0.1"
-source = { virtual = "." }
+source = { editable = "." }
 dependencies = [
     { name = "aiodns" },
     { name = "aiohttp" },

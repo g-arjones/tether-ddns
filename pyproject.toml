@@ -32,8 +32,15 @@ dev = [
   "ruff"
 ]
 
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["tether_ddns"]
+
 [tool.setuptools.package-data]
-tether_dns = ['py.typed']
+tether_ddns = ['py.typed']
 
 [tool.ruff.lint.pydocstyle]
 convention = "pep257"
