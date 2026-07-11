@@ -91,3 +91,39 @@ async def test_dispatch_routes_to_method() -> None:
     await _Spy()._dispatch(  # type: ignore[reportPrivateUsage]
         'ip_changed', event, base.EmptyConfig())
     assert seen == ['9.9.9.9']
+
+
+def test_domain_update_events_registered() -> None:
+    """The three domain-update events are in EVENT_SPECS with labels."""
+    assert base.EVENT_SPECS['domain_update_pending'].label == 'Domain Update Pending'
+    assert base.EVENT_SPECS['domain_update_success'].label == 'Domain Update Success'
+    assert base.EVENT_SPECS['domain_update_error'].label == 'Domain Update Error'
+
+
+def test_supported_events_infers_domain_update() -> None:
+    """A hook overriding one domain-update method supports only that event."""
+    class _OnlyErr(base.Hook):
+        key = '_onlyerr'
+
+        async def on_domain_update_error(
+                self, event: base.DomainUpdateErrorEvent,
+                config: BaseModel) -> None:
+            return None
+
+    assert _OnlyErr.supported_events() == ('domain_update_error',)
+
+
+def test_domain_update_payloads_construct() -> None:
+    """The three payloads carry their documented fields."""
+    p = base.DomainUpdatePendingEvent(
+        domain_id='a', hostname='h', record_type='A', family='ipv4',
+        current_ip='1.2.3.4')
+    s = base.DomainUpdateSuccessEvent(
+        domain_id='a', hostname='h', record_type='A', family='ipv4',
+        ip='1.2.3.4')
+    e = base.DomainUpdateErrorEvent(
+        domain_id='a', hostname='h', record_type='A', family='ipv4',
+        ip='1.2.3.4', message='boom')
+    assert p.current_ip == '1.2.3.4'
+    assert s.ip == '1.2.3.4'
+    assert e.message == 'boom'

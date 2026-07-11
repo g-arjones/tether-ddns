@@ -39,6 +39,37 @@ class ReachabilityChangedEvent(HookEventBase):
     was_online: bool | None = None
 
 
+class DomainUpdatePendingEvent(HookEventBase):
+    """A domain's record became stale against the current public IP."""
+
+    domain_id: str
+    hostname: str
+    record_type: str
+    family: Literal['ipv4', 'ipv6']
+    current_ip: str | None = None
+
+
+class DomainUpdateSuccessEvent(HookEventBase):
+    """A domain's record was updated to the current public IP."""
+
+    domain_id: str
+    hostname: str
+    record_type: str
+    family: Literal['ipv4', 'ipv6']
+    ip: str
+
+
+class DomainUpdateErrorEvent(HookEventBase):
+    """A domain update attempt failed."""
+
+    domain_id: str
+    hostname: str
+    record_type: str
+    family: Literal['ipv4', 'ipv6']
+    ip: str | None = None
+    message: str
+
+
 @dataclass(frozen=True)
 class EventSpec:
     """Describes one hook event type."""
@@ -53,6 +84,15 @@ EVENT_SPECS: dict[str, EventSpec] = {
     'reachability_changed': EventSpec(
         'Reachability Changed', 'on_reachability_changed',
         ReachabilityChangedEvent),
+    'domain_update_pending': EventSpec(
+        'Domain Update Pending', 'on_domain_update_pending',
+        DomainUpdatePendingEvent),
+    'domain_update_success': EventSpec(
+        'Domain Update Success', 'on_domain_update_success',
+        DomainUpdateSuccessEvent),
+    'domain_update_error': EventSpec(
+        'Domain Update Error', 'on_domain_update_error',
+        DomainUpdateErrorEvent),
 }
 
 
@@ -75,6 +115,21 @@ class Hook(ABC):
     async def on_reachability_changed(
             self, event: ReachabilityChangedEvent, config: BaseModel) -> None:
         """Handle a reachability change. Override to react; default no-op."""
+
+    async def on_domain_update_pending(
+            self, event: DomainUpdatePendingEvent,
+            config: BaseModel) -> None:
+        """Handle a domain becoming stale. Override to react; default no-op."""
+
+    async def on_domain_update_success(
+            self, event: DomainUpdateSuccessEvent,
+            config: BaseModel) -> None:
+        """Handle a successful domain update. Default no-op."""
+
+    async def on_domain_update_error(
+            self, event: DomainUpdateErrorEvent,
+            config: BaseModel) -> None:
+        """Handle a failed domain update. Default no-op."""
 
     @classmethod
     def supported_events(cls) -> tuple[str, ...]:
