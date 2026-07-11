@@ -9,7 +9,9 @@ import pytest
 
 from tether_ddns.hooks.base import HookEvent
 from tether_ddns.hooks.registered_hooks.router_firewall import (
+    RouterFirewallConfig,
     RouterFirewallHook,
+    build_apply_payload,
     family_of,
     login_hash,
     parse_login_salt,
@@ -137,6 +139,21 @@ async def test_handle_updates_dest_ip() -> None:
     assert payload['_sessionTOKEN'] == 'APPLYTOKEN2'
     assert payload['IF_ACTION'] == 'Apply'
     assert payload['Protocol'] == '17'
+    assert payload['FilterTarget'] == '1'
+    assert payload['INCViewName'] == 'DEV.IP.IF4'
+    assert payload['OUTCViewName'] == 'DEV.IP.IF1'
+
+
+def test_build_apply_payload_maps_toggle_and_views() -> None:
+    """allow_traffic and friendly views map to router codes."""
+    cfg = RouterFirewallHook.ConfigModel(
+        username='u', password=SecretStr('p'), ip_version='ipv6',
+        allow_traffic=False, ingress='dslite', egress='internet')
+    assert isinstance(cfg, RouterFirewallConfig)
+    payload = build_apply_payload(cfg, '1', '2001:db8::9')
+    assert payload['FilterTarget'] == '0'
+    assert payload['INCViewName'] == 'DEV.IP.IF8'
+    assert payload['OUTCViewName'] == 'DEV.IP.IF4'
 
 
 @pytest.mark.asyncio

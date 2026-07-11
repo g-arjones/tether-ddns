@@ -11,4 +11,15 @@ describe('SchemaForm', () => {
     fireEvent.change(screen.getByLabelText('Domain'), { target: { value: 'host' } });
     expect(onChange).toHaveBeenCalledWith({ domain: 'host' });
   });
+
+  it('renders an enum field as a select and emits the chosen value', () => {
+    const schema = { properties: { protocol: { type: 'string', title: 'Protocol', enum: ['tcp', 'udp'] } } };
+    const onChange = vi.fn();
+    render(<SchemaForm schema={schema} value={{ protocol: 'tcp' }} onChange={onChange} />);
+    const select = screen.getByLabelText('Protocol') as HTMLSelectElement;
+    expect(select.tagName).toBe('SELECT');
+    expect(Array.from(select.options).map((o) => o.value)).toEqual(['tcp', 'udp']);
+    fireEvent.change(select, { target: { value: 'udp' } });
+    expect(onChange).toHaveBeenCalledWith({ protocol: 'udp' });
+  });
 });
