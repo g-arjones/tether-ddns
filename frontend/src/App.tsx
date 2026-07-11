@@ -9,6 +9,7 @@ import type {
   Settings,
 } from './types';
 import { useLiveState } from './useLiveState';
+import { formatInterval } from './utils';
 import { DomainCard } from './components/DomainCard';
 import { DomainModal, type DomainFormValue } from './components/DomainModal';
 import { HookModal, type HookFormValue } from './components/HookModal';
@@ -29,11 +30,6 @@ function initialTheme(): Theme {
 }
 
 const EMPTY_RUNTIME: DomainState = { id: '', status: 'pending', ip: null, updated: null, message: '' };
-
-export function formatInterval(seconds: number): string {
-  if (seconds % 3600 === 0) return `${seconds / 3600}h`;
-  return `${Math.round(seconds / 60)}m`;
-}
 
 export default function App() {
   const { snapshot, logs } = useLiveState();

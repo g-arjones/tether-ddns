@@ -13,6 +13,7 @@ class FakeWS {
 
   constructor(url: string) {
     this.url = url;
+    // oxlint-disable-next-line no-this-alias -- test fake needs to expose the instance
     instance = this;
   }
 

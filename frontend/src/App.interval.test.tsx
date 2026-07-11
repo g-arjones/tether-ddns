@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { formatInterval } from './App';
+import { formatInterval } from './utils';
 
 describe('formatInterval', () => {
   it('formats seconds as minutes', () => {
