@@ -27,6 +27,7 @@ def test_state_endpoint_returns_snapshot(tmp_path: Path) -> None:
     assert resp.status_code == 200
     body: dict[str, object] = resp.json()
     assert 'settings' in body and 'domains' in body and 'logs' in body
+    assert 'public_ipv4' in body and 'public_ipv6' in body
 
 
 def test_providers_endpoint_lists_duckdns(tmp_path: Path) -> None:
@@ -120,7 +121,7 @@ def test_sync_and_delete_domain(tmp_path: Path) -> None:
             'provider_config': {'token': 'realsecret', 'domain': 'home'},
         })
         domain_id = created.json()['id']
-        client.app.state.runtime.public_ip = '203.0.113.1'
+        client.app.state.runtime.public_ipv4 = '203.0.113.1'
         with patch(
             'tether_ddns.providers.ddns_providers.duckdns.DuckDNSProvider.update',
             new=AsyncMock(return_value=UpdateResult(success=True, ip='203.0.113.1')),
@@ -153,6 +154,26 @@ def test_sync_detects_ip_when_unknown(tmp_path: Path) -> None:
         assert resp.status_code == 200
         assert upd.await_args is not None
         assert upd.await_args.args[2] == '203.0.113.9'
+
+
+def test_sync_aaaa_uses_ipv6(tmp_path: Path) -> None:
+    """Forced sync of an AAAA record detects and uses the IPv6 address."""
+    with _client(tmp_path) as client:
+        created: Any = client.post('/api/domains', json={
+            'hostname': 'home.example.com', 'provider': 'duckdns', 'record_type': 'AAAA',
+            'provider_config': {'token': 'x', 'domain': 'home'},
+        }).json()
+        with patch(
+            'tether_ddns.ip_sources.base.detect_public_ip',
+            new=AsyncMock(return_value='2001:db8::9'),
+        ), patch(
+            'tether_ddns.providers.ddns_providers.duckdns.DuckDNSProvider.update',
+            new=AsyncMock(return_value=UpdateResult(success=True, ip='2001:db8::9')),
+        ) as upd:
+            resp: Any = client.post(f'/api/domains/{created["id"]}/sync')
+        assert resp.status_code == 200
+        assert upd.await_args is not None
+        assert upd.await_args.args[2] == '2001:db8::9'
 
 
 def test_sync_returns_503_when_ip_undetectable(tmp_path: Path) -> None:

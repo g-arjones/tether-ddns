@@ -29,6 +29,11 @@ function initialTheme(): Theme {
 
 const EMPTY_RUNTIME: DomainState = { id: '', status: 'pending', ip: null, updated: null, message: '' };
 
+export function formatInterval(seconds: number): string {
+  if (seconds % 3600 === 0) return `${seconds / 3600}h`;
+  return `${Math.round(seconds / 60)}m`;
+}
+
 export default function App() {
   const { snapshot, logs } = useLiveState();
 
@@ -227,10 +232,15 @@ export default function App() {
 
           <div className="topbar-spacer" />
 
-          <div className="ip-pill" title="Your current detected public IP">
+          <div className="ip-pill" title="Detected public IPv4">
             <span className={`dot${snapshot && !snapshot.online ? ' offline' : ''}`} />
-            <span className="label">Public IP</span>
-            <span className="val">{snapshot?.public_ip ?? '—'}</span>
+            <span className="label">IPv4</span>
+            <span className="val">{snapshot?.public_ipv4 ?? 'N/A'}</span>
+          </div>
+          <div className="ip-pill" title="Detected public IPv6">
+            <span className={`dot${snapshot && !snapshot.online ? ' offline' : ''}`} />
+            <span className="label">IPv6</span>
+            <span className="val">{snapshot?.public_ipv6 ?? 'N/A'}</span>
           </div>
 
           <button type="button" className={`icon-btn${refreshing ? ' spin' : ''}`} title="Refresh all" onClick={handleRefresh}>
@@ -290,7 +300,7 @@ export default function App() {
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><path d="M12 6v6l4 2" /></svg>
               </span>
             </div>
-            <div className="stat-value">{settings ? `${settings.check_interval}m` : '—'}</div>
+            <div className="stat-value">{settings ? formatInterval(settings.check_interval) : '—'}</div>
             <div className="stat-sub">Check for IP changes</div>
           </div>
         </section>
@@ -419,7 +429,7 @@ function SettingsModal({ open, settings, ipSources, onClose, onSave }: SettingsM
 
   useEffect(() => {
     if (settings) {
-      setIntervalMinutes(settings.check_interval);
+      setIntervalMinutes(Math.max(1, Math.round(settings.check_interval / 60)));
       setIpSource(settings.ip_source);
       setUpdateOnStartup(settings.update_on_startup);
       setNotify(settings.notify);
@@ -485,7 +495,7 @@ function SettingsModal({ open, settings, ipSources, onClose, onSave }: SettingsM
             type="button"
             className="btn btn-primary"
             onClick={() => onSave({
-              check_interval: interval,
+              check_interval: interval * 60,
               ip_source: ipSource,
               update_on_startup: updateOnStartup,
               notify,

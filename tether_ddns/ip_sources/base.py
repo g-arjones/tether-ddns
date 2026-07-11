@@ -4,10 +4,13 @@ from __future__ import annotations
 import importlib
 import pkgutil
 from abc import ABC, abstractmethod
+from typing import Literal
 
 from tether_ddns.logging_setup import get_logger
 
 _log = get_logger()
+
+IPFamily = Literal['ipv4', 'ipv6']
 
 IP_SOURCE_REGISTRY: dict[str, type['IPSource']] = {}
 
@@ -19,8 +22,8 @@ class IPSource(ABC):
     display_name: str = ''
 
     @abstractmethod
-    async def detect(self) -> str | None:
-        """Return the detected public IP, or None on failure."""
+    async def detect(self, family: 'IPFamily') -> str | None:
+        """Return the detected public IP for the family, or None on failure."""
         raise NotImplementedError
 
 
@@ -42,14 +45,14 @@ def load_ip_sources() -> None:
             _log.exception('Failed to load IP-source module %s', name)
 
 
-async def detect_public_ip(source_key: str = 'ipify') -> str | None:
-    """Detect the public IP via the named source, or None on failure."""
+async def detect_public_ip(source_key: str, family: 'IPFamily') -> str | None:
+    """Detect the public IP for a family via the named source, or None."""
     cls = IP_SOURCE_REGISTRY.get(source_key)
     if cls is None:
         _log.warning('Unknown IP source %s', source_key)
         return None
     try:
-        return await cls().detect()
+        return await cls().detect(family)
     except Exception:  # noqa: BLE001 - detection failure must not raise
-        _log.exception('IP source %s failed', source_key)
+        _log.exception('IP source %s failed for %s', source_key, family)
         return None

@@ -26,7 +26,7 @@ def test_set_status_notifies_listeners() -> None:
     state.add_listener(seen.append)
     state.set_status('a', 'synced', ip='1.2.3.4')
     assert state.domains['a'].status == 'synced'
-    assert seen and seen[-1]['public_ip'] is None
+    assert seen and seen[-1]['public_ipv4'] is None
 
 
 def test_public_ip_and_online_emit_snapshots() -> None:
@@ -34,12 +34,25 @@ def test_public_ip_and_online_emit_snapshots() -> None:
     state = RuntimeState()
     seen: list[dict[str, object]] = []
     state.add_listener(seen.append)
-    state.set_public_ip('9.9.9.9')
+    state.set_public_ipv4('9.9.9.9')
     state.set_online(True)
-    assert state.public_ip == '9.9.9.9'
+    assert state.public_ipv4 == '9.9.9.9'
     assert state.online is True
     assert seen[-1]['online'] is True
-    assert seen[-2]['public_ip'] == '9.9.9.9'
+    assert seen[-2]['public_ipv4'] == '9.9.9.9'
+
+
+def test_set_public_ipv4_and_ipv6_emit_snapshot() -> None:
+    """Setting each family updates state and emits a snapshot."""
+    state = RuntimeState()
+    seen: list[dict[str, object]] = []
+    state.add_listener(seen.append)
+    state.set_public_ipv4('203.0.113.4')
+    state.set_public_ipv6('2001:db8::4')
+    assert state.public_ipv4 == '203.0.113.4'
+    assert state.public_ipv6 == '2001:db8::4'
+    assert seen[-1]['public_ipv6'] == '2001:db8::4'
+    assert 'public_ip' not in seen[-1]
 
 
 def test_remove_listener_and_unknown_status() -> None:
