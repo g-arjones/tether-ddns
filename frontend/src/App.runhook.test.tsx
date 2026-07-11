@@ -23,7 +23,10 @@ describe('App run hook', () => {
     vi.mocked(api.getHooksConfig).mockResolvedValue([
       { id: 'h1', hook: 'log', events: ['ip_changed'], config: {} },
     ] as never);
-    vi.mocked(api.getSettings).mockResolvedValue({} as never);
+    vi.mocked(api.getSettings).mockResolvedValue({
+      check_interval: 300, ip_source: 'ipify', update_on_startup: true,
+      retry_on_failure: true, notify: true,
+    } as never);
     vi.mocked(api.getProviders).mockResolvedValue([] as never);
     vi.mocked(api.getHooks).mockResolvedValue([] as never);
     vi.mocked(api.getIpSources).mockResolvedValue([] as never);

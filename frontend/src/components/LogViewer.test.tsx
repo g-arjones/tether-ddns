@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { act, render, screen } from '@testing-library/react';
 import { LogViewer } from './LogViewer';
 import type { LogEntry } from '../types';
 
@@ -27,7 +27,7 @@ describe('LogViewer', () => {
     Object.defineProperty(el, 'scrollHeight', { value: 1000, configurable: true });
     Object.defineProperty(el, 'clientHeight', { value: 200, configurable: true });
     el.scrollTop = 100; // scrolled up (gap 700 > 40)
-    el.dispatchEvent(new Event('scroll'));
+    act(() => { el.dispatchEvent(new Event('scroll')); });
     rerender(<LogViewer logs={makeLogs(6)} />);
     expect(el.scrollTop).toBe(100);
   });
