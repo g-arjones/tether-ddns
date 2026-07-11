@@ -1,7 +1,7 @@
 """Cloudflare dynamic DNS provider."""
 from __future__ import annotations
 
-from typing import Any, cast
+from typing import Annotated, Any, cast
 
 import aiohttp
 
@@ -12,6 +12,7 @@ from tether_ddns.providers.base import (
     UpdateResult,
     register_provider,
 )
+from tether_ddns.schema_fields import labeled_field
 
 _API = 'https://api.cloudflare.com/client/v4'
 
@@ -19,9 +20,9 @@ _API = 'https://api.cloudflare.com/client/v4'
 class CloudflareConfig(BaseModel):
     """Configuration for the Cloudflare provider."""
 
-    api_token: SecretStr
+    api_token: Annotated[SecretStr, labeled_field(title='API Token')]
     proxied: bool = False
-    ttl: int = 1
+    ttl: Annotated[int, labeled_field(title='TTL')] = 1
 
 
 def zone_matches(zone_name: str, hostname: str) -> bool:
