@@ -77,10 +77,15 @@ def parse_login_salt(xml: str) -> str | None:
 
 
 def parse_rule_index(html: str, rule_name: str) -> str | None:
-    """Return the FilterIndex for the named rule, or None if absent."""
-    if rule_name not in html:
+    """Return the FilterIndex for the named rule, or None if absent.
+
+    The index is searched in the window of markup following the rule name so
+    that, with multiple rules present, the correct row's index is chosen.
+    """
+    pos = html.find(rule_name)
+    if pos < 0:
         return None
-    match = _FILTER_INDEX_RE.search(html)
+    match = _FILTER_INDEX_RE.search(html, pos)
     return match.group(1) if match else '1'
 
 
@@ -173,8 +178,9 @@ class RouterFirewallHook(Hook):
             async with session.post(
                     f'{base}/?_type=menuData&_tag={tag}', data=payload) as resp:
                 result = await resp.text()
-            _log.info('Router firewall: applied %s -> %s', config.rule_name, ip)
-            if 'IF_ERRORID=0' not in result and 'success' not in result.lower():
+            if 'IF_ERRORID=0' in result or 'success' in result.lower():
+                _log.info('Router firewall: applied %s -> %s', config.rule_name, ip)
+            else:
                 _log.warning('Router firewall: apply response: %s', result[:200])
             await self._logout(session, base, apply_token)
 

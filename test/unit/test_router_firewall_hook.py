@@ -62,6 +62,14 @@ def test_parse_rule_index() -> None:
     assert parse_rule_index(html, 'Missing') is None
 
 
+def test_parse_rule_index_anchors_to_named_row() -> None:
+    """With multiple rules, the index following the named rule is chosen."""
+    html = (
+        '<tr><td>Other</td><td>FilterIndex=1</td></tr>'
+        '<tr><td>Wireguard</td><td>FilterIndex=2</td></tr>')
+    assert parse_rule_index(html, 'Wireguard') == '2'
+
+
 def _cfg(**over: Any) -> BaseModel:
     base: dict[str, Any] = {
         'username': 'admin', 'password': SecretStr('secret'), 'ip_version': 'ipv6'}
