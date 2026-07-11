@@ -144,3 +144,25 @@ async def test_non_200_raises() -> None:
                 _cfg())
     finally:
         cs.stop()
+
+
+@pytest.mark.asyncio
+async def test_non_json_body_on_error_raises() -> None:
+    """A non-200 with a non-JSON body still raises a clear RuntimeError."""
+    resp = MagicMock()
+    resp.status = 500
+    resp.json = AsyncMock(side_effect=ValueError('not json'))
+    session = MagicMock()
+    session.post.return_value.__aenter__ = AsyncMock(return_value=resp)
+    session.post.return_value.__aexit__ = AsyncMock(return_value=False)
+    cs = _patch_session(session)
+    try:
+        with pytest.raises(RuntimeError) as exc:
+            await PushoverHook().on_domain_update_success(
+                DomainUpdateSuccessEvent(
+                    domain_id='a', hostname='home.example.com',
+                    record_type='A', family='ipv4', ip='1.2.3.4'),
+                _cfg())
+    finally:
+        cs.stop()
+    assert 'HTTP 500' in str(exc.value)

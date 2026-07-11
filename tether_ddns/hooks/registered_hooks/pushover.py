@@ -74,7 +74,11 @@ class PushoverHook(Hook):
         async with aiohttp.ClientSession() as session:
             async with session.post(API_URL, data=data) as resp:
                 status = resp.status
-                body = await resp.json()
+                body: dict[str, object]
+                try:
+                    body = await resp.json()
+                except Exception:  # noqa: BLE001 - non-JSON body is still a failure
+                    body = {}
         if status != 200 or body.get('status') != 1:
             raise RuntimeError(
                 f'Pushover API error (HTTP {status}): '
