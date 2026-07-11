@@ -1,6 +1,8 @@
 """Tests for scheduler dispatch and exception isolation."""
 from unittest.mock import AsyncMock, MagicMock, patch
 
+from pydantic import BaseModel
+
 import pytest
 
 from tether_ddns import scheduler
@@ -257,3 +259,33 @@ async def test_sync_ips_updates_families_and_syncs_by_record_type() -> None:
     calls = {c.args[0].id: c.args[1] for c in sd.await_args_list}
     assert calls['a'] == '203.0.113.5'
     assert calls['b'] == '2001:db8::5'
+
+
+@pytest.mark.asyncio
+async def test_dispatch_skips_unsupported_event() -> None:
+    """A hook is not invoked for an event it does not support, even if enabled."""
+    from tether_ddns.hooks.base import HOOK_REGISTRY, Hook, register_hook
+
+    calls: list[str] = []
+
+    @register_hook
+    class _SpyHook(Hook):
+        key = '_spy'
+        display_name = 'Spy'
+        supported_events = ('ip_changed',)
+
+        async def handle(self, event: HookEvent, config: BaseModel) -> None:
+            calls.append(event.type)
+
+    try:
+        cfg = AppConfig(hooks=[HookConfig(
+            hook='_spy', enabled=True,
+            events=['ip_changed', 'reachability_changed'], config={})])
+        await scheduler.dispatch_hooks(
+            HookEvent(type='reachability_changed', old='offline', new='online'), cfg)
+        assert calls == []
+        await scheduler.dispatch_hooks(
+            HookEvent(type='ip_changed', old='a', new='b'), cfg)
+        assert calls == ['ip_changed']
+    finally:
+        HOOK_REGISTRY.pop('_spy', None)
