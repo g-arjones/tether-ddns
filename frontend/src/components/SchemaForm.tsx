@@ -4,6 +4,7 @@ export interface SchemaProperty {
   format?: string;
   description?: string;
   enum?: (string | number)[];
+  'x-enum-labels'?: Record<string, string>;
 }
 
 export interface JsonSchema {
@@ -71,9 +72,13 @@ export function SchemaForm({ schema, value, onChange }: SchemaFormProps) {
                 value={current == null ? '' : String(current)}
                 onChange={(e) => update(key, numeric ? Number(e.target.value) : e.target.value)}
               >
-                {prop.enum.map((opt) => (
-                  <option key={String(opt)} value={String(opt)}>{humanizeOption(opt)}</option>
-                ))}
+                {prop.enum.map((opt) => {
+                  const labels = prop['x-enum-labels'];
+                  const text = labels?.[String(opt)] ?? humanizeOption(opt);
+                  return (
+                    <option key={String(opt)} value={String(opt)}>{text}</option>
+                  );
+                })}
               </select>
             </div>
           );
