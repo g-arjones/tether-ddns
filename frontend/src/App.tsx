@@ -98,7 +98,7 @@ export default function App() {
     let pending = 0;
     for (const d of domains) {
       const rt = runtimeById.get(d.id);
-      const status = d.enabled ? rt?.status ?? 'pending' : 'paused';
+      const status = rt?.status ?? 'pending';
       if (status === 'synced') synced += 1;
       else if (status === 'pending' || status === 'error') pending += 1;
     }

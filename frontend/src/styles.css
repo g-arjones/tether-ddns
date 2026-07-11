@@ -241,8 +241,6 @@ header.topbar {
 .st-pending .s-dot { background: var(--warn); }
 .st-error { background: var(--err-soft); color: var(--err); }
 .st-error .s-dot { background: var(--err); }
-.st-paused { background: var(--muted-soft); color: var(--muted-status); }
-.st-paused .s-dot { background: var(--muted-status); }
 .st-updating { background: rgba(59,130,246,.14); color: var(--accent); }
 .st-updating .s-dot { background: var(--accent); animation: pulse 1s infinite; }
 @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .3; } }

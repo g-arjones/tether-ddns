@@ -13,7 +13,6 @@ const STATUS_META: Record<string, { cls: string; label: string }> = {
   synced: { cls: 'st-synced', label: 'Synced' },
   pending: { cls: 'st-pending', label: 'Pending' },
   error: { cls: 'st-error', label: 'Error' },
-  paused: { cls: 'st-paused', label: 'Paused' },
   updating: { cls: 'st-updating', label: 'Updating' },
 };
 
@@ -29,7 +28,7 @@ function relTime(ts: number | null): string {
 }
 
 export function DomainCard({ domain, runtime, onSync, onEdit, onDelete, onToggle }: DomainCardProps) {
-  const status = domain.enabled ? runtime.status : 'paused';
+  const status = runtime.status;
   const meta = STATUS_META[status] ?? STATUS_META.synced;
   const initials = domain.provider.slice(0, 2).toUpperCase();
 

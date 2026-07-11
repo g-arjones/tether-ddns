@@ -14,4 +14,13 @@ describe('DomainCard', () => {
     fireEvent.click(screen.getByTitle('Force update now'));
     expect(onSync).toHaveBeenCalledWith('a');
   });
+
+  it('shows real status for a disabled domain (not Paused)', () => {
+    render(<DomainCard
+      domain={{ id: 'a', hostname: 'home.example.com', provider: 'duckdns', record_type: 'A', enabled: false }}
+      runtime={{ id: 'a', status: 'pending', ip: '1.2.3.4', updated: Date.now() / 1000, message: '' }}
+      onSync={vi.fn()} onEdit={vi.fn()} onDelete={vi.fn()} onToggle={vi.fn()} />);
+    expect(screen.getByText(/pending/i)).toBeInTheDocument();
+    expect(screen.queryByText(/paused/i)).not.toBeInTheDocument();
+  });
 });
