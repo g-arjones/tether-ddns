@@ -183,6 +183,9 @@ class MyHook(Hook):
         ...
 ```
 
+Hooks may also override `on_domain_update_pending`, `on_domain_update_success`,
+and `on_domain_update_error` to react to a specific domain's update outcome.
+
 To give a config model friendly field titles and enum labels in the UI, declare
 fields with `Annotated[..., labeled_field(...)]`:
 

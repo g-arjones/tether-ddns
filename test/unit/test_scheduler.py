@@ -8,7 +8,6 @@ import pytest
 from tether_ddns import scheduler
 from tether_ddns.config import AppConfig, DomainConfig, HookConfig
 from tether_ddns.hooks.base import (
-    DomainUpdateErrorEvent, DomainUpdatePendingEvent, DomainUpdateSuccessEvent,
     IpChangedEvent, ReachabilityChangedEvent, load_hooks)
 from tether_ddns.providers.base import load_providers
 from tether_ddns.reachability import ReachabilityResult
@@ -608,7 +607,7 @@ async def test_run_hook_now_domain_update_error_matches_state() -> None:
     seen: list[tuple[str, str]] = []
 
     @register_hook
-    class _SpyErr(Hook):
+    class _SpyErr(Hook):  # pyright: ignore[reportUnusedClass]
         key = '_spyerr'
         display_name = 'SpyErr'
 
@@ -644,7 +643,7 @@ async def test_run_hook_now_domain_update_success_matches_state() -> None:
     seen: list[str] = []
 
     @register_hook
-    class _SpyOk(Hook):
+    class _SpyOk(Hook):  # pyright: ignore[reportUnusedClass]
         key = '_spyok'
         display_name = 'SpyOk'
 
@@ -680,7 +679,7 @@ async def test_run_hook_now_domain_update_pending_matches_state() -> None:
     seen: list[tuple[str, str | None]] = []
 
     @register_hook
-    class _SpyPend(Hook):
+    class _SpyPend(Hook):  # pyright: ignore[reportUnusedClass]
         key = '_spypend'
         display_name = 'SpyPend'
 
@@ -716,7 +715,7 @@ async def test_run_hook_now_success_skips_synced_without_ip() -> None:
     seen: list[str] = []
 
     @register_hook
-    class _SpyNoIp(Hook):
+    class _SpyNoIp(Hook):  # pyright: ignore[reportUnusedClass]
         key = '_spynoipok'
         display_name = 'SpyNoIpOk'
 

@@ -7,8 +7,9 @@ from apscheduler.schedulers.asyncio import (  # pyright: ignore[reportMissingTyp
 
 from tether_ddns.config import AppConfig, DomainConfig, HookConfig
 from tether_ddns.hooks.base import (
-    HOOK_REGISTRY, DomainUpdateErrorEvent, DomainUpdatePendingEvent,
-    DomainUpdateSuccessEvent, IpChangedEvent, ReachabilityChangedEvent)
+    DomainUpdateErrorEvent, DomainUpdatePendingEvent,
+    DomainUpdateSuccessEvent, HOOK_REGISTRY, IpChangedEvent,
+    ReachabilityChangedEvent)
 from tether_ddns.ip_sources.base import IPFamily, detect_public_ip
 from tether_ddns.logging_setup import get_logger
 from tether_ddns.providers.base import PROVIDER_REGISTRY
