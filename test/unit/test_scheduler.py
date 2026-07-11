@@ -390,3 +390,61 @@ async def test_run_hook_now_ignores_unsupported_enabled_event() -> None:
         assert result == {'ran': 0, 'skipped': []}
     finally:
         HOOK_REGISTRY.pop('_spyunsup', None)
+
+
+@pytest.mark.asyncio
+async def test_sync_ips_marks_disabled_domain_pending_on_ip_change() -> None:
+    """A disabled domain whose assigned IP no longer matches becomes pending."""
+    load_providers()
+    domain = DomainConfig(
+        id='a', hostname='myhost', provider='duckdns',
+        provider_config={'token': 'x', 'domain': 'myhost'}, enabled=False)
+    cfg = AppConfig(domains=[domain])
+    state = RuntimeState()
+    state.rebuild(cfg)
+    state.online = True
+    state.set_status('a', 'synced', ip='1.1.1.1')
+    sched = scheduler.Scheduler()
+    update = AsyncMock()
+    with patch(
+        'tether_ddns.scheduler.ReachabilityService.check',
+        new=AsyncMock(return_value=_online(True)),
+    ), patch(
+        'tether_ddns.scheduler.detect_public_ip',
+        new=AsyncMock(return_value='2.2.2.2'),
+    ), patch(
+        'tether_ddns.providers.ddns_providers.duckdns.DuckDNSProvider.update',
+        new=update,
+    ):
+        await sched.check_once(cfg, state)
+    assert state.domains['a'].status == 'pending'
+    update.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_sync_ips_keeps_disabled_domain_synced_when_matching() -> None:
+    """A disabled domain still matching the current IP stays synced."""
+    load_providers()
+    domain = DomainConfig(
+        id='a', hostname='myhost', provider='duckdns',
+        provider_config={'token': 'x', 'domain': 'myhost'}, enabled=False)
+    cfg = AppConfig(domains=[domain])
+    state = RuntimeState()
+    state.rebuild(cfg)
+    state.online = True
+    state.set_status('a', 'synced', ip='9.9.9.9')
+    sched = scheduler.Scheduler()
+    update = AsyncMock()
+    with patch(
+        'tether_ddns.scheduler.ReachabilityService.check',
+        new=AsyncMock(return_value=_online(True)),
+    ), patch(
+        'tether_ddns.scheduler.detect_public_ip',
+        new=AsyncMock(return_value='9.9.9.9'),
+    ), patch(
+        'tether_ddns.providers.ddns_providers.duckdns.DuckDNSProvider.update',
+        new=update,
+    ):
+        await sched.check_once(cfg, state)
+    assert state.domains['a'].status == 'synced'
+    update.assert_not_called()

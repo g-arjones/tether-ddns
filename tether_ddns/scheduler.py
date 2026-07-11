@@ -184,10 +184,11 @@ class Scheduler:
         by_family: dict[IPFamily, str | None] = {
             'ipv4': state.public_ipv4, 'ipv6': state.public_ipv6}
         for domain in cfg.domains:
-            if not domain.enabled:
-                continue
             family = _family_for(domain.record_type)
             ip = by_family[family]
+            if not domain.enabled:
+                state.set_freshness(domain.id, ip)
+                continue
             if ip is None:
                 continue
             runtime = state.domains.get(domain.id)
