@@ -32,3 +32,25 @@ async def test_log_hook_handles_event() -> None:
     hook = base.HOOK_REGISTRY['log']()
     event = base.HookEvent(type='ip_changed', old='1.1.1.1', new='2.2.2.2')
     await hook.handle(event, hook.ConfigModel())
+
+
+def test_router_firewall_supports_only_ip_changed() -> None:
+    """The router firewall hook only handles ip_changed events."""
+    from tether_ddns.hooks.registered_hooks.router_firewall import (
+        RouterFirewallHook,
+    )
+    assert RouterFirewallHook.supported_events == ('ip_changed',)
+
+
+def test_log_hook_supports_all_events() -> None:
+    """The log hook handles every supported event type."""
+    from tether_ddns.hooks.registered_hooks.log_hook import LogHook
+    assert set(LogHook.supported_events) == set(base.SUPPORTED_EVENTS)
+
+
+def test_event_labels_cover_supported_events() -> None:
+    """Every supported event has a human label."""
+    for event in base.SUPPORTED_EVENTS:
+        assert event in base.EVENT_LABELS
+    assert base.EVENT_LABELS['ip_changed'] == 'IP Changed'
+    assert base.EVENT_LABELS['reachability_changed'] == 'Reachability Changed'

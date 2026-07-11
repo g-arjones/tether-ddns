@@ -249,6 +249,7 @@ class RouterFirewallHook(Hook):
 
     key = 'router_firewall'
     display_name = 'Router Firewall (ZTE)'
+    supported_events = ('ip_changed',)
     ConfigModel = RouterFirewallConfig
 
     _XHR_HEADERS = {'X-Requested-With': 'XMLHttpRequest'}
