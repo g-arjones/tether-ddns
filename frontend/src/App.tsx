@@ -153,6 +153,22 @@ export default function App() {
     [pushToast],
   );
 
+  const handleRunHook = useCallback(
+    async (id: string) => {
+      try {
+        const res = await api.runHook(id);
+        if (res.ran > 0) {
+          pushToast(`Ran ${res.ran} action${res.ran === 1 ? '' : 's'}`, 'success');
+        } else {
+          pushToast('Nothing to run (no enabled events or IP unknown)', 'info');
+        }
+      } catch {
+        pushToast('Run failed', 'error');
+      }
+    },
+    [pushToast],
+  );
+
   const handleDelete = useCallback(
     async (id: string) => {
       const d = domains.find((x) => x.id === id);
@@ -358,6 +374,7 @@ export default function App() {
                   <div className="hook-events">{h.events.join(', ') || 'no events'}</div>
                 </div>
                 <div className="spacer" />
+                <button type="button" className="btn btn-ghost btn-sm" onClick={() => handleRunHook(h.id)}>Run now</button>
                 <button type="button" className="btn btn-ghost btn-sm" onClick={() => { setEditingHook(h); setHookModalOpen(true); }}>Edit</button>
                 <button type="button" className="btn btn-danger btn-sm" onClick={async () => { await api.deleteHook(h.id); await loadConfig(); }}>Delete</button>
               </div>

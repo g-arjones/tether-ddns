@@ -24,4 +24,5 @@ export const syncDomain = (id: string) => json(`/api/domains/${id}/sync`, { meth
 export const createHook = (input: unknown) => json('/api/hooks-config', jbody(input));
 export const updateHook = (id: string, input: unknown) => json(`/api/hooks-config/${id}`, { ...jbody(input), method: 'PUT' });
 export const deleteHook = (id: string) => json(`/api/hooks-config/${id}`, { method: 'DELETE' });
+export const runHook = (id: string) => json<{ ran: number; skipped: string[] }>(`/api/hooks-config/${id}/run`, { method: 'POST' });
 export const refresh = () => json('/api/refresh', { method: 'POST' });
