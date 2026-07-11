@@ -78,6 +78,21 @@ python -m tether_ddns            # serves the built SPA + API on :8000
   uses `./tether-ddns.json` in the current working directory. The file is
   created/updated automatically as you change settings through the UI/API.
 
+## Docker
+
+A multi-stage Alpine image (frontend build + Python venv → slim non-root
+runtime) and a `docker-compose.yml` that auto-builds it are included:
+
+```bash
+docker compose up -d          # builds the image and serves on :8000
+```
+
+Config persists in the `tether-config` named volume (mounted at `/data`, via
+`TETHER_DDNS_CONFIG_PATH=/data/tether-ddns.json`). For better router/LAN
+reachability and public-IP detection you can switch the service to host
+networking — see the commented `network_mode: host` note in
+`docker-compose.yml`.
+
 ## Tests
 
 Backend (pytest + coverage gate, `>=90%`):
