@@ -7,6 +7,9 @@ services:
     # For a DDNS tool, host networking can improve router/LAN reachability and
     # public-IP detection. To use it, comment out `ports` above and uncomment:
     # network_mode: host
+    # Under host networking, set the bind port directly (Docker port remapping
+    # is unavailable), e.g. add an `environment:` block with TETHER_DDNS_PORT
+    # (and optionally TETHER_DDNS_HOST).
     volumes:
       - tether-config:/data
     restart: unless-stopped

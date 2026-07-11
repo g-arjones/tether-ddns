@@ -77,6 +77,11 @@ python -m tether_ddns            # serves the built SPA + API on :8000
 - `TETHER_DDNS_CONFIG_PATH` — path to the JSON config file. If unset, the app
   uses `./tether-ddns.json` in the current working directory. The file is
   created/updated automatically as you change settings through the UI/API.
+- `TETHER_DDNS_HOST` / `TETHER_DDNS_PORT` — bind address for the server
+  (defaults `0.0.0.0` / `8000`). CLI flags `--host` / `--port` override these:
+  `python -m tether_ddns --port 9000`. Precedence is CLI flag > env var >
+  default. Changing the port matters mainly under Docker host networking, where
+  port remapping is unavailable.
 
 ## Docker
 
