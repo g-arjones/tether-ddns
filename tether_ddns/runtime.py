@@ -8,8 +8,15 @@ from pydantic import BaseModel
 
 from tether_ddns.config import AppConfig
 
-Status = Literal['synced', 'pending', 'error', 'paused', 'updating']
+Status = Literal['synced', 'pending', 'error', 'updating']
 Listener = Callable[[dict[str, object]], None]
+
+
+def freshness(assigned_ip: str | None, current_ip: str | None) -> Status:
+    """Return 'synced' when the assigned IP matches the current public IP."""
+    if assigned_ip is not None and assigned_ip == current_ip:
+        return 'synced'
+    return 'pending'
 
 
 class DomainRuntime(BaseModel):
@@ -43,9 +50,10 @@ class RuntimeState:
             self._listeners.remove(cb)
 
     def rebuild(self, cfg: AppConfig) -> None:
-        """Reset domain runtimes from configuration."""
+        """Reset domain runtimes from configuration, preserving history."""
+        previous = self.domains
         self.domains = {
-            d.id: DomainRuntime(id=d.id, status='pending' if d.enabled else 'paused')
+            d.id: previous.get(d.id) or DomainRuntime(id=d.id, status='pending')
             for d in cfg.domains
         }
         self._emit()
@@ -77,6 +85,21 @@ class RuntimeState:
             current.ip = ip
         current.message = message
         current.updated = time.time()
+        self._emit()
+
+    def set_freshness(self, domain_id: str, current_ip: str | None) -> None:
+        """Recompute a domain's status from freshness, preserving ip/updated.
+
+        Only toggles between 'synced' and 'pending'; never clobbers 'error'
+        or 'updating'. Emits only when the status actually changes.
+        """
+        current = self.domains.get(domain_id)
+        if current is None or current.status in ('error', 'updating'):
+            return
+        new_status = freshness(current.ip, current_ip)
+        if new_status == current.status:
+            return
+        current.status = new_status
         self._emit()
 
     def snapshot(self) -> dict[str, object]:
