@@ -9,7 +9,7 @@ LogRecordDict = dict[str, object]
 Listener = Callable[[LogRecordDict], None]
 
 APP_LOGGER_NAME = 'tether_ddns'
-_ATTACH_TO = ('uvicorn', 'uvicorn.error', APP_LOGGER_NAME)
+_ATTACH_TO = ('uvicorn', 'uvicorn.access', APP_LOGGER_NAME)
 
 
 class LogRingHandler(logging.Handler):
@@ -56,6 +56,12 @@ def get_logger() -> logging.Logger:
 
 
 def install_ring_handler(handler: LogRingHandler) -> None:
-    """Attach the ring handler to uvicorn and app loggers."""
+    """Attach the ring handler to uvicorn and app loggers.
+
+    uvicorn.error propagates to uvicorn, so attaching to uvicorn alone captures
+    it once; uvicorn.access does not propagate and is attached directly. The app
+    logger level is raised to INFO so application logs are captured.
+    """
     for name in _ATTACH_TO:
         logging.getLogger(name).addHandler(handler)
+    logging.getLogger(APP_LOGGER_NAME).setLevel(logging.INFO)
