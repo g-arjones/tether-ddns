@@ -44,4 +44,14 @@ describe('SchemaForm', () => {
     const select = screen.getByLabelText('Protocol') as HTMLSelectElement;
     expect(select.options[0].textContent).toBe('Tcp Udp');
   });
+
+  it('renders field description help text for a text field', () => {
+    const schema = {
+      properties: {
+        token: { title: 'Token', type: 'string', description: 'Your API token' },
+      },
+    };
+    render(<SchemaForm schema={schema} value={{}} onChange={vi.fn()} />);
+    expect(screen.getByText('Your API token')).toBeInTheDocument();
+  });
 });

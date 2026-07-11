@@ -80,6 +80,7 @@ export function SchemaForm({ schema, value, onChange }: SchemaFormProps) {
                   );
                 })}
               </select>
+              {prop.description ? <div className="field-help">{prop.description}</div> : null}
             </div>
           );
         }
@@ -97,6 +98,7 @@ export function SchemaForm({ schema, value, onChange }: SchemaFormProps) {
                 update(key, type === 'number' ? (raw === '' ? '' : Number(raw)) : raw);
               }}
             />
+            {prop.description ? <div className="field-help">{prop.description}</div> : null}
           </div>
         );
       })}
