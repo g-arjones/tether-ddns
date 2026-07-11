@@ -3,6 +3,7 @@ export interface SchemaProperty {
   type?: string;
   format?: string;
   description?: string;
+  enum?: (string | number)[];
 }
 
 export interface JsonSchema {
@@ -20,6 +21,11 @@ function inputType(prop: SchemaProperty): string {
   if (prop.format === 'password') return 'password';
   if (prop.type === 'number' || prop.type === 'integer') return 'number';
   return 'text';
+}
+
+function humanizeOption(v: string | number): string {
+  if (typeof v === 'number') return String(v);
+  return v.split('_').map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
 }
 
 export function SchemaForm({ schema, value, onChange }: SchemaFormProps) {
@@ -51,6 +57,24 @@ export function SchemaForm({ schema, value, onChange }: SchemaFormProps) {
                 />
                 <span className="slider" />
               </label>
+            </div>
+          );
+        }
+        if (prop.enum && prop.enum.length > 0) {
+          const numeric = prop.enum.every((o) => typeof o === 'number');
+          return (
+            <div className="field" key={key}>
+              <label htmlFor={`sf-${key}`}>{label}</label>
+              <select
+                id={`sf-${key}`}
+                aria-label={label}
+                value={current == null ? '' : String(current)}
+                onChange={(e) => update(key, numeric ? Number(e.target.value) : e.target.value)}
+              >
+                {prop.enum.map((opt) => (
+                  <option key={String(opt)} value={String(opt)}>{humanizeOption(opt)}</option>
+                ))}
+              </select>
             </div>
           );
         }
