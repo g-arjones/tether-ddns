@@ -75,32 +75,35 @@ class RuntimeState:
 
     def set_status(
         self, domain_id: str, status: Status, *, ip: str | None = None, message: str = '',
-    ) -> None:
-        """Update a domain's status and notify listeners."""
+    ) -> Status | None:
+        """Update a domain's status; return the new status if it changed."""
         current = self.domains.get(domain_id)
         if current is None:
-            return
+            return None
+        changed = current.status != status
         current.status = status
         if ip is not None:
             current.ip = ip
         current.message = message
         current.updated = time.time()
         self._emit()
+        return status if changed else None
 
-    def set_freshness(self, domain_id: str, current_ip: str | None) -> None:
+    def set_freshness(self, domain_id: str, current_ip: str | None) -> Status | None:
         """Recompute a domain's status from freshness, preserving ip/updated.
 
         Only toggles between 'synced' and 'pending'; never clobbers 'error'
-        or 'updating'. Emits only when the status actually changes.
+        or 'updating'. Returns the new status when it changes, else None.
         """
         current = self.domains.get(domain_id)
         if current is None or current.status in ('error', 'updating'):
-            return
+            return None
         new_status = freshness(current.ip, current_ip)
         if new_status == current.status:
-            return
+            return None
         current.status = new_status
         self._emit()
+        return new_status
 
     def snapshot(self) -> dict[str, object]:
         """Return a serialisable snapshot of the state."""

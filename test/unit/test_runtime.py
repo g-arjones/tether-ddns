@@ -121,3 +121,26 @@ def test_remove_listener_and_unknown_status() -> None:
     state.remove_listener(seen.append)
     state.set_status('missing', 'synced')  # unknown id: no emit
     assert seen == []
+
+
+def test_set_status_returns_transition() -> None:
+    """set_status returns the new status on change and None otherwise."""
+    cfg = AppConfig(domains=[
+        DomainConfig(id='a', hostname='a.example.com', provider='duckdns')])
+    state = RuntimeState()
+    state.rebuild(cfg)  # starts 'pending'
+    assert state.set_status('a', 'synced', ip='1.2.3.4') == 'synced'
+    assert state.set_status('a', 'synced', ip='1.2.3.4') is None
+    assert state.set_status('missing', 'synced') is None
+
+
+def test_set_freshness_returns_transition() -> None:
+    """set_freshness returns the new status on change and None otherwise."""
+    cfg = AppConfig(domains=[
+        DomainConfig(id='a', hostname='a.example.com', provider='duckdns')])
+    state = RuntimeState()
+    state.rebuild(cfg)
+    state.set_status('a', 'synced', ip='1.2.3.4')
+    assert state.set_freshness('a', '9.9.9.9') == 'pending'
+    assert state.set_freshness('a', '9.9.9.9') is None
+    assert state.set_freshness('a', '1.2.3.4') == 'synced'
