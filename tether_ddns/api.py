@@ -13,7 +13,7 @@ from tether_ddns.config import (
     mask_secrets,
     merge_secrets,
 )
-from tether_ddns.hooks.base import HOOK_REGISTRY, SUPPORTED_EVENTS
+from tether_ddns.hooks.base import EVENT_LABELS, HOOK_REGISTRY
 from tether_ddns.ip_sources.base import IP_SOURCE_REGISTRY
 from tether_ddns.providers.base import PROVIDER_REGISTRY
 
@@ -60,6 +60,17 @@ def _hook_schema(hook: str) -> dict[str, object]:
     return cls.config_schema() if cls else {}
 
 
+def _validate_hook_events(hook: str, events: list[str]) -> None:
+    cls = HOOK_REGISTRY.get(hook)
+    if cls is None:
+        raise HTTPException(status_code=400, detail=f'unknown hook {hook}')
+    for event in events:
+        if event not in cls.supported_events:
+            raise HTTPException(
+                status_code=400,
+                detail=f'unsupported event {event} for hook {hook}')
+
+
 def _masked_domain(d: DomainConfig) -> dict[str, object]:
     data = d.model_dump()
     data['provider_config'] = mask_secrets(_provider_schema(d.provider), d.provider_config)
@@ -99,7 +110,10 @@ def register_routes(app: FastAPI) -> None:
     def get_hooks() -> list[dict[str, object]]:
         return [
             {'key': k, 'display_name': c.display_name,
-             'events': list(SUPPORTED_EVENTS), 'schema': c.config_schema()}
+             'events': [
+                 {'key': e, 'label': EVENT_LABELS.get(e, e)}
+                 for e in c.supported_events],
+             'schema': c.config_schema()}
             for k, c in HOOK_REGISTRY.items()
         ]
 
@@ -176,6 +190,7 @@ def register_routes(app: FastAPI) -> None:
 
     @router.post('/hooks-config')
     def create_hook(payload: HookInput) -> dict[str, object]:
+        _validate_hook_events(payload.hook, payload.events)
         hook = HookConfig(**payload.model_dump())
         app.state.config.hooks.append(hook)
         _persist(app)
@@ -183,6 +198,7 @@ def register_routes(app: FastAPI) -> None:
 
     @router.put('/hooks-config/{hook_id}')
     def update_hook(hook_id: str, payload: HookInput) -> dict[str, object]:
+        _validate_hook_events(payload.hook, payload.events)
         for i, h in enumerate(app.state.config.hooks):
             if h.id == hook_id:
                 data = payload.model_dump()

@@ -13,6 +13,10 @@ from tether_ddns.logging_setup import get_logger
 _log = get_logger()
 
 SUPPORTED_EVENTS: tuple[str, ...] = ('reachability_changed', 'ip_changed')
+EVENT_LABELS: dict[str, str] = {
+    'ip_changed': 'IP Changed',
+    'reachability_changed': 'Reachability Changed',
+}
 HOOK_REGISTRY: dict[str, type['Hook']] = {}
 
 
@@ -33,6 +37,7 @@ class Hook(ABC):
 
     key: str = ''
     display_name: str = ''
+    supported_events: tuple[str, ...] = SUPPORTED_EVENTS
     ConfigModel: type[BaseModel] = EmptyConfig
 
     @classmethod

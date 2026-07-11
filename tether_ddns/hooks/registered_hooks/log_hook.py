@@ -7,6 +7,7 @@ from tether_ddns.hooks.base import (
     EmptyConfig,
     Hook,
     HookEvent,
+    SUPPORTED_EVENTS,
     register_hook,
 )
 from tether_ddns.logging_setup import get_logger
@@ -20,6 +21,7 @@ class LogHook(Hook):
 
     key = 'log'
     display_name = 'Log Event'
+    supported_events = SUPPORTED_EVENTS
     ConfigModel = EmptyConfig
 
     async def handle(self, event: HookEvent, config: BaseModel) -> None:

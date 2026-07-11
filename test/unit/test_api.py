@@ -39,6 +39,39 @@ def test_providers_endpoint_lists_duckdns(tmp_path: Path) -> None:
     assert 'duckdns' in keys
 
 
+def test_get_hooks_returns_per_hook_labeled_events(tmp_path: Path) -> None:
+    """The /hooks endpoint returns each hook's own events as key/label objects."""
+    with _client(tmp_path) as client:
+        resp: Any = client.get('/api/hooks')
+    assert resp.status_code == 200
+    hooks = {h['key']: h for h in resp.json()}
+    rf = hooks['router_firewall']
+    assert rf['events'] == [{'key': 'ip_changed', 'label': 'IP Changed'}]
+
+
+def test_create_hook_rejects_unsupported_event(tmp_path: Path) -> None:
+    """Saving a hook with an unsupported event returns 400."""
+    payload: dict[str, Any] = {
+        'hook': 'router_firewall', 'enabled': True,
+        'events': ['reachability_changed'], 'config': {},
+    }
+    with _client(tmp_path) as client:
+        resp: Any = client.post('/api/hooks-config', json=payload)
+    assert resp.status_code == 400
+
+
+def test_create_hook_accepts_supported_event(tmp_path: Path) -> None:
+    """Saving a hook with a supported event succeeds."""
+    payload: dict[str, Any] = {
+        'hook': 'router_firewall', 'enabled': True,
+        'events': ['ip_changed'],
+        'config': {'username': 'u', 'password': 'p'},
+    }
+    with _client(tmp_path) as client:
+        resp: Any = client.post('/api/hooks-config', json=payload)
+    assert resp.status_code == 200
+
+
 def test_create_domain_masks_secret(tmp_path: Path) -> None:
     """Creating a domain stores it and masks secrets on read-back."""
     with _client(tmp_path) as client:

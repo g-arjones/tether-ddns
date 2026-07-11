@@ -63,13 +63,13 @@ export function HookModal({ open, hooks, editing, onClose, onSave }: HookModalPr
           <div className="field">
             <label>Events</label>
             {availableEvents.map((event) => (
-              <label className="switch-row" key={event} style={{ cursor: 'pointer' }}>
-                <div className="sr-text"><div className="t">{event}</div></div>
+              <label className="switch-row" key={event.key} style={{ cursor: 'pointer' }}>
+                <div className="sr-text"><div className="t">{event.label}</div></div>
                 <input
                   type="checkbox"
-                  aria-label={event}
-                  checked={form.events.includes(event)}
-                  onChange={() => toggleEvent(event)}
+                  aria-label={event.label}
+                  checked={form.events.includes(event.key)}
+                  onChange={() => toggleEvent(event.key)}
                 />
               </label>
             ))}

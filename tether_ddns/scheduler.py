@@ -46,11 +46,13 @@ async def sync_domain(domain: DomainConfig, ip: str, state: RuntimeState) -> Non
 async def dispatch_hooks(event: HookEvent, cfg: AppConfig) -> None:
     """Invoke every matching enabled hook, isolating exceptions."""
     for hook_cfg in cfg.hooks:
-        if not hook_cfg.enabled or event.type not in hook_cfg.events:
-            continue
         hook_cls = HOOK_REGISTRY.get(hook_cfg.hook)
         if hook_cls is None:
             _log.warning('Unknown hook %s', hook_cfg.hook)
+            continue
+        if (not hook_cfg.enabled
+                or event.type not in hook_cfg.events
+                or event.type not in hook_cls.supported_events):
             continue
         try:
             config = hook_cls.ConfigModel.model_validate(hook_cfg.config)
