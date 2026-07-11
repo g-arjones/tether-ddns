@@ -31,17 +31,24 @@ class ConnectionManager:
 
     async def broadcast(self, kind: str, payload: object) -> None:
         """Send an envelope to every connected socket, dropping failures."""
+        await self._broadcast_to(list(self.connections), kind, payload)
+
+    async def _broadcast_to(
+        self, recipients: list[Any], kind: str, payload: object,
+    ) -> None:
+        """Send an envelope to the given sockets, dropping failures."""
         message = {'kind': kind, 'payload': payload}
-        for ws in list(self.connections):
+        for ws in recipients:
             try:
                 await ws.send_json(message)
             except Exception:  # noqa: BLE001 - drop broken sockets
                 self.disconnect(ws)
 
     def sync_broadcast(self, kind: str, payload: object) -> None:
-        """Schedule a broadcast from a synchronous listener callback."""
+        """Schedule a broadcast to the sockets connected at call time."""
         try:
             loop = asyncio.get_running_loop()
         except RuntimeError:
             return
-        loop.create_task(self.broadcast(kind, payload))
+        recipients = list(self.connections)
+        loop.create_task(self._broadcast_to(recipients, kind, payload))
