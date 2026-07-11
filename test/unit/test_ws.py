@@ -1,4 +1,5 @@
 """Tests for the WebSocket connection manager."""
+import asyncio
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -44,3 +45,19 @@ async def test_connect_accepts_without_registering() -> None:
     assert ws not in mgr.connections
     await mgr.broadcast('log', {'message': 'hi'})
     ws.send_json.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_sync_broadcast_targets_schedule_time_sockets() -> None:
+    """sync_broadcast delivers only to sockets present when it was scheduled."""
+    mgr = ConnectionManager()
+    ws1 = MagicMock()
+    ws1.send_json = AsyncMock()
+    mgr.register(ws1)
+    mgr.sync_broadcast('log', {'m': 1})
+    ws2 = MagicMock()
+    ws2.send_json = AsyncMock()
+    mgr.register(ws2)  # registered AFTER scheduling
+    await asyncio.sleep(0)  # let the scheduled task run
+    ws1.send_json.assert_awaited_once()
+    ws2.send_json.assert_not_called()
