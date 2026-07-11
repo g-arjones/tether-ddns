@@ -22,4 +22,26 @@ describe('SchemaForm', () => {
     fireEvent.change(select, { target: { value: 'udp' } });
     expect(onChange).toHaveBeenCalledWith({ protocol: 'udp' });
   });
+
+  it('renders enum option labels from x-enum-labels', () => {
+    const schema = {
+      properties: {
+        protocol: {
+          type: 'string', title: 'Protocol', enum: ['tcp', 'tcp_udp'],
+          'x-enum-labels': { tcp: 'TCP', tcp_udp: 'TCP + UDP' },
+        },
+      },
+    };
+    render(<SchemaForm schema={schema} value={{ protocol: 'tcp' }} onChange={vi.fn()} />);
+    const select = screen.getByLabelText('Protocol') as HTMLSelectElement;
+    expect(Array.from(select.options).map((o) => o.textContent)).toEqual(['TCP', 'TCP + UDP']);
+    expect(Array.from(select.options).map((o) => o.value)).toEqual(['tcp', 'tcp_udp']);
+  });
+
+  it('falls back to humanizeOption when x-enum-labels is absent', () => {
+    const schema = { properties: { protocol: { type: 'string', title: 'Protocol', enum: ['tcp_udp'] } } };
+    render(<SchemaForm schema={schema} value={{ protocol: 'tcp_udp' }} onChange={vi.fn()} />);
+    const select = screen.getByLabelText('Protocol') as HTMLSelectElement;
+    expect(select.options[0].textContent).toBe('Tcp Udp');
+  });
 });
