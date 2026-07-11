@@ -7,6 +7,8 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
+    "pretest": "oxlint",
+    "test": "vitest run --coverage",
     "preview": "vite preview",
     "test:e2e": "playwright test"
   },
