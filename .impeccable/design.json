@@ -1,0 +1,129 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-07-11T00:00:00Z",
+  "title": "Design System: tether-ddns",
+  "extensions": {
+    "colorMeta": {
+      "accent": { "role": "primary", "displayName": "Tether Blue", "canonical": "#3b82f6", "tonalRamp": ["#0a1a3a", "#12295c", "#1b3a80", "#244ea6", "#3b82f6", "#6ba0f8", "#9cc0fb", "#cfe0fd"] },
+      "ok": { "role": "tertiary", "displayName": "Synced Green", "canonical": "#10b981", "tonalRamp": ["#052e22", "#074736", "#0a604a", "#0d7a5f", "#10b981", "#3fca9d", "#7bdcc0", "#bdeee0"] },
+      "warn": { "role": "tertiary", "displayName": "Pending Amber", "canonical": "#f59e0b", "tonalRamp": ["#3a2503", "#5c3a05", "#7e5008", "#a6690a", "#f59e0b", "#f7b53f", "#facd7b", "#fce6bd"] },
+      "err": { "role": "tertiary", "displayName": "Error Red", "canonical": "#ef4444", "tonalRamp": ["#3a0d0d", "#5c1414", "#7e1c1c", "#a62525", "#ef4444", "#f37272", "#f7a1a1", "#fbd0d0"] },
+      "provider-badge": { "role": "secondary", "displayName": "Provider Indigo", "canonical": "#6366f1", "tonalRamp": ["#171838", "#232557", "#303277", "#3e419c", "#6366f1", "#8a8cf5", "#b1b2f8", "#d8d9fc"] },
+      "dark-bg": { "role": "neutral", "displayName": "Console Navy", "canonical": "#0b0f1a", "tonalRamp": ["#0b0f1a", "#0f1524", "#141b2d", "#1a2337", "#232d45", "#2f3b58", "#64748b", "#9aa6be"] },
+      "light-bg": { "role": "neutral", "displayName": "Daylight Mist", "canonical": "#f4f6fb", "tonalRamp": ["#10192b", "#55617a", "#8a93a8", "#d5dbe8", "#e4e8f0", "#eef1f8", "#f7f9fc", "#ffffff"] }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Display", "purpose": "Stat readout values; the largest type on the page." },
+      "title": { "displayName": "Title", "purpose": "Section headings." },
+      "body": { "displayName": "Body", "purpose": "Labels, names, descriptions, general interface text." },
+      "label": { "displayName": "Label", "purpose": "Tracked uppercase micro-labels for readouts and group titles." },
+      "mono": { "displayName": "Mono", "purpose": "Literal network values only — IPs, record types, log lines." }
+    },
+    "shadows": [
+      { "name": "ambient-surface", "value": "0 10px 30px -12px rgba(0,0,0,.6)", "purpose": "Cards and stats on hover; modals and toasts at rest (dark theme)." },
+      { "name": "accent-glow", "value": "0 0 0 1px rgba(59,130,246,.25), 0 8px 30px -10px rgba(59,130,246,.45)", "purpose": "Brand logo and focus emphasis; the only place blue light spills." },
+      { "name": "focus-ring", "value": "0 0 0 3px rgba(59,130,246,.15)", "purpose": "Inputs and selects on focus, paired with a blue border." },
+      { "name": "primary-btn", "value": "0 6px 20px -8px rgba(59,130,246,.5)", "purpose": "Soft blue drop shadow under the primary button." }
+    ],
+    "motion": [
+      { "name": "ease-standard", "value": "cubic-bezier(0.4, 0, 0.2, 1)", "purpose": "Default 0.2s easing for all state transitions." },
+      { "name": "ease-toast", "value": "cubic-bezier(0.2, 0.8, 0.2, 1)", "purpose": "Toast entrance (slide + fade in from the right)." }
+    ],
+    "breakpoints": [
+      { "name": "md", "value": "900px" },
+      { "name": "sm", "value": "620px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The main call-to-action; used sparingly for the single primary action in a context.",
+      "html": "<button class=\"ds-btn-primary\">Add domain</button>",
+      "css": ".ds-btn-primary { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 10px 16px; border-radius: 10px; font-size: 14px; font-weight: 600; background: #3b82f6; color: #fff; border: 1px solid transparent; box-shadow: 0 6px 20px -8px rgba(59,130,246,.5); transition: background .2s cubic-bezier(.4,0,.2,1), transform .2s cubic-bezier(.4,0,.2,1); } .ds-btn-primary:hover { background: #2563eb; transform: translateY(-1px); } .ds-btn-primary:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(59,130,246,.35); }"
+    },
+    {
+      "name": "Ghost Button",
+      "kind": "button",
+      "refersTo": "button-ghost",
+      "description": "Secondary action; bordered surface that gains definition on hover.",
+      "html": "<button class=\"ds-btn-ghost\">Cancel</button>",
+      "css": ".ds-btn-ghost { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 10px 16px; border-radius: 10px; font-size: 14px; font-weight: 600; background: #141b2d; color: #e6ebf5; border: 1px solid #232d45; transition: all .2s cubic-bezier(.4,0,.2,1); } .ds-btn-ghost:hover { border-color: #2f3b58; background: #1a2337; }"
+    },
+    {
+      "name": "Status Badge",
+      "kind": "chip",
+      "refersTo": "status-badge",
+      "description": "At-a-glance domain health; a dot plus label tinted per semantic state.",
+      "html": "<span class=\"ds-status ds-status-synced\"><span class=\"ds-dot\"></span>Synced</span>",
+      "css": ".ds-status { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 650; padding: 5px 10px; border-radius: 999px; } .ds-status .ds-dot { width: 7px; height: 7px; border-radius: 50%; } .ds-status-synced { background: rgba(16,185,129,.14); color: #10b981; } .ds-status-synced .ds-dot { background: #10b981; }"
+    },
+    {
+      "name": "Text Input",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Form field with a soft inner surface and a blue focus ring.",
+      "html": "<input class=\"ds-input\" type=\"text\" placeholder=\"example.duckdns.org\" />",
+      "css": ".ds-input { width: 100%; background: #1a2337; border: 1px solid #232d45; border-radius: 10px; padding: 11px 13px; color: #e6ebf5; font-size: 14px; outline: none; transition: all .2s cubic-bezier(.4,0,.2,1); } .ds-input::placeholder { color: #64748b; } .ds-input:focus { border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,.15); }"
+    },
+    {
+      "name": "Selector Chip",
+      "kind": "chip",
+      "refersTo": "chip-active",
+      "description": "Pill selector for options like update interval; active state fills blue.",
+      "html": "<button class=\"ds-chip ds-chip-active\">5 min</button>",
+      "css": ".ds-chip { padding: 8px 14px; border-radius: 999px; background: #1a2337; border: 1px solid #232d45; font-size: 13px; font-weight: 600; color: #9aa6be; transition: all .2s cubic-bezier(.4,0,.2,1); } .ds-chip:hover { border-color: #2f3b58; } .ds-chip-active { background: #3b82f6; color: #fff; border-color: transparent; }"
+    },
+    {
+      "name": "Domain Card",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "Flat bordered surface listing a domain; lifts and shadows on hover.",
+      "html": "<div class=\"ds-card\"><div class=\"ds-card-name\">home.duckdns.org</div><div class=\"ds-card-ip\">203.0.113.42</div></div>",
+      "css": ".ds-card { background: #141b2d; border: 1px solid #232d45; border-radius: 16px; padding: 18px; display: flex; flex-direction: column; gap: 8px; transition: all .2s cubic-bezier(.4,0,.2,1); } .ds-card:hover { border-color: #2f3b58; box-shadow: 0 10px 30px -12px rgba(0,0,0,.6); } .ds-card-name { font-size: 15.5px; font-weight: 700; letter-spacing: -.2px; color: #e6ebf5; } .ds-card-ip { font-family: 'SF Mono', ui-monospace, Menlo, Consolas, monospace; font-size: 15px; font-weight: 650; letter-spacing: -.3px; color: #9aa6be; }"
+    },
+    {
+      "name": "Log Line",
+      "kind": "custom",
+      "refersTo": "log-line",
+      "description": "Monospace streaming log entry with a level-colored tag.",
+      "html": "<div class=\"ds-log\"><span class=\"ds-log-time\">12:04:31</span><span class=\"ds-log-level\">INFO</span><span class=\"ds-log-msg\">Updated home.duckdns.org &rarr; 203.0.113.42</span></div>",
+      "css": ".ds-log { display: flex; gap: 10px; padding: 2px 0; font-family: 'SF Mono', ui-monospace, Menlo, Consolas, monospace; font-size: 12.5px; white-space: pre-wrap; word-break: break-word; } .ds-log-time { color: #64748b; flex: none; } .ds-log-level { flex: none; font-weight: 700; width: 56px; color: #3b82f6; } .ds-log-msg { color: #9aa6be; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Instrument Panel",
+    "overview": "tether-ddns is read like a gauge cluster, not browsed like a website. The interface exists to report real state \u2014 the current public IP, per-domain sync status, streaming logs \u2014 and every visual decision serves how fast an operator can read that state and act on it. Density is deliberate: stat readouts, status badges, and monospace IP values pack meaningful signal into a compact frame, with generous but rhythmic spacing so nothing feels crowded. The default theme is a deep navy-black console; a light theme mirrors it exactly for daylight operation.\n\nThe system is quiet at rest and loud only when it must be. Surfaces sit flat behind 1px borders until you touch them; status color stays out of the way until a domain is pending, updating, or errored, at which point the semantic palette (amber, blue, red) carries the alarm. Monospace type is reserved for machine truth \u2014 IPs, record types, log lines \u2014 so the eye learns instantly which values are literal network facts versus interface chrome.\n\nThis explicitly rejects consumer-SaaS marketing dressing: no decorative gradients, no hero-metric template with a giant vanity number and supporting stats, no playful mascots or persuasion patterns. It is an operator's tool that shows its real state plainly and hides nothing.",
+    "keyCharacteristics": [
+      "Dense, legible readouts over spacious marketing layouts",
+      "A single blue accent used sparingly against a mostly-neutral surface",
+      "Semantic status color (ok/warn/err) that stays silent until state demands it",
+      "Monospace type reserved for literal network facts (IPs, record types, logs)",
+      "Flat-by-default depth; lift and shadow are responses to interaction",
+      "Dark and light themes that are structural mirrors, not afterthoughts"
+    ],
+    "rules": [
+      { "name": "The Silent-Until-State Rule", "body": "Status color is absent by default. Green, amber, and red appear only when a domain's actual condition warrants it \u2014 a screen of healthy domains is mostly neutral. Color is a signal, not a decoration; if everything is colored, nothing is.", "section": "colors" },
+      { "name": "The One Accent Rule", "body": "Blue is the only interactive hue. Anything the operator can click, focus, or that is actively working wears it; nothing else does.", "section": "colors" },
+      { "name": "The Machine-Truth Rule", "body": "Monospace is reserved for values the system reports literally \u2014 IP addresses, DNS record types, log output. Never use it for interface labels or prose; its presence should always mean 'this is a real network value.'", "section": "typography" },
+      { "name": "The Flat-By-Default Rule", "body": "Surfaces are flat at rest. Shadow and lift appear only in response to interaction (hover, focus) or genuine layering (modals, toasts). Never apply a resting drop shadow to an inline surface.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do keep the interface mostly neutral; let semantic color (green/amber/red) appear only when a domain's real state calls for it \u2014 the Silent-Until-State Rule.",
+      "Do reserve Tether Blue (#3b82f6) for interactive or live elements only, and deepen to #2563eb on hover.",
+      "Do set IPs, DNS record types, and log lines in the monospace stack \u2014 the Machine-Truth Rule.",
+      "Do keep surfaces flat at rest and add lift/shadow only on hover, focus, or genuine layering (modals, toasts).",
+      "Do mirror every color and component decision across the dark and light themes; they are structural equals.",
+      "Do use full 1px borders and border-color shifts for definition and depth."
+    ],
+    "donts": [
+      "Don't add decorative gradients, gradient text, or background-clip: text \u2014 this is an operator's console, not a marketing page.",
+      "Don't build a hero-metric template: no giant vanity number with supporting stats as the page's centerpiece.",
+      "Don't introduce playful mascots, illustrations, or persuasion patterns; the voice is technical and no-nonsense.",
+      "Don't use monospace for interface labels or prose \u2014 it must always signal a literal network value.",
+      "Don't apply resting drop shadows to inline surfaces, or use color where a neutral would read faster.",
+      "Don't use border-left/border-right greater than 1px as a colored accent stripe on cards, rows, or badges."
+    ]
+  }
+}
