@@ -1,11 +1,15 @@
 """Tests for the ring-buffer logging handler."""
 import logging
+import sys
 
 from tether_ddns.logging_setup import (
     APP_LOGGER_NAME,
     LogRingHandler,
     install_ring_handler,
+    install_stdout_handler,
 )
+
+from uvicorn.logging import DefaultFormatter
 
 
 def test_ring_handler_keeps_last_n_records() -> None:
@@ -79,3 +83,48 @@ def test_install_captures_app_info_logs() -> None:
         _detach(handler)
         app_logger.setLevel(prev_level)
     assert any(r['message'] == 'scheduler did a thing' for r in handler.snapshot())
+
+
+def _stdout_stream_handlers() -> list[logging.StreamHandler]:
+    logger = logging.getLogger(APP_LOGGER_NAME)
+    return [
+        h for h in logger.handlers
+        if isinstance(h, logging.StreamHandler) and getattr(h, 'stream', None) is sys.stdout
+    ]
+
+
+def test_install_stdout_handler_attaches_uvicorn_styled_handler() -> None:
+    """A stdout StreamHandler with a DefaultFormatter is attached to the app logger."""
+    logger = logging.getLogger(APP_LOGGER_NAME)
+    for h in _stdout_stream_handlers():
+        logger.removeHandler(h)
+    install_stdout_handler()
+    handlers = _stdout_stream_handlers()
+    assert len(handlers) == 1
+    assert isinstance(handlers[0].formatter, DefaultFormatter)
+    logger.removeHandler(handlers[0])
+
+
+def test_install_stdout_handler_is_idempotent() -> None:
+    """Calling install_stdout_handler twice does not add a second stdout handler."""
+    logger = logging.getLogger(APP_LOGGER_NAME)
+    for h in _stdout_stream_handlers():
+        logger.removeHandler(h)
+    install_stdout_handler()
+    install_stdout_handler()
+    handlers = _stdout_stream_handlers()
+    assert len(handlers) == 1
+    logger.removeHandler(handlers[0])
+
+
+def test_install_stdout_handler_emits_record(capsys) -> None:
+    """An app INFO record is written to stdout after installation."""
+    logger = logging.getLogger(APP_LOGGER_NAME)
+    for h in _stdout_stream_handlers():
+        logger.removeHandler(h)
+    install_stdout_handler()
+    logger.info('hello stdout')
+    captured = capsys.readouterr()
+    assert 'hello stdout' in captured.out
+    for h in _stdout_stream_handlers():
+        logger.removeHandler(h)

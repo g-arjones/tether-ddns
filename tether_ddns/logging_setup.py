@@ -2,8 +2,11 @@
 from __future__ import annotations
 
 import logging
+import sys
 from collections import deque
 from typing import Callable
+
+from uvicorn.logging import DefaultFormatter
 
 LogRecordDict = dict[str, object]
 Listener = Callable[[LogRecordDict], None]
@@ -65,3 +68,21 @@ def install_ring_handler(handler: LogRingHandler) -> None:
     for name in _ATTACH_TO:
         logging.getLogger(name).addHandler(handler)
     logging.getLogger(APP_LOGGER_NAME).setLevel(logging.INFO)
+
+
+def install_stdout_handler() -> None:
+    """Attach a uvicorn-styled stdout handler to the application logger.
+
+    Application records already reach the ring buffer; this additionally prints
+    them to stdout formatted like uvicorn's console lines. The call is
+    idempotent so repeated setup does not duplicate console output.
+    """
+    logger = logging.getLogger(APP_LOGGER_NAME)
+    for existing in logger.handlers:
+        if (isinstance(existing, logging.StreamHandler)
+                and getattr(existing, 'stream', None) is sys.stdout
+                and isinstance(existing.formatter, DefaultFormatter)):
+            return
+    handler = logging.StreamHandler(sys.stdout)
+    handler.setFormatter(DefaultFormatter('%(levelprefix)s %(message)s'))
+    logger.addHandler(handler)
