@@ -30,7 +30,6 @@ class DomainConfig(BaseModel):
     hostname: str
     provider: str
     record_type: Literal['A', 'AAAA'] = 'A'
-    ttl: str = 'Auto'
     enabled: bool = True
     update_period: int = 300
     provider_config: dict[str, object] = Field(default_factory=dict[str, object])

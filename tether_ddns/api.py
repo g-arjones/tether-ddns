@@ -24,7 +24,6 @@ class DomainInput(BaseModel):
     hostname: str
     provider: str
     record_type: str = 'A'
-    ttl: str = 'Auto'
     enabled: bool = True
     update_period: int = 300
     provider_config: dict[str, object] = {}
