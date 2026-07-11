@@ -5,7 +5,7 @@ from apscheduler.schedulers.asyncio import (  # pyright: ignore[reportMissingTyp
     AsyncIOScheduler,
 )
 
-from tether_ddns.config import AppConfig, DomainConfig
+from tether_ddns.config import AppConfig, DomainConfig, HookConfig
 from tether_ddns.hooks.base import HOOK_REGISTRY, HookEvent
 from tether_ddns.ip_sources.base import IPFamily, detect_public_ip
 from tether_ddns.logging_setup import get_logger
@@ -59,6 +59,43 @@ async def dispatch_hooks(event: HookEvent, cfg: AppConfig) -> None:
             await hook_cls().handle(event, config)
         except Exception:  # noqa: BLE001 - hook errors must be contained
             _log.exception('Hook %s failed on %s', hook_cfg.hook, event.type)
+
+
+async def run_hook_now(
+    hook_cfg: HookConfig, cfg: AppConfig, state: RuntimeState,
+) -> dict[str, object]:
+    """Fire a hook for its enabled+supported events using current state.
+
+    Returns {'ran': <handle invocations>, 'skipped': [<event keys skipped>]}.
+    """
+    hook_cls = HOOK_REGISTRY.get(hook_cfg.hook)
+    if hook_cls is None:
+        _log.warning('Unknown hook %s', hook_cfg.hook)
+        return {'ran': 0, 'skipped': list(hook_cfg.events)}
+    events: list[HookEvent] = []
+    skipped: list[str] = []
+    for event_type in hook_cfg.events:
+        if event_type not in hook_cls.supported_events:
+            continue
+        if event_type == 'reachability_changed':
+            value = 'online' if state.online else 'offline'
+            events.append(HookEvent(
+                type='reachability_changed', old=value, new=value))
+        elif event_type == 'ip_changed':
+            ips = [ip for ip in (state.public_ipv4, state.public_ipv6) if ip]
+            if not ips:
+                skipped.append('ip_changed')
+            for ip in ips:
+                events.append(HookEvent(type='ip_changed', old=ip, new=ip))
+    ran = 0
+    for event in events:
+        try:
+            config = hook_cls.ConfigModel.model_validate(hook_cfg.config)
+            await hook_cls().handle(event, config)
+        except Exception:  # noqa: BLE001 - hook errors must be contained
+            _log.exception('Hook %s failed on %s', hook_cfg.hook, event.type)
+        ran += 1
+    return {'ran': ran, 'skipped': skipped}
 
 
 class Scheduler:

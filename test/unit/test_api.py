@@ -72,6 +72,27 @@ def test_create_hook_accepts_supported_event(tmp_path: Path) -> None:
     assert resp.status_code == 200
 
 
+def test_run_hook_endpoint_invokes_supported_events(tmp_path: Path) -> None:
+    """POST /hooks-config/{id}/run fires the hook and returns a run count."""
+    with _client(tmp_path) as client:
+        created: Any = client.post('/api/hooks-config', json={
+            'hook': 'log', 'enabled': True, 'events': ['ip_changed'], 'config': {},
+        }).json()
+        client.app.state.runtime.set_public_ipv4('1.2.3.4')
+        resp: Any = client.post(f"/api/hooks-config/{created['id']}/run")
+    assert resp.status_code == 200
+    body: dict[str, object] = resp.json()
+    assert body['ran'] == 1
+    assert body['skipped'] == []
+
+
+def test_run_hook_endpoint_404_for_unknown_id(tmp_path: Path) -> None:
+    """Running an unknown hook id returns 404."""
+    with _client(tmp_path) as client:
+        resp: Any = client.post('/api/hooks-config/does-not-exist/run')
+    assert resp.status_code == 404
+
+
 def test_create_domain_masks_secret(tmp_path: Path) -> None:
     """Creating a domain stores it and masks secrets on read-back."""
     with _client(tmp_path) as client:

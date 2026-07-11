@@ -220,6 +220,14 @@ def register_routes(app: FastAPI) -> None:
         _persist(app)
         return {'ok': True}
 
+    @router.post('/hooks-config/{hook_id}/run')
+    async def run_hook(hook_id: str) -> dict[str, object]:
+        from tether_ddns.scheduler import run_hook_now
+        for h in app.state.config.hooks:
+            if h.id == hook_id:
+                return await run_hook_now(h, app.state.config, app.state.runtime)
+        raise HTTPException(status_code=404, detail='hook not found')
+
     @router.get('/settings')
     def get_settings() -> dict[str, object]:
         settings: dict[str, object] = app.state.config.settings.model_dump()
