@@ -4,7 +4,7 @@ from __future__ import annotations
 import logging
 import sys
 from collections import deque
-from typing import Callable
+from typing import Callable, TextIO, cast
 
 from uvicorn.logging import DefaultFormatter
 
@@ -79,10 +79,12 @@ def install_stdout_handler() -> None:
     """
     logger = logging.getLogger(APP_LOGGER_NAME)
     for existing in logger.handlers:
-        if (isinstance(existing, logging.StreamHandler)
-                and getattr(existing, 'stream', None) is sys.stdout
-                and isinstance(existing.formatter, DefaultFormatter)):
-            return
-    handler = logging.StreamHandler(sys.stdout)
+        if isinstance(existing, logging.StreamHandler):
+            stream_handler = cast('logging.StreamHandler[TextIO]', existing)
+            if (stream_handler.stream is sys.stdout
+                    and isinstance(stream_handler.formatter, DefaultFormatter)):
+                return
+    handler: logging.StreamHandler[TextIO] = logging.StreamHandler(
+        cast('TextIO', sys.stdout))
     handler.setFormatter(DefaultFormatter('%(levelprefix)s %(message)s'))
     logger.addHandler(handler)

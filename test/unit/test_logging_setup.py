@@ -1,6 +1,9 @@
 """Tests for the ring-buffer logging handler."""
 import logging
 import sys
+from typing import TextIO, cast
+
+import pytest
 
 from tether_ddns.logging_setup import (
     APP_LOGGER_NAME,
@@ -85,12 +88,15 @@ def test_install_captures_app_info_logs() -> None:
     assert any(r['message'] == 'scheduler did a thing' for r in handler.snapshot())
 
 
-def _stdout_stream_handlers() -> list[logging.StreamHandler]:
+def _stdout_stream_handlers() -> list[logging.StreamHandler[TextIO]]:
     logger = logging.getLogger(APP_LOGGER_NAME)
-    return [
-        h for h in logger.handlers
-        if isinstance(h, logging.StreamHandler) and getattr(h, 'stream', None) is sys.stdout
-    ]
+    found: list[logging.StreamHandler[TextIO]] = []
+    for handler in logger.handlers:
+        if isinstance(handler, logging.StreamHandler):
+            stream = cast('logging.StreamHandler[TextIO]', handler)
+            if stream.stream is sys.stdout:
+                found.append(stream)
+    return found
 
 
 def test_install_stdout_handler_attaches_uvicorn_styled_handler() -> None:
@@ -117,7 +123,7 @@ def test_install_stdout_handler_is_idempotent() -> None:
     logger.removeHandler(handlers[0])
 
 
-def test_install_stdout_handler_emits_record(capsys) -> None:
+def test_install_stdout_handler_emits_record(capsys: pytest.CaptureFixture[str]) -> None:
     """An app INFO record is written to stdout after installation."""
     logger = logging.getLogger(APP_LOGGER_NAME)
     for h in _stdout_stream_handlers():
