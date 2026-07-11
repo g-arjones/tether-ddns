@@ -160,20 +160,26 @@ Create a module under `tether_ddns/hooks/registered_hooks/`:
 
 ```python
 from pydantic import BaseModel
-from tether_ddns.hooks.base import Hook, HookEvent, register_hook
+from tether_ddns.hooks.base import (
+    Hook, IpChangedEvent, ReachabilityChangedEvent, register_hook)
 
 
 @register_hook
 class MyHook(Hook):
     key = 'myhook'
     display_name = 'My Hook'
-    # Restrict which events this hook accepts. Defaults to all supported
-    # events; the UI only offers these, and the scheduler never dispatches an
-    # unsupported event to the hook.
-    supported_events = ('ip_changed',)
 
-    async def handle(self, event: HookEvent, config: BaseModel) -> None:
-        # react to 'ip_changed' / 'reachability_changed' events
+    # Override only the event methods you care about. The events a hook
+    # supports are inferred from which on_* methods it overrides; the UI only
+    # offers those, and the scheduler never dispatches an unsupported event.
+    async def on_ip_changed(
+            self, event: IpChangedEvent, config: BaseModel) -> None:
+        # react to a public IP change (event.new_ip, event.family)
+        ...
+
+    async def on_reachability_changed(
+            self, event: ReachabilityChangedEvent, config: BaseModel) -> None:
+        # react to an online/offline transition (event.online)
         ...
 ```
 

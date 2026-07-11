@@ -7,8 +7,7 @@ from apscheduler.schedulers.asyncio import (  # pyright: ignore[reportMissingTyp
 
 from tether_ddns.config import AppConfig, DomainConfig, HookConfig
 from tether_ddns.hooks.base import (
-    IpChangedEvent, ReachabilityChangedEvent)
-from tether_ddns.hooks.base import HOOK_REGISTRY
+    HOOK_REGISTRY, IpChangedEvent, ReachabilityChangedEvent)
 from tether_ddns.ip_sources.base import IPFamily, detect_public_ip
 from tether_ddns.logging_setup import get_logger
 from tether_ddns.providers.base import PROVIDER_REGISTRY
@@ -58,7 +57,9 @@ async def _dispatch(event_key: str, event: object, cfg: AppConfig) -> None:
             continue
         try:
             config = hook_cls.ConfigModel.model_validate(hook_cfg.config)
-            await hook_cls()._dispatch(event_key, event, config)  # type: ignore[arg-type]  # noqa: SLF001
+            # noqa: SLF001
+            await hook_cls()._dispatch(  # type: ignore[reportPrivateUsage]
+                event_key, event, config)  # type: ignore[arg-type]
         except Exception:  # noqa: BLE001 - hook errors must be contained
             _log.exception('Hook %s failed on %s', hook_cfg.hook, event_key)
 
@@ -111,7 +112,9 @@ async def run_hook_now(
     for event_key, event in jobs:
         try:
             config = hook_cls.ConfigModel.model_validate(hook_cfg.config)
-            await hook_cls()._dispatch(event_key, event, config)  # type: ignore[arg-type]  # noqa: SLF001
+            # noqa: SLF001
+            await hook_cls()._dispatch(  # type: ignore[reportPrivateUsage]
+                event_key, event, config)  # type: ignore[arg-type]
         except Exception:  # noqa: BLE001 - hook errors must be contained
             _log.exception('Hook %s failed on %s', hook_cfg.hook, event_key)
         ran += 1

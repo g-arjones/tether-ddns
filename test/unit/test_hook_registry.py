@@ -88,5 +88,6 @@ async def test_dispatch_routes_to_method() -> None:
             seen.append(event.new_ip)
 
     event = base.IpChangedEvent(new_ip='9.9.9.9', family='ipv4')
-    await _Spy()._dispatch('ip_changed', event, base.EmptyConfig())
+    await _Spy()._dispatch(  # type: ignore[reportPrivateUsage]
+        'ip_changed', event, base.EmptyConfig())
     assert seen == ['9.9.9.9']
