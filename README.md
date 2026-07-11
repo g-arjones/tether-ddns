@@ -12,12 +12,19 @@ state is rebuilt on start**, so the process holds no durable state of its own.
 
 ## Features
 
-- Periodic reachability + public-IP detection with exception-isolated jobs.
-- Pluggable **DDNS providers** (DuckDNS included), **hooks** (log hook
-  included), and **IP sources** (ipify / icanhazip included).
+- Periodic reachability + **dual-stack** public-IP detection (IPv4 and IPv6)
+  with exception-isolated jobs.
+- Pluggable **DDNS providers** (DuckDNS and Cloudflare included), **hooks**
+  (log and ZTE router-firewall hooks included), and **IP sources** (ipify /
+  icanhazip included).
+- Hooks declare the event types they support; the UI only offers those, and a
+  per-hook **Run now** button triggers a hook on demand against current state.
+- Config forms are generated from each plugin's JSON schema, with friendly
+  field titles and enum labels declared via a small `labeled_field` helper.
 - Secrets stored as `pydantic.SecretStr`: write-only over the API, masked
   (`********`) on read, real values only on disk.
-- Live logs and state over a WebSocket to the SPA.
+- Live logs and state over a WebSocket to the SPA; application logs are also
+  printed to stdout alongside uvicorn's own output.
 
 ## Requirements
 
@@ -140,10 +147,32 @@ from tether_ddns.hooks.base import Hook, HookEvent, register_hook
 class MyHook(Hook):
     key = 'myhook'
     display_name = 'My Hook'
+    # Restrict which events this hook accepts. Defaults to all supported
+    # events; the UI only offers these, and the scheduler never dispatches an
+    # unsupported event to the hook.
+    supported_events = ('ip_changed',)
 
     async def handle(self, event: HookEvent, config: BaseModel) -> None:
         # react to 'ip_changed' / 'reachability_changed' events
         ...
+```
+
+To give a config model friendly field titles and enum labels in the UI, declare
+fields with `Annotated[..., labeled_field(...)]`:
+
+```python
+from typing import Annotated, Literal
+from pydantic import BaseModel
+from tether_ddns.schema_fields import labeled_field
+
+
+class MyConfig(BaseModel):
+    protocol: Annotated[
+        Literal['tcp', 'udp', 'tcp_udp'],
+        labeled_field(
+            title='Protocol',
+            labels={'tcp': 'TCP', 'udp': 'UDP', 'tcp_udp': 'TCP + UDP'}),
+    ] = 'udp'
 ```
 
 ### Add an IP source
