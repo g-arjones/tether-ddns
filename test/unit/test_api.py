@@ -51,7 +51,7 @@ def test_get_hooks_returns_per_hook_labeled_events(tmp_path: Path) -> None:
 
 def test_create_hook_rejects_unsupported_event(tmp_path: Path) -> None:
     """Saving a hook with an unsupported event returns 400."""
-    payload = {
+    payload: dict[str, Any] = {
         'hook': 'router_firewall', 'enabled': True,
         'events': ['reachability_changed'], 'config': {},
     }
@@ -62,7 +62,7 @@ def test_create_hook_rejects_unsupported_event(tmp_path: Path) -> None:
 
 def test_create_hook_accepts_supported_event(tmp_path: Path) -> None:
     """Saving a hook with a supported event succeeds."""
-    payload = {
+    payload: dict[str, Any] = {
         'hook': 'router_firewall', 'enabled': True,
         'events': ['ip_changed'],
         'config': {'username': 'u', 'password': 'p'},

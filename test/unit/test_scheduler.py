@@ -278,6 +278,7 @@ async def test_dispatch_skips_unsupported_event() -> None:
             calls.append(event.type)
 
     try:
+        assert HOOK_REGISTRY['_spy'] is _SpyHook
         cfg = AppConfig(hooks=[HookConfig(
             hook='_spy', enabled=True,
             events=['ip_changed', 'reachability_changed'], config={})])
