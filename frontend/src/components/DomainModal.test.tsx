@@ -28,7 +28,7 @@ describe('DomainModal', () => {
       open providers={providers}
       editing={{
         id: 'a', hostname: 'edit.example.com', provider: 'duckdns',
-        record_type: 'A', ttl: '300', enabled: true, provider_config: {},
+        record_type: 'A', enabled: true, provider_config: {},
       }}
       onClose={vi.fn()} onSave={vi.fn()} />);
     expect(screen.getByText('Edit Domain')).toBeInTheDocument();

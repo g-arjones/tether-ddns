@@ -14,7 +14,6 @@ export interface DomainFormValue {
   hostname: string;
   provider: string;
   record_type: string;
-  ttl: string;
   enabled: boolean;
   provider_config: Record<string, unknown>;
 }
@@ -23,7 +22,6 @@ const EMPTY: DomainFormValue = {
   hostname: '',
   provider: '',
   record_type: 'A',
-  ttl: '300',
   enabled: true,
   provider_config: {},
 };
@@ -37,7 +35,6 @@ export function DomainModal({ open, providers, editing, onClose, onSave }: Domai
         hostname: editing.hostname,
         provider: editing.provider,
         record_type: editing.record_type,
-        ttl: String(editing.ttl),
         enabled: editing.enabled,
         provider_config: editing.provider_config ?? {},
       });
@@ -86,17 +83,6 @@ export function DomainModal({ open, providers, editing, onClose, onSave }: Domai
                 <option value="AAAA">AAAA (IPv6)</option>
               </select>
             </div>
-          </div>
-          <div className="field">
-            <label htmlFor="fTtl">TTL <span className="hint">(seconds)</span></label>
-            <select id="fTtl" value={form.ttl} onChange={(e) => setForm({ ...form, ttl: e.target.value })}>
-              <option value="Auto">Auto</option>
-              <option value="60">60</option>
-              <option value="120">120</option>
-              <option value="300">300</option>
-              <option value="600">600</option>
-              <option value="3600">3600</option>
-            </select>
           </div>
           <SchemaForm schema={schema} value={form.provider_config} onChange={(provider_config) => setForm({ ...form, provider_config })} />
           <div className="switch-row">
