@@ -390,6 +390,8 @@ header.topbar {
 
 .chips { display: flex; flex-wrap: wrap; gap: 8px; }
 .chip {
+  flex: 1 1 auto;
+  text-align: center;
   padding: 8px 14px;
   border-radius: 999px;
   background: var(--surface-2);
