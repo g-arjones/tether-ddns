@@ -34,4 +34,14 @@ describe('DomainModal', () => {
     expect(screen.getByText('Edit Domain')).toBeInTheDocument();
     expect(screen.getByDisplayValue('edit.example.com')).toBeInTheDocument();
   });
+
+  it('shows the selected provider class-docstring blurb', () => {
+    const withDesc: Provider[] = [
+      { key: 'duckdns', display_name: 'DuckDNS', schema: { description: 'DuckDNS provider config.' } },
+    ];
+    render(<DomainModal
+      open providers={withDesc} editing={null}
+      onClose={vi.fn()} onSave={vi.fn()} />);
+    expect(screen.getByText('DuckDNS provider config.')).toBeInTheDocument();
+  });
 });

@@ -10,6 +10,7 @@ export interface SchemaProperty {
 export interface JsonSchema {
   properties?: Record<string, SchemaProperty>;
   required?: string[];
+  description?: string;
 }
 
 export interface SchemaFormProps {
