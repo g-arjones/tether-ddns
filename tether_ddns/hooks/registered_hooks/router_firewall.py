@@ -17,7 +17,7 @@ _log = get_logger()
 _PROTOCOL_NUMBERS = {
     'any': -1, 'tcp': 6, 'udp': 17, 'icmpv6': 58, 'tcp_udp': 256,
 }
-_FILTER_TARGETS = {'allow': '1', 'drop': '0'}
+_VIEW_CODES = {'lan': 'DEV.IP.IF1', 'internet': 'DEV.IP.IF4', 'dslite': 'DEV.IP.IF8'}
 _IP_VERSIONS = {'ipv4': '4', 'ipv6': '6'}
 _INST_ID = 'DEV.FW.CHAIN1.IPF1'
 _SESSION_TOKEN_RE = re.compile(
@@ -35,7 +35,7 @@ class RouterFirewallConfig(BaseModel):
     password: SecretStr
     rule_name: str = 'Wireguard'
     ip_version: Literal['ipv4', 'ipv6'] = 'ipv6'
-    filter_target: Literal['allow', 'drop'] = 'allow'
+    allow_traffic: bool = True
     source_ip: str = '::'
     source_prefix: int = 0
     dest_prefix: int = 128
@@ -44,8 +44,8 @@ class RouterFirewallConfig(BaseModel):
     max_src_port: int = 65535
     min_dst_port: int = 443
     max_dst_port: int = 443
-    ingress_view: str = 'DEV.IP.IF4'
-    egress_view: str = 'DEV.IP.IF1'
+    ingress: Literal['lan', 'internet', 'dslite'] = 'internet'
+    egress: Literal['lan', 'internet', 'dslite'] = 'lan'
     verify_tls: bool = False
 
 
@@ -89,7 +89,7 @@ def parse_rule_index(html: str, rule_name: str) -> str | None:
     return match.group(1) if match else '1'
 
 
-def _build_apply_payload(
+def build_apply_payload(
     config: RouterFirewallConfig, index: str, ip: str,
 ) -> dict[str, str]:
     """Assemble the IP-filter Apply form payload with the new destination IP."""
@@ -101,7 +101,7 @@ def _build_apply_payload(
         'FilterIndex': index,
         'Enable': '1',
         'Name': config.rule_name,
-        'FilterTarget': _FILTER_TARGETS[config.filter_target],
+        'FilterTarget': '1' if config.allow_traffic else '0',
         'IPVersion': _IP_VERSIONS[config.ip_version],
         'SourceIP': config.source_ip,
         'SMask': str(config.source_prefix),
@@ -115,8 +115,8 @@ def _build_apply_payload(
         'MaxSrcPort': str(config.max_src_port),
         'MinDstPort': str(config.min_dst_port),
         'MaxDstPort': str(config.max_dst_port),
-        'INCViewName': config.ingress_view,
-        'OUTCViewName': config.egress_view,
+        'INCViewName': _VIEW_CODES[config.ingress],
+        'OUTCViewName': _VIEW_CODES[config.egress],
         'DSCP': '-1',
         'Btn_apply_IPFilter': '',
     }
@@ -173,7 +173,7 @@ class RouterFirewallHook(Hook):
                 await self._logout(session, base, apply_token)
                 return
 
-            payload = _build_apply_payload(config, index, ip)
+            payload = build_apply_payload(config, index, ip)
             payload['_sessionTOKEN'] = apply_token
             async with session.post(
                     f'{base}/?_type=menuData&_tag={tag}', data=payload) as resp:
