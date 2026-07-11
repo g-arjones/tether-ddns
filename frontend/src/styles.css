@@ -184,7 +184,7 @@ header.topbar {
   margin: 8px 0 18px;
   flex-wrap: wrap;
 }
-.section-head h2 { font-size: 19px; font-weight: 700; letter-spacing: -.3px; }
+.section-head h2 { margin: 0; font-size: 19px; font-weight: 700; letter-spacing: -.3px; }
 .section-head .count-badge {
   font-size: 12px; font-weight: 600; color: var(--text-2);
   background: var(--surface); border: 1px solid var(--border);
