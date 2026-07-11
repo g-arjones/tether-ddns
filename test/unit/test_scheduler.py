@@ -598,3 +598,146 @@ async def test_sync_ips_no_event_without_transition() -> None:
     ):
         await sched.check_once(cfg, state)
     assert seen == []
+
+
+@pytest.mark.asyncio
+async def test_run_hook_now_domain_update_error_matches_state() -> None:
+    """Run-now for domain_update_error fires only for error domains, with message."""
+    from tether_ddns.hooks.base import HOOK_REGISTRY, Hook, register_hook
+
+    seen: list[tuple[str, str]] = []
+
+    @register_hook
+    class _SpyErr(Hook):
+        key = '_spyerr'
+        display_name = 'SpyErr'
+
+        async def on_domain_update_error(
+                self, event: object, config: object) -> None:
+            seen.append((event.domain_id, event.message))  # type: ignore[attr-defined]
+
+    try:
+        cfg = AppConfig(
+            domains=[
+                DomainConfig(id='a', hostname='a.example.com', provider='duckdns'),
+                DomainConfig(id='b', hostname='b.example.com', provider='duckdns'),
+            ],
+            hooks=[HookConfig(
+                id='h', hook='_spyerr', enabled=True,
+                events=['domain_update_error'], config={})])
+        state = RuntimeState()
+        state.rebuild(cfg)
+        state.set_status('a', 'error', ip='1.1.1.1', message='provider down')
+        state.set_status('b', 'synced', ip='2.2.2.2')
+        result = await scheduler.run_hook_now(cfg.hooks[0], cfg, state)
+        assert result['ran'] == 1
+        assert seen == [('a', 'provider down')]
+    finally:
+        HOOK_REGISTRY.pop('_spyerr', None)
+
+
+@pytest.mark.asyncio
+async def test_run_hook_now_domain_update_success_matches_state() -> None:
+    """Run-now for domain_update_success fires only for synced domains with ip."""
+    from tether_ddns.hooks.base import HOOK_REGISTRY, Hook, register_hook
+
+    seen: list[str] = []
+
+    @register_hook
+    class _SpyOk(Hook):
+        key = '_spyok'
+        display_name = 'SpyOk'
+
+        async def on_domain_update_success(
+                self, event: object, config: object) -> None:
+            seen.append(event.ip)  # type: ignore[attr-defined]
+
+    try:
+        cfg = AppConfig(
+            domains=[
+                DomainConfig(id='a', hostname='a.example.com', provider='duckdns'),
+                DomainConfig(id='b', hostname='b.example.com', provider='duckdns'),
+            ],
+            hooks=[HookConfig(
+                id='h', hook='_spyok', enabled=True,
+                events=['domain_update_success'], config={})])
+        state = RuntimeState()
+        state.rebuild(cfg)
+        state.set_status('a', 'synced', ip='9.9.9.9')
+        # 'b' stays pending -> should not fire success
+        result = await scheduler.run_hook_now(cfg.hooks[0], cfg, state)
+        assert result['ran'] == 1
+        assert seen == ['9.9.9.9']
+    finally:
+        HOOK_REGISTRY.pop('_spyok', None)
+
+
+@pytest.mark.asyncio
+async def test_run_hook_now_domain_update_pending_matches_state() -> None:
+    """Run-now for domain_update_pending fires for pending domains with current_ip."""
+    from tether_ddns.hooks.base import HOOK_REGISTRY, Hook, register_hook
+
+    seen: list[tuple[str, str | None]] = []
+
+    @register_hook
+    class _SpyPend(Hook):
+        key = '_spypend'
+        display_name = 'SpyPend'
+
+        async def on_domain_update_pending(
+                self, event: object, config: object) -> None:
+            seen.append((event.domain_id, event.current_ip))  # type: ignore[attr-defined]
+
+    try:
+        cfg = AppConfig(
+            domains=[
+                DomainConfig(id='a', hostname='a.example.com', provider='duckdns'),
+                DomainConfig(id='b', hostname='b.example.com', provider='duckdns'),
+            ],
+            hooks=[HookConfig(
+                id='h', hook='_spypend', enabled=True,
+                events=['domain_update_pending'], config={})])
+        state = RuntimeState()
+        state.rebuild(cfg)  # both start pending
+        state.set_public_ipv4('5.5.5.5')
+        state.set_status('b', 'synced', ip='5.5.5.5')  # 'b' no longer pending
+        result = await scheduler.run_hook_now(cfg.hooks[0], cfg, state)
+        assert result['ran'] == 1
+        assert seen == [('a', '5.5.5.5')]
+    finally:
+        HOOK_REGISTRY.pop('_spypend', None)
+
+
+@pytest.mark.asyncio
+async def test_run_hook_now_success_skips_synced_without_ip() -> None:
+    """A synced domain with no known ip is skipped for domain_update_success."""
+    from tether_ddns.hooks.base import HOOK_REGISTRY, Hook, register_hook
+
+    seen: list[str] = []
+
+    @register_hook
+    class _SpyNoIp(Hook):
+        key = '_spynoipok'
+        display_name = 'SpyNoIpOk'
+
+        async def on_domain_update_success(
+                self, event: object, config: object) -> None:
+            seen.append(event.ip)  # type: ignore[attr-defined]
+
+    try:
+        cfg = AppConfig(
+            domains=[
+                DomainConfig(id='a', hostname='a.example.com', provider='duckdns'),
+            ],
+            hooks=[HookConfig(
+                id='h', hook='_spynoipok', enabled=True,
+                events=['domain_update_success'], config={})])
+        state = RuntimeState()
+        state.rebuild(cfg)
+        state.set_status('a', 'synced')  # synced but ip stays None
+        result = await scheduler.run_hook_now(cfg.hooks[0], cfg, state)
+        assert result['ran'] == 0
+        assert result['skipped'] == ['domain_update_success']
+        assert seen == []
+    finally:
+        HOOK_REGISTRY.pop('_spynoipok', None)

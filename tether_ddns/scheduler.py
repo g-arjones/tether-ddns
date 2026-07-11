@@ -131,6 +131,44 @@ async def run_hook_now(
                 jobs.append((
                     event_key,
                     IpChangedEvent(old_ip=ip, new_ip=ip, family=family)))
+        elif event_key in (
+                'domain_update_pending', 'domain_update_success',
+                'domain_update_error'):
+            status_for_key = {
+                'domain_update_pending': 'pending',
+                'domain_update_success': 'synced',
+                'domain_update_error': 'error',
+            }[event_key]
+            matched = False
+            for domain in cfg.domains:
+                runtime = state.domains.get(domain.id)
+                if runtime is None or runtime.status != status_for_key:
+                    continue
+                family = _family_for(domain.record_type)
+                if event_key == 'domain_update_pending':
+                    current_ip = (state.public_ipv4 if family == 'ipv4'
+                                  else state.public_ipv6)
+                    jobs.append((event_key, DomainUpdatePendingEvent(
+                        domain_id=domain.id, hostname=domain.hostname,
+                        record_type=domain.record_type, family=family,
+                        current_ip=current_ip)))
+                    matched = True
+                elif event_key == 'domain_update_success':
+                    if runtime.ip is None:
+                        continue
+                    jobs.append((event_key, DomainUpdateSuccessEvent(
+                        domain_id=domain.id, hostname=domain.hostname,
+                        record_type=domain.record_type, family=family,
+                        ip=runtime.ip)))
+                    matched = True
+                else:  # domain_update_error
+                    jobs.append((event_key, DomainUpdateErrorEvent(
+                        domain_id=domain.id, hostname=domain.hostname,
+                        record_type=domain.record_type, family=family,
+                        ip=runtime.ip, message=runtime.message)))
+                    matched = True
+            if not matched:
+                skipped.append(event_key)
     ran = 0
     for event_key, event in jobs:
         try:
