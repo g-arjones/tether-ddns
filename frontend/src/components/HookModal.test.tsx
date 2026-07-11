@@ -4,7 +4,14 @@ import { HookModal } from './HookModal';
 import type { HookDef } from '../types';
 
 const hooks: HookDef[] = [
-  { key: 'log', display_name: 'Log Hook', events: ['ip_changed', 'reachability_changed'], schema: {} },
+  {
+    key: 'log', display_name: 'Log Hook',
+    events: [
+      { key: 'ip_changed', label: 'IP Changed' },
+      { key: 'reachability_changed', label: 'Reachability Changed' },
+    ],
+    schema: {},
+  },
 ];
 
 describe('HookModal', () => {
@@ -14,7 +21,7 @@ describe('HookModal', () => {
       open hooks={hooks} editing={null}
       onClose={vi.fn()} onSave={onSave} />);
     expect(screen.getByRole('heading', { name: 'Add Hook' })).toBeInTheDocument();
-    fireEvent.click(screen.getByLabelText('ip_changed'));
+    fireEvent.click(screen.getByLabelText('IP Changed'));
     fireEvent.click(screen.getByRole('button', { name: 'Add Hook' }));
     expect(onSave).toHaveBeenCalledWith(
       expect.objectContaining({ hook: 'log', events: ['ip_changed'] }),
@@ -27,6 +34,23 @@ describe('HookModal', () => {
       editing={{ id: 'h', hook: 'log', events: ['ip_changed'], config: {} }}
       onClose={vi.fn()} onSave={vi.fn()} />);
     expect(screen.getByText('Edit Hook')).toBeInTheDocument();
-    expect((screen.getByLabelText('ip_changed') as HTMLInputElement).checked).toBe(true);
+    expect((screen.getByLabelText('IP Changed') as HTMLInputElement).checked).toBe(true);
+  });
+
+  it('renders event labels and toggles by key', () => {
+    const rfHooks: HookDef[] = [{
+      key: 'router_firewall', display_name: 'Router Firewall (ZTE)',
+      events: [{ key: 'ip_changed', label: 'IP Changed' }],
+      schema: { properties: {} },
+    }];
+    const onSave = vi.fn();
+    render(<HookModal
+      open hooks={rfHooks} editing={null}
+      onClose={vi.fn()} onSave={onSave} />);
+    expect(screen.getByText('IP Changed')).toBeInTheDocument();
+    fireEvent.click(screen.getByLabelText('IP Changed'));
+    fireEvent.click(screen.getByRole('button', { name: 'Add Hook' }));
+    expect(onSave).toHaveBeenCalledWith(
+      expect.objectContaining({ events: ['ip_changed'] }));
   });
 });
