@@ -13,7 +13,7 @@ from tether_ddns.config import (
     mask_secrets,
     merge_secrets,
 )
-from tether_ddns.hooks.base import EVENT_LABELS, HOOK_REGISTRY
+from tether_ddns.hooks.base import EVENT_SPECS, HOOK_REGISTRY
 from tether_ddns.ip_sources.base import IP_SOURCE_REGISTRY
 from tether_ddns.providers.base import PROVIDER_REGISTRY
 
@@ -65,7 +65,7 @@ def _validate_hook_events(hook: str, events: list[str]) -> None:
     if cls is None:
         raise HTTPException(status_code=400, detail=f'unknown hook {hook}')
     for event in events:
-        if event not in cls.supported_events:
+        if event not in cls.supported_events():
             raise HTTPException(
                 status_code=400,
                 detail=f'unsupported event {event} for hook {hook}')
@@ -111,8 +111,8 @@ def register_routes(app: FastAPI) -> None:
         return [
             {'key': k, 'display_name': c.display_name,
              'events': [
-                 {'key': e, 'label': EVENT_LABELS.get(e, e)}
-                 for e in c.supported_events],
+                 {'key': e, 'label': EVENT_SPECS[e].label}
+                 for e in c.supported_events()],
              'schema': c.config_schema()}
             for k, c in HOOK_REGISTRY.items()
         ]

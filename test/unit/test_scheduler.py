@@ -7,7 +7,8 @@ import pytest
 
 from tether_ddns import scheduler
 from tether_ddns.config import AppConfig, DomainConfig, HookConfig
-from tether_ddns.hooks.base import HookEvent, load_hooks
+from tether_ddns.hooks.base import (
+    IpChangedEvent, ReachabilityChangedEvent, load_hooks)
 from tether_ddns.providers.base import load_providers
 from tether_ddns.reachability import ReachabilityResult
 from tether_ddns.runtime import RuntimeState
@@ -40,12 +41,12 @@ async def test_dispatch_hooks_isolates_exceptions() -> None:
     """A raising hook does not prevent others from running."""
     load_hooks()
     cfg = AppConfig(hooks=[HookConfig(id='h', hook='log', events=['ip_changed'])])
-    event = HookEvent(type='ip_changed', old='1.1.1.1', new='2.2.2.2')
+    event = IpChangedEvent(old_ip='1.1.1.1', new_ip='2.2.2.2', family='ipv4')
     with patch(
-        'tether_ddns.hooks.registered_hooks.log_hook.LogHook.handle',
+        'tether_ddns.hooks.registered_hooks.log_hook.LogHook.on_ip_changed',
         new=AsyncMock(side_effect=RuntimeError('boom')),
     ):
-        await scheduler.dispatch_hooks(event, cfg)  # must not raise
+        await scheduler.dispatch_ip_changed(event, cfg)  # must not raise
 
 
 @pytest.mark.asyncio
@@ -224,7 +225,7 @@ async def test_reachability_transition_fires_hook_only_on_change() -> None:
     sched = scheduler.Scheduler()
     with patch.object(sched, '_reachability') as reach:
         reach.check = AsyncMock(return_value=_online(True))
-        with patch('tether_ddns.scheduler.dispatch_hooks', new=AsyncMock()) as dh:
+        with patch('tether_ddns.scheduler.dispatch_reachability_changed', new=AsyncMock()) as dh:
             await sched.check_reachability(cfg, state)
             assert state.online is True
             dh.assert_awaited_once()
@@ -272,21 +273,21 @@ async def test_dispatch_skips_unsupported_event() -> None:
     class _SpyHook(Hook):
         key = '_spy'
         display_name = 'Spy'
-        supported_events = ('ip_changed',)
 
-        async def handle(self, event: HookEvent, config: BaseModel) -> None:
-            calls.append(event.type)
+        async def on_ip_changed(
+                self, event: IpChangedEvent, config: BaseModel) -> None:
+            calls.append('ip_changed')
 
     try:
         assert HOOK_REGISTRY['_spy'] is _SpyHook
         cfg = AppConfig(hooks=[HookConfig(
             hook='_spy', enabled=True,
             events=['ip_changed', 'reachability_changed'], config={})])
-        await scheduler.dispatch_hooks(
-            HookEvent(type='reachability_changed', old='offline', new='online'), cfg)
+        await scheduler.dispatch_reachability_changed(
+            ReachabilityChangedEvent(online=True, was_online=False), cfg)
         assert calls == []
-        await scheduler.dispatch_hooks(
-            HookEvent(type='ip_changed', old='a', new='b'), cfg)
+        await scheduler.dispatch_ip_changed(
+            IpChangedEvent(old_ip='a', new_ip='b', family='ipv4'), cfg)
         assert calls == ['ip_changed']
     finally:
         HOOK_REGISTRY.pop('_spy', None)
@@ -297,16 +298,21 @@ async def test_run_hook_now_fires_per_known_ip_family() -> None:
     """ip_changed fires once per known IP family with current values."""
     from tether_ddns.hooks.base import HOOK_REGISTRY, Hook, register_hook
 
-    calls: list[tuple[str, str | None, str | None]] = []
+    calls: list[tuple[str, object, object]] = []
 
     @register_hook
     class _SpyRun(Hook):
         key = '_spyrun'
         display_name = 'SpyRun'
-        supported_events = ('ip_changed', 'reachability_changed')
 
-        async def handle(self, event: HookEvent, config: BaseModel) -> None:
-            calls.append((event.type, event.old, event.new))
+        async def on_ip_changed(
+                self, event: IpChangedEvent, config: BaseModel) -> None:
+            calls.append(('ip_changed', event.old_ip, event.new_ip))
+
+        async def on_reachability_changed(
+                self, event: ReachabilityChangedEvent,
+                config: BaseModel) -> None:
+            calls.append(('reachability_changed', event.online, event.online))
 
     try:
         assert HOOK_REGISTRY['_spyrun'] is _SpyRun
@@ -322,7 +328,7 @@ async def test_run_hook_now_fires_per_known_ip_family() -> None:
         assert result['skipped'] == []
         assert ('ip_changed', '1.2.3.4', '1.2.3.4') in calls
         assert ('ip_changed', '2001:db8::9', '2001:db8::9') in calls
-        assert ('reachability_changed', 'online', 'online') in calls
+        assert ('reachability_changed', True, True) in calls
     finally:
         HOOK_REGISTRY.pop('_spyrun', None)
 
@@ -338,10 +344,10 @@ async def test_run_hook_now_skips_ip_changed_when_no_ip() -> None:
     class _SpyNoIp(Hook):
         key = '_spynoip'
         display_name = 'SpyNoIp'
-        supported_events = ('ip_changed',)
 
-        async def handle(self, event: HookEvent, config: BaseModel) -> None:
-            ran.append(event.type)
+        async def on_ip_changed(
+                self, event: IpChangedEvent, config: BaseModel) -> None:
+            ran.append('ip_changed')
 
     try:
         assert HOOK_REGISTRY['_spynoip'] is _SpyNoIp
@@ -367,10 +373,10 @@ async def test_run_hook_now_ignores_unsupported_enabled_event() -> None:
     class _SpyUnsup(Hook):
         key = '_spyunsup'
         display_name = 'SpyUnsup'
-        supported_events = ('ip_changed',)
 
-        async def handle(self, event: HookEvent, config: BaseModel) -> None:
-            ran.append(event.type)
+        async def on_ip_changed(
+                self, event: IpChangedEvent, config: BaseModel) -> None:
+            ran.append('ip_changed')
 
     try:
         assert HOOK_REGISTRY['_spyunsup'] is _SpyUnsup

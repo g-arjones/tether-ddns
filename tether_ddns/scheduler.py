@@ -6,7 +6,9 @@ from apscheduler.schedulers.asyncio import (  # pyright: ignore[reportMissingTyp
 )
 
 from tether_ddns.config import AppConfig, DomainConfig, HookConfig
-from tether_ddns.hooks.base import HOOK_REGISTRY, HookEvent
+from tether_ddns.hooks.base import (
+    IpChangedEvent, ReachabilityChangedEvent)
+from tether_ddns.hooks.base import HOOK_REGISTRY
 from tether_ddns.ip_sources.base import IPFamily, detect_public_ip
 from tether_ddns.logging_setup import get_logger
 from tether_ddns.providers.base import PROVIDER_REGISTRY
@@ -43,7 +45,7 @@ async def sync_domain(domain: DomainConfig, ip: str, state: RuntimeState) -> Non
         state.set_status(domain.id, 'error', message=result.message)
 
 
-async def dispatch_hooks(event: HookEvent, cfg: AppConfig) -> None:
+async def _dispatch(event_key: str, event: object, cfg: AppConfig) -> None:
     """Invoke every matching enabled hook, isolating exceptions."""
     for hook_cfg in cfg.hooks:
         hook_cls = HOOK_REGISTRY.get(hook_cfg.hook)
@@ -51,14 +53,25 @@ async def dispatch_hooks(event: HookEvent, cfg: AppConfig) -> None:
             _log.warning('Unknown hook %s', hook_cfg.hook)
             continue
         if (not hook_cfg.enabled
-                or event.type not in hook_cfg.events
-                or event.type not in hook_cls.supported_events):
+                or event_key not in hook_cfg.events
+                or event_key not in hook_cls.supported_events()):
             continue
         try:
             config = hook_cls.ConfigModel.model_validate(hook_cfg.config)
-            await hook_cls().handle(event, config)
+            await hook_cls()._dispatch(event_key, event, config)  # type: ignore[arg-type]  # noqa: SLF001
         except Exception:  # noqa: BLE001 - hook errors must be contained
-            _log.exception('Hook %s failed on %s', hook_cfg.hook, event.type)
+            _log.exception('Hook %s failed on %s', hook_cfg.hook, event_key)
+
+
+async def dispatch_ip_changed(event: IpChangedEvent, cfg: AppConfig) -> None:
+    """Dispatch an ip_changed event to matching hooks."""
+    await _dispatch('ip_changed', event, cfg)
+
+
+async def dispatch_reachability_changed(
+        event: ReachabilityChangedEvent, cfg: AppConfig) -> None:
+    """Dispatch a reachability_changed event to matching hooks."""
+    await _dispatch('reachability_changed', event, cfg)
 
 
 async def run_hook_now(
@@ -72,28 +85,35 @@ async def run_hook_now(
     if hook_cls is None:
         _log.warning('Unknown hook %s', hook_cfg.hook)
         return {'ran': 0, 'skipped': list(hook_cfg.events)}
-    events: list[HookEvent] = []
+    jobs: list[tuple[str, object]] = []
     skipped: list[str] = []
-    for event_type in hook_cfg.events:
-        if event_type not in hook_cls.supported_events:
+    supported = hook_cls.supported_events()
+    for event_key in hook_cfg.events:
+        if event_key not in supported:
             continue
-        if event_type == 'reachability_changed':
-            value = 'online' if state.online else 'offline'
-            events.append(HookEvent(
-                type='reachability_changed', old=value, new=value))
-        elif event_type == 'ip_changed':
-            ips = [ip for ip in (state.public_ipv4, state.public_ipv6) if ip]
-            if not ips:
+        if event_key == 'reachability_changed':
+            jobs.append((
+                event_key,
+                ReachabilityChangedEvent(
+                    online=state.online, was_online=state.online)))
+        elif event_key == 'ip_changed':
+            families: list[tuple[str, str]] = [
+                (fam, ip) for fam, ip in (
+                    ('ipv4', state.public_ipv4), ('ipv6', state.public_ipv6))
+                if ip]
+            if not families:
                 skipped.append('ip_changed')
-            for ip in ips:
-                events.append(HookEvent(type='ip_changed', old=ip, new=ip))
+            for fam, ip in families:
+                jobs.append((
+                    event_key,
+                    IpChangedEvent(old_ip=ip, new_ip=ip, family=fam)))  # type: ignore[arg-type]
     ran = 0
-    for event in events:
+    for event_key, event in jobs:
         try:
             config = hook_cls.ConfigModel.model_validate(hook_cfg.config)
-            await hook_cls().handle(event, config)
+            await hook_cls()._dispatch(event_key, event, config)  # type: ignore[arg-type]  # noqa: SLF001
         except Exception:  # noqa: BLE001 - hook errors must be contained
-            _log.exception('Hook %s failed on %s', hook_cfg.hook, event.type)
+            _log.exception('Hook %s failed on %s', hook_cfg.hook, event_key)
         ran += 1
     return {'ran': ran, 'skipped': skipped}
 
@@ -135,11 +155,11 @@ class Scheduler:
         """Run the DNS-quorum check; fire reachability_changed on transition."""
         reach = await self._reachability.check()
         if reach.online != state.online:
-            old = 'online' if state.online else 'offline'
-            new = 'online' if reach.online else 'offline'
+            was_online = state.online
             state.set_online(reach.online)
-            await dispatch_hooks(
-                HookEvent(type='reachability_changed', old=old, new=new), cfg)
+            await dispatch_reachability_changed(
+                ReachabilityChangedEvent(
+                    online=reach.online, was_online=was_online), cfg)
 
     async def sync_ips(self, cfg: AppConfig, state: RuntimeState) -> None:
         """When online, refresh both IP families and sync domains."""
@@ -152,12 +172,14 @@ class Scheduler:
             old = state.public_ipv4
             state.set_public_ipv4(ipv4)
             changed.add('ipv4')
-            await dispatch_hooks(HookEvent(type='ip_changed', old=old, new=ipv4), cfg)
+            await dispatch_ip_changed(
+                IpChangedEvent(old_ip=old, new_ip=ipv4, family='ipv4'), cfg)
         if ipv6 is not None and ipv6 != state.public_ipv6:
             old6 = state.public_ipv6
             state.set_public_ipv6(ipv6)
             changed.add('ipv6')
-            await dispatch_hooks(HookEvent(type='ip_changed', old=old6, new=ipv6), cfg)
+            await dispatch_ip_changed(
+                IpChangedEvent(old_ip=old6, new_ip=ipv6, family='ipv6'), cfg)
         by_family: dict[IPFamily, str | None] = {
             'ipv4': state.public_ipv4, 'ipv6': state.public_ipv6}
         for domain in cfg.domains:
