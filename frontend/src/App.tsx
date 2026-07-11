@@ -243,7 +243,7 @@ export default function App() {
             </div>
             <div className="brand-text">
               <h1>Tether</h1>
-              <p>Dynamic DNS Updater</p>
+              <p>Self-hosted dynamic DNS</p>
             </div>
           </div>
 
