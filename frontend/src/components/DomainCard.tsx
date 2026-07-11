@@ -42,7 +42,6 @@ export function DomainCard({ domain, runtime, onSync, onEdit, onDelete, onToggle
           <div className="meta">
             <span className="rec-type">{domain.record_type}</span>
             <span>{domain.provider}</span>
-            <span>· TTL {domain.ttl}</span>
           </div>
         </div>
         <span className={`status-badge ${meta.cls}`}><span className="s-dot" />{meta.label}</span>
