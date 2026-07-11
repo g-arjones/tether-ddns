@@ -366,7 +366,11 @@ export default function App() {
 
         <div className="hook-list">
           {hooks.length === 0 ? (
-            <div className="empty"><p>No hooks configured.</p></div>
+            <div className="empty">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M4 10a10 10 0 0 1 10 10" /><path d="M4 16a4 4 0 0 1 4 4" /><circle cx="5" cy="19" r="1" /><path d="m12 10 4-4a2.83 2.83 0 0 1 4 4l-4 4" /><path d="m14 8 3 3" /><path d="m9 15 3 3" /></svg>
+              <h3>No hooks configured</h3>
+              <p>Add your first hook to react to IP changes.</p>
+            </div>
           ) : (
             hooks.map((h) => (
               <div className="hook-row" key={h.id}>
