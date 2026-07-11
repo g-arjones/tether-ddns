@@ -13,7 +13,7 @@ import os
 import re
 import urllib.parse
 from base64 import b64decode, b64encode
-from typing import Literal
+from typing import Annotated, Literal
 
 import aiohttp
 
@@ -21,6 +21,7 @@ from pydantic import BaseModel, SecretStr
 
 from tether_ddns.hooks.base import Hook, HookEvent, register_hook
 from tether_ddns.logging_setup import get_logger
+from tether_ddns.schema_fields import labeled_field
 
 _log = get_logger()
 
@@ -55,23 +56,45 @@ _APPLY_FIELD_ORDER = (
 class RouterFirewallConfig(BaseModel):
     """Configuration for the ZTE router firewall hook."""
 
-    router_url: str = 'https://192.168.0.1'
+    router_url: Annotated[str, labeled_field(title='Router URL')] = 'https://192.168.0.1'
     username: str
     password: SecretStr
-    rule_name: str = 'Wireguard'
-    ip_version: Literal['ipv4', 'ipv6'] = 'ipv6'
-    allow_traffic: bool = True
-    source_ip: str = '::'
-    source_prefix: int = 0
-    dest_prefix: int = 128
-    protocol: Literal['any', 'tcp', 'udp', 'icmpv6', 'tcp_udp'] = 'udp'
-    min_src_port: int = 1
-    max_src_port: int = 65535
-    min_dst_port: int = 443
-    max_dst_port: int = 443
-    ingress: Literal['lan', 'internet', 'dslite'] = 'internet'
-    egress: Literal['lan', 'internet', 'dslite'] = 'lan'
-    verify_tls: bool = False
+    rule_name: Annotated[str, labeled_field(title='Rule Name')] = 'Wireguard'
+    ip_version: Annotated[
+        Literal['ipv4', 'ipv6'],
+        labeled_field(
+            title='IP Version',
+            labels={'ipv4': 'IPv4', 'ipv6': 'IPv6'}),
+    ] = 'ipv6'
+    allow_traffic: Annotated[bool, labeled_field(title='Allow Traffic')] = True
+    source_ip: Annotated[str, labeled_field(title='Source IP')] = '::'
+    source_prefix: Annotated[int, labeled_field(title='Source Prefix')] = 0
+    dest_prefix: Annotated[int, labeled_field(title='Destination Prefix')] = 128
+    protocol: Annotated[
+        Literal['any', 'tcp', 'udp', 'icmpv6', 'tcp_udp'],
+        labeled_field(
+            title='Protocol',
+            labels={
+                'any': 'Any', 'tcp': 'TCP', 'udp': 'UDP',
+                'icmpv6': 'ICMPv6', 'tcp_udp': 'TCP + UDP'}),
+    ] = 'udp'
+    min_src_port: Annotated[int, labeled_field(title='Min Source Port')] = 1
+    max_src_port: Annotated[int, labeled_field(title='Max Source Port')] = 65535
+    min_dst_port: Annotated[int, labeled_field(title='Min Destination Port')] = 443
+    max_dst_port: Annotated[int, labeled_field(title='Max Destination Port')] = 443
+    ingress: Annotated[
+        Literal['lan', 'internet', 'dslite'],
+        labeled_field(
+            title='Ingress',
+            labels={'lan': 'LAN', 'internet': 'Internet', 'dslite': 'DS-Lite'}),
+    ] = 'internet'
+    egress: Annotated[
+        Literal['lan', 'internet', 'dslite'],
+        labeled_field(
+            title='Egress',
+            labels={'lan': 'LAN', 'internet': 'Internet', 'dslite': 'DS-Lite'}),
+    ] = 'lan'
+    verify_tls: Annotated[bool, labeled_field(title='Verify TLS')] = False
 
 
 def login_hash(password: str, salt: str) -> str:

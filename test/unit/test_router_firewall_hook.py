@@ -121,6 +121,18 @@ def test_integrity_check_is_random_rsa_block() -> None:
     assert integrity_check(body, modulus, exponent) != check
 
 
+def test_config_schema_has_friendly_labels_and_titles() -> None:
+    """The config schema carries friendly enum labels and field titles."""
+    schema = RouterFirewallConfig.model_json_schema()
+    props = schema['properties']
+    assert props['protocol']['x-enum-labels']['tcp_udp'] == 'TCP + UDP'
+    assert props['protocol']['x-enum-labels']['icmpv6'] == 'ICMPv6'
+    assert props['ingress']['x-enum-labels']['dslite'] == 'DS-Lite'
+    assert props['egress']['x-enum-labels']['internet'] == 'Internet'
+    assert props['ip_version']['x-enum-labels']['ipv6'] == 'IPv6'
+    assert props['router_url']['title'] == 'Router URL'
+
+
 def _cfg(**over: Any) -> BaseModel:
     base: dict[str, Any] = {
         'username': 'admin', 'password': SecretStr('secret'), 'ip_version': 'ipv6'}
