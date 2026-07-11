@@ -12,6 +12,7 @@ import { useLiveState } from './useLiveState';
 import { DomainCard } from './components/DomainCard';
 import { DomainModal, type DomainFormValue } from './components/DomainModal';
 import { HookModal, type HookFormValue } from './components/HookModal';
+import { LogViewer } from './components/LogViewer';
 import { Toasts, type ToastItem, type ToastKind } from './components/Toasts';
 import './styles.css';
 
@@ -385,19 +386,7 @@ export default function App() {
         <div className="section-head" style={{ marginTop: 24 }}>
           <h2>Logs</h2>
         </div>
-        <div className="log-viewer" data-testid="log-viewer">
-          {logs.length === 0 ? (
-            <div className="log-empty">Waiting for log records…</div>
-          ) : (
-            logs.map((log, i) => (
-              <div className="log-line" key={i}>
-                <span className="log-time">{new Date(log.time * 1000).toLocaleTimeString()}</span>
-                <span className={`log-level log-level-${log.level}`}>{log.level}</span>
-                <span className="log-msg">{log.message}</span>
-              </div>
-            ))
-          )}
-        </div>
+        <LogViewer logs={logs} />
       </main>
 
       <DomainModal
