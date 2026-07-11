@@ -84,6 +84,7 @@ export function DomainModal({ open, providers, editing, onClose, onSave }: Domai
               </select>
             </div>
           </div>
+          {schema.description ? <p className="modal-blurb">{schema.description}</p> : null}
           <SchemaForm schema={schema} value={form.provider_config} onChange={(provider_config) => setForm({ ...form, provider_config })} />
           <div className="switch-row">
             <div className="sr-text">

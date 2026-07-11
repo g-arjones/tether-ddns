@@ -60,6 +60,7 @@ export function HookModal({ open, hooks, editing, onClose, onSave }: HookModalPr
               ))}
             </select>
           </div>
+          {schema.description ? <p className="modal-blurb">{schema.description}</p> : null}
           <div className="field">
             <label>Events</label>
             {availableEvents.map((event) => (
