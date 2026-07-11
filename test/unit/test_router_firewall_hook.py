@@ -144,7 +144,7 @@ async def test_handle_updates_dest_ip() -> None:
     assert payload['OUTCViewName'] == 'DEV.IP.IF1'
 
 
-def testbuild_apply_payload_maps_toggle_and_views() -> None:
+def test_build_apply_payload_maps_toggle_and_views() -> None:
     """allow_traffic and friendly views map to router codes."""
     cfg = RouterFirewallHook.ConfigModel(
         username='u', password=SecretStr('p'), ip_version='ipv6',
