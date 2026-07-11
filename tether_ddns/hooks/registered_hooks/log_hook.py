@@ -4,10 +4,9 @@ from __future__ import annotations
 from pydantic import BaseModel
 
 from tether_ddns.hooks.base import (
-    EmptyConfig,
     Hook,
-    HookEvent,
-    SUPPORTED_EVENTS,
+    IpChangedEvent,
+    ReachabilityChangedEvent,
     register_hook,
 )
 from tether_ddns.logging_setup import get_logger
@@ -21,9 +20,17 @@ class LogHook(Hook):
 
     key = 'log'
     display_name = 'Log Event'
-    supported_events = SUPPORTED_EVENTS
-    ConfigModel = EmptyConfig
 
-    async def handle(self, event: HookEvent, config: BaseModel) -> None:
-        """Log the event type and transition."""
-        _log.info('Hook event %s: %s -> %s', event.type, event.old, event.new)
+    async def on_ip_changed(
+            self, event: IpChangedEvent, config: BaseModel) -> None:
+        """Log the IP transition."""
+        _log.info(
+            'Hook event ip_changed (%s): %s -> %s',
+            event.family, event.old_ip, event.new_ip)
+
+    async def on_reachability_changed(
+            self, event: ReachabilityChangedEvent, config: BaseModel) -> None:
+        """Log the reachability transition."""
+        _log.info(
+            'Hook event reachability_changed: %s -> %s',
+            event.was_online, event.online)

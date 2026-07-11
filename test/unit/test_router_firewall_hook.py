@@ -8,7 +8,7 @@ from pydantic import BaseModel, SecretStr
 
 import pytest
 
-from tether_ddns.hooks.base import HookEvent
+from tether_ddns.hooks.base import IpChangedEvent
 from tether_ddns.hooks.registered_hooks.router_firewall import (
     RouterFirewallConfig,
     RouterFirewallHook,
@@ -216,13 +216,14 @@ def _patch_session(session: MagicMock) -> Any:
 
 
 @pytest.mark.asyncio
-async def test_handle_updates_dest_ip() -> None:
+async def test_on_ip_changed_updates_dest_ip() -> None:
     """An IPv6 change logs in and applies the rule with a signed Apply POST."""
     session = _flow_session()
     cs = _patch_session(session)
     try:
-        await RouterFirewallHook().handle(
-            HookEvent(type='ip_changed', old='2001:db8::1', new='2001:db8::9'),
+        await RouterFirewallHook().on_ip_changed(
+            IpChangedEvent(
+                old_ip='2001:db8::1', new_ip='2001:db8::9', family='ipv6'),
             _cfg())
     finally:
         cs.stop()
@@ -238,13 +239,14 @@ async def test_handle_updates_dest_ip() -> None:
 
 
 @pytest.mark.asyncio
-async def test_handle_skips_family_mismatch() -> None:
+async def test_on_ip_changed_skips_family_mismatch() -> None:
     """An IPv4 change with an ipv6 rule does nothing (no requests)."""
     session = _flow_session()
     cs = _patch_session(session)
     try:
-        await RouterFirewallHook().handle(
-            HookEvent(type='ip_changed', old='203.0.113.1', new='203.0.113.9'),
+        await RouterFirewallHook().on_ip_changed(
+            IpChangedEvent(
+                old_ip='203.0.113.1', new_ip='203.0.113.9', family='ipv4'),
             _cfg(ip_version='ipv6'))
     finally:
         cs.stop()
@@ -253,21 +255,7 @@ async def test_handle_skips_family_mismatch() -> None:
 
 
 @pytest.mark.asyncio
-async def test_handle_ignores_non_ip_event() -> None:
-    """A reachability_changed event does nothing."""
-    session = _flow_session()
-    cs = _patch_session(session)
-    try:
-        await RouterFirewallHook().handle(
-            HookEvent(type='reachability_changed', old='offline', new='online'),
-            _cfg())
-    finally:
-        cs.stop()
-    session.get.assert_not_called()
-
-
-@pytest.mark.asyncio
-async def test_handle_rule_not_found_does_not_apply() -> None:
+async def test_on_ip_changed_rule_not_found_does_not_apply() -> None:
     """When the named rule is absent, no apply POST is sent."""
     session = MagicMock()
     session.get = MagicMock(side_effect=[
@@ -285,8 +273,8 @@ async def test_handle_rule_not_found_does_not_apply() -> None:
     ])
     cs = _patch_session(session)
     try:
-        await RouterFirewallHook().handle(
-            HookEvent(type='ip_changed', old=None, new='2001:db8::9'),
+        await RouterFirewallHook().on_ip_changed(
+            IpChangedEvent(new_ip='2001:db8::9', family='ipv6'),
             _cfg(rule_name='Wireguard'))
     finally:
         cs.stop()
@@ -295,7 +283,7 @@ async def test_handle_rule_not_found_does_not_apply() -> None:
 
 
 @pytest.mark.asyncio
-async def test_handle_aborts_without_salt() -> None:
+async def test_on_ip_changed_aborts_without_salt() -> None:
     """A missing login salt aborts before attempting login."""
     session = MagicMock()
     session.get = MagicMock(side_effect=[
@@ -305,8 +293,8 @@ async def test_handle_aborts_without_salt() -> None:
     session.post = MagicMock()
     cs = _patch_session(session)
     try:
-        await RouterFirewallHook().handle(
-            HookEvent(type='ip_changed', old=None, new='2001:db8::9'), _cfg())
+        await RouterFirewallHook().on_ip_changed(
+            IpChangedEvent(new_ip='2001:db8::9', family='ipv6'), _cfg())
     finally:
         cs.stop()
     session.post.assert_not_called()

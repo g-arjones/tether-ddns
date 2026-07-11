@@ -19,7 +19,7 @@ import aiohttp
 
 from pydantic import BaseModel, SecretStr
 
-from tether_ddns.hooks.base import Hook, HookEvent, register_hook
+from tether_ddns.hooks.base import Hook, IpChangedEvent, register_hook
 from tether_ddns.logging_setup import get_logger
 from tether_ddns.schema_fields import labeled_field
 
@@ -249,19 +249,17 @@ class RouterFirewallHook(Hook):
 
     key = 'router_firewall'
     display_name = 'Router Firewall (ZTE)'
-    supported_events = ('ip_changed',)
     ConfigModel = RouterFirewallConfig
 
     _XHR_HEADERS = {'X-Requested-With': 'XMLHttpRequest'}
     _DATA_TAG = 'firewall_ipfilter_lua.lua'
 
-    async def handle(self, event: HookEvent, config: BaseModel) -> None:
+    async def on_ip_changed(
+            self, event: IpChangedEvent, config: BaseModel) -> None:
         """Update the configured firewall rule to the new public IP."""
         assert isinstance(config, RouterFirewallConfig)
-        if event.type != 'ip_changed' or not event.new:
-            return
-        ip = event.new
-        if family_of(ip) != config.ip_version:
+        ip = event.new_ip
+        if event.family != config.ip_version:
             return
         base = config.router_url.rstrip('/')
         headers = {**self._XHR_HEADERS, 'Referer': f'{base}/'}
