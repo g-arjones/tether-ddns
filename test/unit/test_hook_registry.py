@@ -13,7 +13,8 @@ def test_register_hook_adds_to_registry() -> None:
         key = 'dummy-hook'
         display_name = 'Dummy'
 
-        async def handle(self, event: base.HookEvent, config: BaseModel) -> None:
+        async def on_ip_changed(
+                self, event: base.IpChangedEvent, config: BaseModel) -> None:
             return None
 
     assert base.HOOK_REGISTRY['dummy-hook'] is _Dummy
@@ -26,12 +27,32 @@ def test_load_hooks_imports_builtin_log_hook() -> None:
 
 
 @pytest.mark.asyncio
-async def test_log_hook_handles_event() -> None:
-    """The log hook processes an event without raising."""
+async def test_log_hook_handles_ip_event() -> None:
+    """The log hook processes an ip_changed event without raising."""
     base.load_hooks()
     hook = base.HOOK_REGISTRY['log']()
-    event = base.HookEvent(type='ip_changed', old='1.1.1.1', new='2.2.2.2')
-    await hook.handle(event, hook.ConfigModel())
+    event = base.IpChangedEvent(old_ip='1.1.1.1', new_ip='2.2.2.2', family='ipv4')
+    await hook.on_ip_changed(event, hook.ConfigModel())
+
+
+def test_supported_events_inferred_from_overrides() -> None:
+    """A hook overriding one method supports only that event."""
+    class _OnlyIp(base.Hook):
+        key = '_onlyip'
+
+        async def on_ip_changed(
+                self, event: base.IpChangedEvent, config: BaseModel) -> None:
+            return None
+
+    assert _OnlyIp.supported_events() == ('ip_changed',)
+
+
+def test_base_hook_supports_nothing() -> None:
+    """A hook overriding no methods supports no events."""
+    class _Empty(base.Hook):
+        key = '_empty'
+
+    assert _Empty.supported_events() == ()
 
 
 def test_router_firewall_supports_only_ip_changed() -> None:
@@ -39,18 +60,33 @@ def test_router_firewall_supports_only_ip_changed() -> None:
     from tether_ddns.hooks.registered_hooks.router_firewall import (
         RouterFirewallHook,
     )
-    assert RouterFirewallHook.supported_events == ('ip_changed',)
+    assert RouterFirewallHook.supported_events() == ('ip_changed',)
 
 
 def test_log_hook_supports_all_events() -> None:
     """The log hook handles every supported event type."""
     from tether_ddns.hooks.registered_hooks.log_hook import LogHook
-    assert set(LogHook.supported_events) == set(base.SUPPORTED_EVENTS)
+    assert set(LogHook.supported_events()) == set(base.EVENT_SPECS)
 
 
-def test_event_labels_cover_supported_events() -> None:
-    """Every supported event has a human label."""
-    for event in base.SUPPORTED_EVENTS:
-        assert event in base.EVENT_LABELS
-    assert base.EVENT_LABELS['ip_changed'] == 'IP Changed'
-    assert base.EVENT_LABELS['reachability_changed'] == 'Reachability Changed'
+def test_event_specs_have_labels() -> None:
+    """Every event spec exposes a human label."""
+    assert base.EVENT_SPECS['ip_changed'].label == 'IP Changed'
+    assert base.EVENT_SPECS['reachability_changed'].label == 'Reachability Changed'
+
+
+@pytest.mark.asyncio
+async def test_dispatch_routes_to_method() -> None:
+    """_dispatch calls the on_* method matching the event key."""
+    seen: list[str] = []
+
+    class _Spy(base.Hook):
+        key = '_spy'
+
+        async def on_ip_changed(
+                self, event: base.IpChangedEvent, config: BaseModel) -> None:
+            seen.append(event.new_ip)
+
+    event = base.IpChangedEvent(new_ip='9.9.9.9', family='ipv4')
+    await _Spy()._dispatch('ip_changed', event, base.EmptyConfig())
+    assert seen == ['9.9.9.9']

@@ -1,9 +1,10 @@
-"""Hook base class, event model, registry and auto-loader."""
+"""Hook base class, event models, registry and auto-loader."""
 from __future__ import annotations
 
 import importlib
 import pkgutil
-from abc import ABC, abstractmethod
+from abc import ABC
+from dataclasses import dataclass
 from typing import Literal
 
 from pydantic import BaseModel
@@ -12,11 +13,6 @@ from tether_ddns.logging_setup import get_logger
 
 _log = get_logger()
 
-SUPPORTED_EVENTS: tuple[str, ...] = ('reachability_changed', 'ip_changed')
-EVENT_LABELS: dict[str, str] = {
-    'ip_changed': 'IP Changed',
-    'reachability_changed': 'Reachability Changed',
-}
 HOOK_REGISTRY: dict[str, type['Hook']] = {}
 
 
@@ -24,12 +20,40 @@ class EmptyConfig(BaseModel):
     """Default configuration for hooks that need no settings."""
 
 
-class HookEvent(BaseModel):
-    """An event delivered to hooks."""
+class HookEventBase(BaseModel):
+    """Base for all hook event payloads."""
 
-    type: Literal['reachability_changed', 'ip_changed']  # noqa: A003
-    old: str | None = None
-    new: str | None = None
+
+class IpChangedEvent(HookEventBase):
+    """The public IP for a family changed."""
+
+    old_ip: str | None = None
+    new_ip: str
+    family: Literal['ipv4', 'ipv6']
+
+
+class ReachabilityChangedEvent(HookEventBase):
+    """The service transitioned between online and offline."""
+
+    online: bool
+    was_online: bool | None = None
+
+
+@dataclass(frozen=True)
+class EventSpec:
+    """Describes one hook event type."""
+
+    label: str
+    method: str
+    model: type[HookEventBase]
+
+
+EVENT_SPECS: dict[str, EventSpec] = {
+    'ip_changed': EventSpec('IP Changed', 'on_ip_changed', IpChangedEvent),
+    'reachability_changed': EventSpec(
+        'Reachability Changed', 'on_reachability_changed',
+        ReachabilityChangedEvent),
+}
 
 
 class Hook(ABC):
@@ -37,7 +61,6 @@ class Hook(ABC):
 
     key: str = ''
     display_name: str = ''
-    supported_events: tuple[str, ...] = SUPPORTED_EVENTS
     ConfigModel: type[BaseModel] = EmptyConfig
 
     @classmethod
@@ -45,10 +68,27 @@ class Hook(ABC):
         """Return the JSON schema for this hook's configuration."""
         return cls.ConfigModel.model_json_schema()
 
-    @abstractmethod
-    async def handle(self, event: HookEvent, config: BaseModel) -> None:
-        """Handle an event."""
-        raise NotImplementedError
+    async def on_ip_changed(
+            self, event: IpChangedEvent, config: BaseModel) -> None:
+        """Handle an IP change. Override to react; default is a no-op."""
+
+    async def on_reachability_changed(
+            self, event: ReachabilityChangedEvent, config: BaseModel) -> None:
+        """Handle a reachability change. Override to react; default no-op."""
+
+    @classmethod
+    def supported_events(cls) -> tuple[str, ...]:
+        """Return the event keys whose handler this hook overrides."""
+        return tuple(
+            key for key, spec in EVENT_SPECS.items()
+            if getattr(cls, spec.method) is not getattr(Hook, spec.method)
+        )
+
+    async def _dispatch(
+            self, event_key: str, event: HookEventBase,
+            config: BaseModel) -> None:
+        """Route an event to the matching on_* handler."""
+        await getattr(self, EVENT_SPECS[event_key].method)(event, config)
 
 
 def register_hook(cls: type[Hook]) -> type[Hook]:
