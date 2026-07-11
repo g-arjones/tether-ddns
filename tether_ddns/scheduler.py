@@ -57,8 +57,7 @@ async def _dispatch(event_key: str, event: object, cfg: AppConfig) -> None:
             continue
         try:
             config = hook_cls.ConfigModel.model_validate(hook_cfg.config)
-            # noqa: SLF001
-            await hook_cls()._dispatch(  # type: ignore[reportPrivateUsage]
+            await hook_cls()._dispatch(  # type: ignore[reportPrivateUsage]  # noqa: SLF001
                 event_key, event, config)  # type: ignore[arg-type]
         except Exception:  # noqa: BLE001 - hook errors must be contained
             _log.exception('Hook %s failed on %s', hook_cfg.hook, event_key)
@@ -98,22 +97,21 @@ async def run_hook_now(
                 ReachabilityChangedEvent(
                     online=state.online, was_online=state.online)))
         elif event_key == 'ip_changed':
-            families: list[tuple[str, str]] = [
-                (fam, ip) for fam, ip in (
-                    ('ipv4', state.public_ipv4), ('ipv6', state.public_ipv6))
-                if ip]
+            candidates: tuple[tuple[IPFamily, str | None], ...] = (
+                ('ipv4', state.public_ipv4), ('ipv6', state.public_ipv6))
+            families: list[tuple[IPFamily, str]] = [
+                (family, ip) for family, ip in candidates if ip]
             if not families:
                 skipped.append('ip_changed')
-            for fam, ip in families:
+            for family, ip in families:
                 jobs.append((
                     event_key,
-                    IpChangedEvent(old_ip=ip, new_ip=ip, family=fam)))  # type: ignore[arg-type]
+                    IpChangedEvent(old_ip=ip, new_ip=ip, family=family)))
     ran = 0
     for event_key, event in jobs:
         try:
             config = hook_cls.ConfigModel.model_validate(hook_cfg.config)
-            # noqa: SLF001
-            await hook_cls()._dispatch(  # type: ignore[reportPrivateUsage]
+            await hook_cls()._dispatch(  # type: ignore[reportPrivateUsage]  # noqa: SLF001
                 event_key, event, config)  # type: ignore[arg-type]
         except Exception:  # noqa: BLE001 - hook errors must be contained
             _log.exception('Hook %s failed on %s', hook_cfg.hook, event_key)
