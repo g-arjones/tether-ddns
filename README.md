@@ -15,8 +15,8 @@ state is rebuilt on start**, so the process holds no durable state of its own.
 - Periodic reachability + **dual-stack** public-IP detection (IPv4 and IPv6)
   with exception-isolated jobs.
 - Pluggable **DDNS providers** (DuckDNS and Cloudflare included), **hooks**
-  (log and ZTE router-firewall hooks included), and **IP sources** (ipify /
-  icanhazip included).
+  (log, ZTE router-firewall, and Pushover hooks included), and **IP sources**
+  (ipify / icanhazip included).
 - Hooks declare the event types they support; the UI only offers those, and a
   per-hook **Run now** button triggers a hook on demand against current state.
 - Config forms are generated from each plugin's JSON schema, with friendly

@@ -1,4 +1,5 @@
 """Tests for the Pushover hook."""
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from pydantic import SecretStr
@@ -30,7 +31,7 @@ def _session_returning(status: int, body: dict[str, object]) -> MagicMock:
     return session
 
 
-def _patch_session(session: MagicMock) -> object:
+def _patch_session(session: MagicMock) -> Any:
     cs = patch(
         'tether_ddns.hooks.registered_hooks.pushover.aiohttp.ClientSession')
     mock = cs.start()
