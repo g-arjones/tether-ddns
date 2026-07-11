@@ -1,0 +1,15 @@
+services:
+  tether-ddns:
+    build: .
+    image: tether-ddns:local
+    ports:
+      - "8000:8000"
+    # For a DDNS tool, host networking can improve router/LAN reachability and
+    # public-IP detection. To use it, comment out `ports` above and uncomment:
+    # network_mode: host
+    volumes:
+      - tether-config:/data
+    restart: unless-stopped
+
+volumes:
+  tether-config:
