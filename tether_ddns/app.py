@@ -12,7 +12,11 @@ from tether_ddns.api import register_routes
 from tether_ddns.config import ConfigStore
 from tether_ddns.hooks.base import load_hooks
 from tether_ddns.ip_sources.base import load_ip_sources
-from tether_ddns.logging_setup import LogRingHandler, install_ring_handler
+from tether_ddns.logging_setup import (
+    LogRingHandler,
+    install_ring_handler,
+    install_stdout_handler,
+)
 from tether_ddns.providers.base import load_providers
 from tether_ddns.runtime import RuntimeState
 from tether_ddns.scheduler import Scheduler
@@ -29,6 +33,7 @@ def create_app(store: ConfigStore | None = None) -> FastAPI:
     async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         handler = LogRingHandler()
         install_ring_handler(handler)
+        install_stdout_handler()
         load_providers()
         load_hooks()
         load_ip_sources()
