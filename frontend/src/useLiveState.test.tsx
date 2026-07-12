@@ -27,7 +27,17 @@ class FakeWS {
 const snapshot: StateSnapshot = {
   public_ipv4: '203.0.113.5',
   public_ipv6: '2001:db8::5',
+  ipv4_changed_at: null,
+  ipv6_changed_at: null,
   online: true,
+  next_check_at: null,
+  reachability: {
+    started_at: 0,
+    checks: 0,
+    online: 0,
+    history: [],
+    latest: [],
+  },
   domains: [],
   settings: {
     check_interval: 300,

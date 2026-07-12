@@ -1,3 +1,5 @@
+import type { JSX } from 'react';
+
 export type ViewKey = 'overview' | 'domains' | 'hooks' | 'logs' | 'settings';
 
 export interface RailProps {

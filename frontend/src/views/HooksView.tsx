@@ -1,3 +1,4 @@
+import type { JSX } from 'react';
 import type { HookConfig, HookDef } from '../types';
 
 export interface HooksViewProps {

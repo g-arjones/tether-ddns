@@ -19,7 +19,7 @@ export function OverviewView({ snapshot, domains, settings }: OverviewViewProps)
   const ipv6 = snapshot?.public_ipv6 ?? null;
   const ipv4ChangedAt = snapshot?.ipv4_changed_at ?? null;
   const ipv6ChangedAt = snapshot?.ipv6_changed_at ?? null;
-  const ipSource = snapshot?.settings.ip_source ?? settings?.ip_source ?? '';
+  const ipSource = snapshot?.settings?.ip_source ?? settings?.ip_source ?? '';
   const nextCheckAt = snapshot?.next_check_at ?? null;
   const checkInterval = settings?.check_interval ?? 0;
   const runtimeDomains = snapshot?.domains ?? [];

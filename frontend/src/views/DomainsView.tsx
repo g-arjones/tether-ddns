@@ -1,3 +1,4 @@
+import type { JSX } from 'react';
 import type { DomainConfig, DomainState } from '../types';
 import { DomainCard } from '../components/DomainCard';
 
