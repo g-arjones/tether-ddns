@@ -2,6 +2,7 @@
 from collections import deque
 
 from tether_ddns.config import AppConfig, DomainConfig
+from tether_ddns.reachability import ReachabilityResult, ResolverProbe
 from tether_ddns.runtime import (
     REACHABILITY_HISTORY_SIZE,
     CheckRecord,
@@ -230,3 +231,52 @@ def test_check_record_shape() -> None:
     rec = CheckRecord(ts=1.0, successes=3, total=3)
     assert rec.model_dump() == {'ts': 1.0, 'successes': 3, 'total': 3}
 
+
+def _result(online: bool, successes: int = 3, total: int = 3) -> ReachabilityResult:
+    return ReachabilityResult(
+        online=online, successes=successes, total=total,
+        probes=[ResolverProbe(ip='1.1.1.1', ok=online, latency_ms=5.0)])
+
+
+def test_record_reachability_accumulates() -> None:
+    state = RuntimeState()
+    assert state.record_reachability(_result(True)) is True   # False -> True
+    assert state.record_reachability(_result(True)) is False  # no transition
+    assert state.reachability_checks == 2
+    assert state.reachability_online == 2
+    assert state.online is True
+    assert len(state.reachability_history) == 2
+    assert state.reachability_latest[0].ip == '1.1.1.1'
+
+
+def test_record_reachability_counts_only_online() -> None:
+    state = RuntimeState()
+    state.record_reachability(_result(True))
+    state.record_reachability(_result(False, successes=0))
+    assert state.reachability_checks == 2
+    assert state.reachability_online == 1
+
+
+def test_record_reachability_history_caps_at_size() -> None:
+    state = RuntimeState()
+    for _ in range(REACHABILITY_HISTORY_SIZE + 5):
+        state.record_reachability(_result(True))
+    assert len(state.reachability_history) == REACHABILITY_HISTORY_SIZE
+
+
+def test_set_next_check_at() -> None:
+    state = RuntimeState()
+    state.set_next_check_at(123.0)
+    assert state.next_check_at == 123.0
+
+
+def test_ip_changed_at_only_moves_on_change() -> None:
+    state = RuntimeState()
+    state.set_public_ipv4('203.0.113.1')
+    first = state.ipv4_changed_at
+    assert first is not None
+    state.set_public_ipv4('203.0.113.1')  # unchanged
+    assert state.ipv4_changed_at == first
+    state.set_public_ipv4('203.0.113.2')  # changed
+    assert state.ipv4_changed_at is not None
+    assert state.ipv4_changed_at >= first

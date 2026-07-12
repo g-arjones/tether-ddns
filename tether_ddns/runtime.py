@@ -8,7 +8,7 @@ from typing import Callable, Literal
 from pydantic import BaseModel
 
 from tether_ddns.config import AppConfig, DomainConfig
-from tether_ddns.reachability import ResolverProbe
+from tether_ddns.reachability import ReachabilityResult, ResolverProbe
 
 Status = Literal['synced', 'pending', 'error', 'updating']
 Listener = Callable[[dict[str, object]], None]
@@ -98,18 +98,40 @@ class RuntimeState:
         self._emit()
 
     def set_public_ipv4(self, ip: str | None) -> None:
-        """Update the current public IPv4 and notify listeners."""
+        """Update the current public IPv4, tracking last-changed, and notify."""
+        if ip is not None and ip != self.public_ipv4:
+            self.ipv4_changed_at = time.time()
         self.public_ipv4 = ip
         self._emit()
 
     def set_public_ipv6(self, ip: str | None) -> None:
-        """Update the current public IPv6 and notify listeners."""
+        """Update the current public IPv6, tracking last-changed, and notify."""
+        if ip is not None and ip != self.public_ipv6:
+            self.ipv6_changed_at = time.time()
         self.public_ipv6 = ip
         self._emit()
 
     def set_online(self, online: bool) -> None:
         """Update reachability and notify listeners."""
         self.online = online
+        self._emit()
+
+    def record_reachability(self, result: ReachabilityResult) -> bool:
+        """Record a reachability check; return True on an online transition."""
+        transitioned = result.online != self.online
+        self.reachability_history.append(CheckRecord(
+            ts=time.time(), successes=result.successes, total=result.total))
+        self.reachability_checks += 1
+        if result.online:
+            self.reachability_online += 1
+        self.reachability_latest = list(result.probes)
+        self.online = result.online
+        self._emit()
+        return transitioned
+
+    def set_next_check_at(self, ts: float | None) -> None:
+        """Set the next scheduled sync time and notify listeners."""
+        self.next_check_at = ts
         self._emit()
 
     def set_status(
