@@ -280,3 +280,23 @@ def test_ip_changed_at_only_moves_on_change() -> None:
     state.set_public_ipv4('203.0.113.2')  # changed
     assert state.ipv4_changed_at is not None
     assert state.ipv4_changed_at >= first
+
+
+def test_snapshot_includes_reachability_block() -> None:
+    state = RuntimeState()
+    state.record_reachability(_result(True))
+    state.set_next_check_at(999.0)
+    state.set_public_ipv4('203.0.113.9')
+    snap = state.snapshot()
+    assert snap['next_check_at'] == 999.0
+    assert snap['ipv4_changed_at'] is not None
+    assert snap['ipv6_changed_at'] is None
+    reach = snap['reachability']
+    assert isinstance(reach, dict)
+    assert reach['checks'] == 1
+    assert reach['online'] == 1
+    assert isinstance(reach['started_at'], float)
+    assert reach['history'] == [
+        {'ts': reach['history'][0]['ts'], 'successes': 3, 'total': 3}]
+    assert reach['latest'] == [
+        {'ip': '1.1.1.1', 'ok': True, 'latency_ms': 5.0}]

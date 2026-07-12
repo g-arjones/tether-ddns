@@ -171,7 +171,17 @@ class RuntimeState:
         return {
             'public_ipv4': self.public_ipv4,
             'public_ipv6': self.public_ipv6,
+            'ipv4_changed_at': self.ipv4_changed_at,
+            'ipv6_changed_at': self.ipv6_changed_at,
             'online': self.online,
+            'next_check_at': self.next_check_at,
+            'reachability': {
+                'started_at': self.reachability_started_at,
+                'checks': self.reachability_checks,
+                'online': self.reachability_online,
+                'history': [r.model_dump() for r in self.reachability_history],
+                'latest': [p.model_dump() for p in self.reachability_latest],
+            },
             'domains': [d.model_dump() for d in self.domains.values()],
         }
 
