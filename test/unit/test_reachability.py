@@ -56,6 +56,9 @@ async def test_check_uses_query_dns(monkeypatch: pytest.MonkeyPatch) -> None:
         async def query_dns(self, host: str, qtype: str) -> object:
             return object()
 
+        async def close(self) -> None:
+            return None
+
     monkeypatch.setattr('tether_ddns.reachability.aiodns.DNSResolver', _FakeResolver)
     result = await service.check()
     assert result.online is True

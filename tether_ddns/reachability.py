@@ -67,6 +67,10 @@ class ReachabilityService:
             return ResolverProbe(ip=resolver_ip, ok=False)
         except Exception:  # noqa: BLE001 - one bad resolver must not kill the check
             return ResolverProbe(ip=resolver_ip, ok=False)
+        finally:
+            # Drain pending c-ares queries while the loop is still alive so a
+            # late callback cannot fire on a closed loop.
+            await resolver.close()
         latency_ms = (time.perf_counter() - start) * 1000
         return ResolverProbe(ip=resolver_ip, ok=True, latency_ms=latency_ms)
 
