@@ -24,8 +24,10 @@ export interface StateSnapshot {
   next_check_at: number | null;
   reachability: Reachability;
   domains: DomainState[];
-  settings: Settings;
-  logs: LogEntry[];
+  // Present on the REST /api/state payload; absent from the /api/ws state
+  // frame (settings are fetched separately; logs arrive as their own frames).
+  settings?: Settings;
+  logs?: LogEntry[];
 }
 
 export interface DomainConfig { id: string; hostname: string; provider: string; record_type: string; enabled: boolean; provider_config?: Record<string, unknown>; }

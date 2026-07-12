@@ -8,7 +8,7 @@ test('app starts on Overview', async ({ page }) => {
 test('rail navigates across all five views', async ({ page }) => {
   await page.goto('/');
   await expect(page.getByRole('heading', { name: 'Overview', level: 2 })).toBeVisible();
-  
+
   // Navigate through all views via rail buttons
   const viewPairs = [
     ['Domains', 'Domains'],
@@ -16,7 +16,7 @@ test('rail navigates across all five views', async ({ page }) => {
     ['Logs', 'Logs'],
     ['Settings', 'Settings'],
   ] as const;
-  
+
   for (const [navButtonName, headingName] of viewPairs) {
     await page.getByRole('button', { name: new RegExp(navButtonName) }).click();
     // Check for the h2 heading in the TopBar
@@ -32,10 +32,10 @@ test('overview shows the instrument panels', async ({ page }) => {
 
 test('add a domain from the Domains view', async ({ page }) => {
   await page.goto('/');
-  
+
   // Navigate to Domains view via rail
   await page.getByRole('button', { name: /Domains/ }).click();
-  
+
   // Click Add Domain button in the view (not in the modal)
   await page.getByRole('main').getByRole('button', { name: 'Add Domain' }).click();
 
@@ -57,15 +57,15 @@ test('add a domain from the Domains view', async ({ page }) => {
 
   // The new domain appears in a DomainCard
   await expect(
-    page.locator('.name').filter({ hasText: 'home.example.com' }),
+    page.locator('.name').filter({ hasText: 'home.example.com' }).first(),
   ).toBeVisible();
 });
 
 test('log viewer is visible on the Logs view', async ({ page }) => {
   await page.goto('/');
-  
+
   // Navigate to Logs view via rail
   await page.getByRole('button', { name: /Logs/ }).click();
-  
+
   await expect(page.getByTestId('log-viewer')).toBeVisible();
 });
