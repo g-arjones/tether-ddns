@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import asyncio
+import time
+from typing import cast
 
 import aiodns
 
@@ -15,6 +17,14 @@ DEFAULT_RESOLVERS = ['1.1.1.1', '8.8.8.8', '9.9.9.9']
 DEFAULT_QUERY_HOST = 'cloudflare.com'
 
 
+class ResolverProbe(BaseModel):
+    """Outcome of a single resolver query."""
+
+    ip: str
+    ok: bool
+    latency_ms: float | None = None
+
+
 class ReachabilityResult(BaseModel):
     """Outcome of a reachability check."""
 
@@ -22,6 +32,7 @@ class ReachabilityResult(BaseModel):
     successes: int
     total: int
     details: dict[str, str] = Field(default_factory=dict)
+    probes: list[ResolverProbe] = Field(default_factory=lambda: [])
 
 
 class ReachabilityService:
@@ -40,26 +51,30 @@ class ReachabilityService:
         self._timeout = per_query_timeout
         self._quorum = quorum
 
-    async def _query_one(self, resolver_ip: str) -> tuple[str, str]:
-        """Resolve against one resolver; return (ip, 'ok' | error)."""
+    async def _query_one(self, resolver_ip: str) -> ResolverProbe:
+        """Resolve against one resolver, returning a timed probe."""
         resolver = aiodns.DNSResolver(nameservers=[resolver_ip])
+        start = time.perf_counter()
         try:
             await asyncio.wait_for(
                 resolver.query_dns(self._query_host, 'A'), timeout=self._timeout)
-            return resolver_ip, 'ok'
         except asyncio.TimeoutError:
-            return resolver_ip, 'timeout'
-        except aiodns.error.DNSError as exc:
-            return resolver_ip, f'dns_error: {exc}'
-        except Exception as exc:  # noqa: BLE001 - one bad resolver must not kill the check
-            return resolver_ip, f'error: {exc}'
+            return ResolverProbe(ip=resolver_ip, ok=False)
+        except aiodns.error.DNSError:
+            return ResolverProbe(ip=resolver_ip, ok=False)
+        except Exception:  # noqa: BLE001 - one bad resolver must not kill the check
+            return ResolverProbe(ip=resolver_ip, ok=False)
+        latency_ms = (time.perf_counter() - start) * 1000
+        return ResolverProbe(ip=resolver_ip, ok=True, latency_ms=latency_ms)
 
     async def check(self) -> ReachabilityResult:
         """Query all resolvers concurrently and evaluate the quorum."""
-        results = await asyncio.gather(
-            *(self._query_one(ip) for ip in self._resolver_ips))
-        details = dict(results)
-        successes = sum(1 for _, status in results if status == 'ok')
+        probes = cast(
+            tuple[ResolverProbe, ...],
+            await asyncio.gather(*(self._query_one(ip) for ip in self._resolver_ips)))
+        details = {
+            p.ip: 'ok' if p.ok else 'unreachable' for p in probes}
+        successes = sum(1 for p in probes if p.ok)
         online = successes >= self._quorum
         if not online:
             _log.warning(
@@ -67,4 +82,5 @@ class ReachabilityService:
                 successes, len(self._resolver_ips), details)
         return ReachabilityResult(
             online=online, successes=successes,
-            total=len(self._resolver_ips), details=details)
+            total=len(self._resolver_ips), details=details,
+            probes=list(probes))
