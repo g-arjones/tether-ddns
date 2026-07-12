@@ -4,8 +4,8 @@ from collections import deque
 from tether_ddns.config import AppConfig, DomainConfig
 from tether_ddns.reachability import ReachabilityResult, ResolverProbe
 from tether_ddns.runtime import (
-    REACHABILITY_HISTORY_SIZE,
     CheckRecord,
+    REACHABILITY_HISTORY_SIZE,
     RuntimeState,
 )
 
@@ -227,7 +227,7 @@ def test_reachability_fields_initialised() -> None:
 
 
 def test_check_record_shape() -> None:
-    """CheckRecord model captures ts, successes, and total."""
+    """Verify CheckRecord model captures ts, successes, and total."""
     rec = CheckRecord(ts=1.0, successes=3, total=3)
     assert rec.model_dump() == {'ts': 1.0, 'successes': 3, 'total': 3}
 
@@ -239,6 +239,7 @@ def _result(online: bool, successes: int = 3, total: int = 3) -> ReachabilityRes
 
 
 def test_record_reachability_accumulates() -> None:
+    """record_reachability counts checks, tracks latest probes, and detects transitions."""
     state = RuntimeState()
     assert state.record_reachability(_result(True)) is True   # False -> True
     assert state.record_reachability(_result(True)) is False  # no transition
@@ -250,6 +251,7 @@ def test_record_reachability_accumulates() -> None:
 
 
 def test_record_reachability_counts_only_online() -> None:
+    """reachability_online only increments for successful results."""
     state = RuntimeState()
     state.record_reachability(_result(True))
     state.record_reachability(_result(False, successes=0))
@@ -258,6 +260,7 @@ def test_record_reachability_counts_only_online() -> None:
 
 
 def test_record_reachability_history_caps_at_size() -> None:
+    """reachability_history deque caps at REACHABILITY_HISTORY_SIZE."""
     state = RuntimeState()
     for _ in range(REACHABILITY_HISTORY_SIZE + 5):
         state.record_reachability(_result(True))
@@ -265,12 +268,14 @@ def test_record_reachability_history_caps_at_size() -> None:
 
 
 def test_set_next_check_at() -> None:
+    """set_next_check_at records the timestamp for the next reachability check."""
     state = RuntimeState()
     state.set_next_check_at(123.0)
     assert state.next_check_at == 123.0
 
 
 def test_ip_changed_at_only_moves_on_change() -> None:
+    """ipv4_changed_at only updates when the IP actually changes."""
     state = RuntimeState()
     state.set_public_ipv4('203.0.113.1')
     first = state.ipv4_changed_at
@@ -283,6 +288,7 @@ def test_ip_changed_at_only_moves_on_change() -> None:
 
 
 def test_snapshot_includes_reachability_block() -> None:
+    """snapshot() includes the reachability block with checks, online count, and latest probes."""
     state = RuntimeState()
     state.record_reachability(_result(True))
     state.set_next_check_at(999.0)
