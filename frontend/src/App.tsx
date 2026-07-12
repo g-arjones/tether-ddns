@@ -16,6 +16,7 @@ import { DomainsView } from './views/DomainsView';
 import { HooksView } from './views/HooksView';
 import { LogsView } from './views/LogsView';
 import { SettingsView } from './views/SettingsView';
+import { AboutView } from './views/AboutView';
 import { DomainModal, type DomainFormValue } from './components/DomainModal';
 import { HookModal, type HookFormValue } from './components/HookModal';
 import { Toasts, type ToastItem, type ToastKind } from './components/Toasts';
@@ -29,6 +30,7 @@ const TITLES: Record<ViewKey, { title: string; sub: string }> = {
   hooks: { title: 'Hooks', sub: 'React to lifecycle events' },
   logs: { title: 'Logs', sub: 'Live application log' },
   settings: { title: 'Settings', sub: 'Scheduling, behavior, and IP source' },
+  about: { title: 'About', sub: 'Version & tech stack' },
 };
 
 function initialTheme(): Theme {
@@ -337,6 +339,7 @@ export default function App() {
             {activeView === 'settings' && (
               <SettingsView settings={settings} ipSources={ipSources} onSave={handleSaveSettings} />
             )}
+            {activeView === 'about' && <AboutView />}
           </main>
         </div>
       </div>

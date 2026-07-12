@@ -17,6 +17,11 @@ describe('Rail', () => {
     expect(screen.getByRole('button', { name: /Settings/ })).toBeInTheDocument();
   });
 
+  it('renders the About nav item', () => {
+    render(<Rail {...base} />);
+    expect(screen.getByRole('button', { name: /About/ })).toBeInTheDocument();
+  });
+
   it('marks the active view', () => {
     render(<Rail {...base} active="domains" />);
     expect(screen.getByRole('button', { name: /Domains/ })).toHaveClass('active');
