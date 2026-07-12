@@ -134,3 +134,23 @@ def test_install_stdout_handler_emits_record(capsys: pytest.CaptureFixture[str])
     assert 'hello stdout' in captured.out
     for h in _stdout_stream_handlers():
         logger.removeHandler(h)
+
+
+def test_ring_handler_includes_exception_detail() -> None:
+    """A record logged with exc_info stores the exception type and message."""
+    import logging
+    from tether_ddns.logging_setup import LogRingHandler
+
+    handler = LogRingHandler()
+    logger = logging.getLogger('tether_ddns.test.exc')
+    logger.addHandler(handler)
+    logger.setLevel(logging.INFO)
+    try:
+        raise ValueError('kaboom')
+    except ValueError:
+        logger.exception('operation failed')
+    logger.removeHandler(handler)
+    messages = [r['message'] for r in handler.snapshot()]
+    assert any(
+        'operation failed' in m and 'ValueError' in m and 'kaboom' in m
+        for m in messages)

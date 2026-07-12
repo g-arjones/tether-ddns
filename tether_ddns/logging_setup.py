@@ -40,11 +40,15 @@ class LogRingHandler(logging.Handler):
     def emit(self, record: logging.LogRecord) -> None:
         """Store the record and notify listeners (never raises)."""
         try:
+            message = record.getMessage()
+            if record.exc_info and record.exc_info[1] is not None:
+                exc = record.exc_info[1]
+                message = f'{message}: {type(exc).__name__}: {exc}'
             entry: LogRecordDict = {
                 'time': record.created,
                 'level': record.levelname,
                 'logger': record.name,
-                'message': record.getMessage(),
+                'message': message,
             }
             self.records.append(entry)
             for cb in list(self._listeners):
