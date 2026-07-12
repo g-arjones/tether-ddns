@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { HookConfig, HookDef } from '../types';
 import { SchemaForm, type JsonSchema } from './SchemaForm';
+import { Select } from './Select';
 
 export interface HookModalProps {
   open: boolean;
@@ -54,26 +55,30 @@ export function HookModal({ open, hooks, editing, onClose, onSave }: HookModalPr
         <div className="modal-body">
           <div className="field">
             <label htmlFor="fHook">Hook</label>
-            <select id="fHook" value={form.hook} onChange={(e) => setForm({ ...form, hook: e.target.value, config: {}, events: [] })}>
-              {hooks.map((h) => (
-                <option key={h.key} value={h.key}>{h.display_name}</option>
-              ))}
-            </select>
+            <Select
+              id="fHook"
+              ariaLabel="Hook"
+              value={form.hook}
+              options={hooks.map((h) => ({ value: h.key, label: h.display_name }))}
+              onChange={(hook) => setForm({ ...form, hook, config: {}, events: [] })}
+            />
           </div>
           {schema.description ? <p className="modal-blurb">{schema.description}</p> : null}
           <div className="field">
             <label>Events</label>
-            {availableEvents.map((event) => (
-              <label className="switch-row" key={event.key} style={{ cursor: 'pointer' }}>
-                <div className="sr-text"><div className="t">{event.label}</div></div>
-                <input
-                  type="checkbox"
-                  aria-label={event.label}
-                  checked={form.events.includes(event.key)}
-                  onChange={() => toggleEvent(event.key)}
-                />
-              </label>
-            ))}
+            <div className="chips">
+              {availableEvents.map((event) => (
+                <button
+                  type="button"
+                  key={event.key}
+                  className={`chip${form.events.includes(event.key) ? ' active' : ''}`}
+                  aria-pressed={form.events.includes(event.key)}
+                  onClick={() => toggleEvent(event.key)}
+                >
+                  {event.label}
+                </button>
+              ))}
+            </div>
           </div>
           <SchemaForm schema={schema} value={form.config} onChange={(config) => setForm({ ...form, config })} />
         </div>

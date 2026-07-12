@@ -1,6 +1,7 @@
 export function formatInterval(seconds: number): string {
-  if (seconds % 3600 === 0) return `${seconds / 3600}h`;
-  return `${Math.round(seconds / 60)}m`;
+  if (seconds < 60) return `${seconds}s`;
+  if (seconds < 3600) return `${Math.round(seconds / 60)} min`;
+  return `${seconds / 3600} hr`;
 }
 
 export function deriveHue(key: string): number {

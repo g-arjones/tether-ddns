@@ -21,7 +21,7 @@ describe('HookModal', () => {
       open hooks={hooks} editing={null}
       onClose={vi.fn()} onSave={onSave} />);
     expect(screen.getByRole('heading', { name: 'Add Hook' })).toBeInTheDocument();
-    fireEvent.click(screen.getByLabelText('IP Changed'));
+    fireEvent.click(screen.getByRole('button', { name: 'IP Changed' }));
     fireEvent.click(screen.getByRole('button', { name: 'Add Hook' }));
     expect(onSave).toHaveBeenCalledWith(
       expect.objectContaining({ hook: 'log', events: ['ip_changed'] }),
@@ -34,7 +34,7 @@ describe('HookModal', () => {
       editing={{ id: 'h', hook: 'log', events: ['ip_changed'], config: {} }}
       onClose={vi.fn()} onSave={vi.fn()} />);
     expect(screen.getByText('Edit Hook')).toBeInTheDocument();
-    expect((screen.getByLabelText('IP Changed') as HTMLInputElement).checked).toBe(true);
+    expect(screen.getByRole('button', { name: 'IP Changed' })).toHaveClass('active');
   });
 
   it('renders event labels and toggles by key', () => {
@@ -48,7 +48,7 @@ describe('HookModal', () => {
       open hooks={rfHooks} editing={null}
       onClose={vi.fn()} onSave={onSave} />);
     expect(screen.getByText('IP Changed')).toBeInTheDocument();
-    fireEvent.click(screen.getByLabelText('IP Changed'));
+    fireEvent.click(screen.getByRole('button', { name: 'IP Changed' }));
     fireEvent.click(screen.getByRole('button', { name: 'Add Hook' }));
     expect(onSave).toHaveBeenCalledWith(
       expect.objectContaining({ events: ['ip_changed'] }));

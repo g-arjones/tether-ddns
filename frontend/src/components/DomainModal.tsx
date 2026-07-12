@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { DomainConfig, Provider } from '../types';
 import { SchemaForm, type JsonSchema } from './SchemaForm';
+import { Select } from './Select';
 
 export interface DomainModalProps {
   open: boolean;
@@ -70,18 +71,26 @@ export function DomainModal({ open, providers, editing, onClose, onSave }: Domai
           <div className="field-row">
             <div className="field">
               <label htmlFor="fProvider">DNS Provider</label>
-              <select id="fProvider" value={form.provider} onChange={(e) => setForm({ ...form, provider: e.target.value, provider_config: {} })}>
-                {providers.map((p) => (
-                  <option key={p.key} value={p.key}>{p.display_name}</option>
-                ))}
-              </select>
+              <Select
+                id="fProvider"
+                ariaLabel="DNS Provider"
+                value={form.provider}
+                options={providers.map((p) => ({ value: p.key, label: p.display_name }))}
+                onChange={(provider) => setForm({ ...form, provider, provider_config: {} })}
+              />
             </div>
             <div className="field">
               <label htmlFor="fType">Record Type</label>
-              <select id="fType" value={form.record_type} onChange={(e) => setForm({ ...form, record_type: e.target.value })}>
-                <option value="A">A (IPv4)</option>
-                <option value="AAAA">AAAA (IPv6)</option>
-              </select>
+              <Select
+                id="fType"
+                ariaLabel="Record Type"
+                value={form.record_type}
+                options={[
+                  { value: 'A', label: 'A (IPv4)' },
+                  { value: 'AAAA', label: 'AAAA (IPv6)' },
+                ]}
+                onChange={(record_type) => setForm({ ...form, record_type })}
+              />
             </div>
           </div>
           {schema.description ? <p className="modal-blurb">{schema.description}</p> : null}

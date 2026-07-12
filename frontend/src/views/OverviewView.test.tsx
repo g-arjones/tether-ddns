@@ -21,7 +21,7 @@ describe('OverviewView', () => {
       <OverviewView
         snapshot={snapshot}
         domains={[{ id: 'a', hostname: 'h', provider: 'duckdns', record_type: 'A', enabled: true }]}
-        settings={snapshot.settings}
+        settings={snapshot.settings ?? null}
       />,
     );
     expect(screen.getByText('Total Domains')).toBeInTheDocument();
