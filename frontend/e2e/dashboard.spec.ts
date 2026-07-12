@@ -69,3 +69,11 @@ test('log viewer is visible on the Logs view', async ({ page }) => {
 
   await expect(page.getByTestId('log-viewer')).toBeVisible();
 });
+
+test('about view shows backend and frontend panels', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: /About/ }).click();
+  await expect(page.getByRole('heading', { name: 'About', level: 2 })).toBeVisible();
+  await expect(page.getByText('Backend')).toBeVisible();
+  await expect(page.getByText('Frontend')).toBeVisible();
+});
