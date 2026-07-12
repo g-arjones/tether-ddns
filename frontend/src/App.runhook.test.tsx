@@ -35,6 +35,9 @@ describe('App run hook', () => {
 
   it('calls runHook and shows a success toast', async () => {
     render(<App />);
+    // Navigate to Hooks view
+    const hooksNav = screen.getByRole('button', { name: /Hooks/ });
+    fireEvent.click(hooksNav);
     const btn = await screen.findByRole('button', { name: /run now/i });
     fireEvent.click(btn);
     await waitFor(() => expect(api.runHook).toHaveBeenCalledWith('h1'));

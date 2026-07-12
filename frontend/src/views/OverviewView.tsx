@@ -33,7 +33,7 @@ export function OverviewView({ snapshot, domains, settings }: OverviewViewProps)
   // Compute stats
   const total = domains.length;
   const providers = new Set(domains.map((d) => d.provider)).size;
-  
+
   let synced = 0;
   let needsUpdate = 0;
   for (const d of domains) {

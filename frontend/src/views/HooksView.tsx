@@ -86,8 +86,8 @@ export function HooksView(props: HooksViewProps): JSX.Element {
               </div>
             </div>
             <div className="hook-actions">
-              <button 
-                className="act-btn" 
+              <button
+                className="act-btn"
                 onClick={() => onRun(hook.id)}
                 title="Run now"
                 aria-label="Run now"
@@ -96,8 +96,8 @@ export function HooksView(props: HooksViewProps): JSX.Element {
                   <path d="M8 5v14l11-7z" />
                 </svg>
               </button>
-              <button 
-                className="act-btn" 
+              <button
+                className="act-btn"
                 onClick={() => onEdit(hook)}
                 title="Edit"
                 aria-label="Edit"
@@ -107,8 +107,8 @@ export function HooksView(props: HooksViewProps): JSX.Element {
                   <path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4z" />
                 </svg>
               </button>
-              <button 
-                className="act-btn danger" 
+              <button
+                className="act-btn danger"
                 onClick={() => onDelete(hook.id)}
                 title="Delete"
                 aria-label="Delete"

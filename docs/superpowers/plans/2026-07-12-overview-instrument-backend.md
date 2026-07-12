@@ -34,7 +34,7 @@
   - `ReachabilityService._query_one(self, resolver_ip: str) -> ResolverProbe`.
   - `ReachabilityResult` gains `probes: list[ResolverProbe] = Field(default_factory=list)`. Existing `online`, `successes`, `total`, `details` unchanged.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Add to `test/unit/test_reachability.py`:
 
@@ -93,12 +93,12 @@ def test_check_assembles_probes(monkeypatch) -> None:
     assert result.online is True
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `pytest test/unit/test_reachability.py -k "probe or query_one or assembles" -v`
 Expected: FAIL — `ImportError: cannot import name 'ResolverProbe'`.
 
-- [ ] **Step 3: Implement `ResolverProbe`, latency, and `probes`**
+- [x] **Step 3: Implement `ResolverProbe`, latency, and `probes`**
 
 In `tether_ddns/reachability.py`, add `import time` (respect alphabetical order: after `import asyncio`). Add the model after `ReachabilityResult`:
 
@@ -171,12 +171,12 @@ Replace `check()` so it derives everything from probes:
             probes=list(probes))
 ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 Run: `pytest test/unit/test_reachability.py -v`
 Expected: PASS (including any pre-existing tests; update assertions on the old `details` values if a pre-existing test expected `'dns_error: ...'` — the new `check()` maps failures to `'unreachable'`).
 
-- [ ] **Step 5: Gates + commit**
+- [x] **Step 5: Gates + commit**
 
 Run: `flake8 tether_ddns/reachability.py && mypy . && pyright tether_ddns && ruff check tether_ddns/reachability.py`
 Expected: clean.
@@ -230,12 +230,12 @@ def test_check_record_shape() -> None:
     assert rec.model_dump() == {'ts': 1.0, 'successes': 3, 'total': 3}
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `pytest test/unit/test_runtime.py -k "reachability_fields or check_record" -v`
 Expected: FAIL — `ImportError: cannot import name 'CheckRecord'`.
 
-- [ ] **Step 3: Implement the model and fields**
+- [x] **Step 3: Implement the model and fields**
 
 In `tether_ddns/runtime.py`: add `import time` (already present — verify) and `from collections import deque` (alphabetical, above `import time`). Import the reachability types:
 
@@ -271,12 +271,12 @@ Extend `RuntimeState.__init__` (append after `self.online = False`):
         self.ipv6_changed_at: float | None = None
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `pytest test/unit/test_runtime.py -k "reachability_fields or check_record" -v`
 Expected: PASS.
 
-- [ ] **Step 5: Gates + commit**
+- [x] **Step 5: Gates + commit**
 
 Run: `flake8 tether_ddns/runtime.py && mypy . && pyright tether_ddns && ruff check tether_ddns/runtime.py`
 Expected: clean.
