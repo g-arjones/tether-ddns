@@ -1,6 +1,12 @@
 """Tests for the runtime state container."""
+from collections import deque
+
 from tether_ddns.config import AppConfig, DomainConfig
-from tether_ddns.runtime import RuntimeState
+from tether_ddns.runtime import (
+    REACHABILITY_HISTORY_SIZE,
+    CheckRecord,
+    RuntimeState,
+)
 
 
 def test_rebuild_starts_new_domains_pending() -> None:
@@ -203,3 +209,24 @@ def test_rebuild_enable_toggle_does_not_reset() -> None:
                      enabled=False)]))
     assert state.domains['a'].status == 'synced'
     assert state.domains['a'].ip == '1.2.3.4'
+
+
+def test_reachability_fields_initialised() -> None:
+    """Reachability telemetry fields are set on RuntimeState init."""
+    state = RuntimeState()
+    assert state.reachability_checks == 0
+    assert state.reachability_online == 0
+    assert isinstance(state.reachability_history, deque)
+    assert state.reachability_history.maxlen == REACHABILITY_HISTORY_SIZE
+    assert state.reachability_latest == []
+    assert state.next_check_at is None
+    assert state.ipv4_changed_at is None
+    assert state.ipv6_changed_at is None
+    assert isinstance(state.reachability_started_at, float)
+
+
+def test_check_record_shape() -> None:
+    """CheckRecord model captures ts, successes, and total."""
+    rec = CheckRecord(ts=1.0, successes=3, total=3)
+    assert rec.model_dump() == {'ts': 1.0, 'successes': 3, 'total': 3}
+

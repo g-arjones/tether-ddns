@@ -2,14 +2,26 @@
 from __future__ import annotations
 
 import time
+from collections import deque
 from typing import Callable, Literal
 
 from pydantic import BaseModel
 
 from tether_ddns.config import AppConfig, DomainConfig
+from tether_ddns.reachability import ResolverProbe
 
 Status = Literal['synced', 'pending', 'error', 'updating']
 Listener = Callable[[dict[str, object]], None]
+
+REACHABILITY_HISTORY_SIZE = 60
+
+
+class CheckRecord(BaseModel):
+    """A single reachability check summary for the history buffer."""
+
+    ts: float
+    successes: int
+    total: int
 
 
 def freshness(assigned_ip: str | None, current_ip: str | None) -> Status:
@@ -40,6 +52,15 @@ class RuntimeState:
         self.domains: dict[str, DomainRuntime] = {}
         self._configs: dict[str, DomainConfig] = {}
         self._listeners: list[Listener] = []
+        self.reachability_started_at: float = time.time()
+        self.reachability_checks: int = 0
+        self.reachability_online: int = 0
+        self.reachability_history: deque[CheckRecord] = deque(
+            maxlen=REACHABILITY_HISTORY_SIZE)
+        self.reachability_latest: list[ResolverProbe] = []
+        self.next_check_at: float | None = None
+        self.ipv4_changed_at: float | None = None
+        self.ipv6_changed_at: float | None = None
 
     def add_listener(self, cb: Listener) -> None:
         """Register a listener called with a snapshot on each change."""
