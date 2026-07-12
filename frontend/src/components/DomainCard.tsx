@@ -1,4 +1,5 @@
 import type { DomainConfig, DomainState } from '../types';
+import { providerColor } from '../utils';
 
 export interface DomainCardProps {
   domain: DomainConfig;
@@ -35,7 +36,7 @@ export function DomainCard({ domain, runtime, onSync, onEdit, onDelete, onToggle
   return (
     <div className={`domain-card${status === 'updating' ? ' updating' : ''}`}>
       <div className="dc-head">
-        <div className="provider-badge" title={domain.provider}>{initials}</div>
+        <div className="provider-badge" style={{ background: providerColor(domain.provider) }} title={domain.provider}>{initials}</div>
         <div className="dc-title">
           <div className="name">{domain.hostname}</div>
           <div className="meta">
@@ -51,23 +52,15 @@ export function DomainCard({ domain, runtime, onSync, onEdit, onDelete, onToggle
           <div className="ip-label">Assigned {domain.record_type === 'AAAA' ? 'IPv6' : 'IPv4'}</div>
           <div className="ip-val">{runtime.ip ?? '—'}</div>
         </div>
+        <label className="switch">
+          <input type="checkbox" checked={domain.enabled} onChange={() => onToggle(domain.id)} />
+          <span className="slider" />
+        </label>
       </div>
 
       <div className="dc-foot">
         <div className="dc-updated">Updated {relTime(runtime.updated)}</div>
         <div className="dc-actions">
-          <button
-            type="button"
-            className="act-btn"
-            title={domain.enabled ? 'Pause' : 'Resume'}
-            onClick={() => onToggle(domain.id)}
-          >
-            {domain.enabled ? (
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="6" y="4" width="4" height="16" /><rect x="14" y="4" width="4" height="16" /></svg>
-            ) : (
-              <svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M8 5v14l11-7z" /></svg>
-            )}
-          </button>
           <button type="button" className="act-btn" title="Force update now" onClick={() => onSync(domain.id)}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M23 4v6h-6M1 20v-6h6" /><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" /></svg>
           </button>

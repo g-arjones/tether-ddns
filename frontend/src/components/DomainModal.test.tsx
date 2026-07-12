@@ -44,4 +44,15 @@ describe('DomainModal', () => {
       onClose={vi.fn()} onSave={vi.fn()} />);
     expect(screen.getByText('DuckDNS provider config.')).toBeInTheDocument();
   });
+
+  it('offers only A and AAAA record type options', () => {
+    render(<DomainModal
+      open providers={providers} editing={null}
+      onClose={vi.fn()} onSave={vi.fn()} />);
+    const select = screen.getByLabelText('Record Type') as HTMLSelectElement;
+    const options = Array.from(select.options).map((opt) => ({ value: opt.value, label: opt.textContent }));
+    expect(options).toHaveLength(2);
+    expect(options[0]).toEqual({ value: 'A', label: 'A (IPv4)' });
+    expect(options[1]).toEqual({ value: 'AAAA', label: 'AAAA (IPv6)' });
+  });
 });
