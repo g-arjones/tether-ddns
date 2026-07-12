@@ -1,9 +1,20 @@
 import { defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
+import { createRequire } from 'node:module';
+
+const require = createRequire(import.meta.url);
+const reactVersion = (require('react/package.json') as { version: string }).version;
+const viteVersion = (require('vite/package.json') as { version: string }).version;
+const tsVersion = (require('typescript/package.json') as { version: string }).version;
 
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
+  define: {
+    __REACT_VERSION__: JSON.stringify(reactVersion),
+    __VITE_VERSION__: JSON.stringify(viteVersion),
+    __TS_VERSION__: JSON.stringify(tsVersion),
+  },
   build: { outDir: '../tether_ddns/static', emptyOutDir: true },
   server: { proxy: { '/api': 'http://localhost:8000' } },
   test: {
