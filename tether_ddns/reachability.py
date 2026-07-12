@@ -43,12 +43,16 @@ class ReachabilityService:
         query_host: str = DEFAULT_QUERY_HOST,
         per_query_timeout: float = 2.0,
         quorum: int = 2,
+        warn_throttle_seconds: float = 300.0,
     ) -> None:
         """Configure resolvers, query host, timeout and quorum."""
         self._resolver_ips = resolvers or DEFAULT_RESOLVERS
         self._query_host = query_host
         self._timeout = per_query_timeout
         self._quorum = quorum
+        self._warn_throttle_seconds = warn_throttle_seconds
+        self._last_online = True
+        self._last_warn_ts: float | None = None
 
     async def _query_one(self, resolver_ip: str) -> ResolverProbe:
         """Resolve against one resolver, returning a timed probe."""
@@ -76,9 +80,22 @@ class ReachabilityService:
         successes = sum(1 for p in probes if p.ok)
         online = successes >= self._quorum
         if not online:
-            _log.warning(
-                'Reachability failed: %d/%d resolvers ok (%s)',
-                successes, len(self._resolver_ips), details)
+            now = time.monotonic()
+            first_failure = self._last_online
+            throttle_elapsed = (
+                self._last_warn_ts is None
+                or now - self._last_warn_ts >= self._warn_throttle_seconds)
+            if first_failure or throttle_elapsed:
+                _log.warning(
+                    'Reachability failed: %d/%d resolvers ok (%s)',
+                    successes, len(self._resolver_ips), details)
+                self._last_warn_ts = now
+        elif not self._last_online:
+            _log.info(
+                'Reachability restored: %d/%d resolvers ok',
+                successes, len(self._resolver_ips))
+            self._last_warn_ts = None
+        self._last_online = online
         return ReachabilityResult(
             online=online, successes=successes,
             total=len(self._resolver_ips), details=details,

@@ -116,3 +116,55 @@ def test_check_assembles_probes(monkeypatch: pytest.MonkeyPatch) -> None:
     assert [p.ip for p in result.probes] == ['1.1.1.1', '8.8.8.8']
     assert result.successes == 2
     assert result.online is True
+
+
+@pytest.mark.asyncio
+async def test_offline_warning_throttled(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Repeated offline checks warn once on failure, then only after throttle."""
+    service = ReachabilityService(
+        resolvers=['1.1.1.1'], quorum=1, warn_throttle_seconds=300.0)
+    monkeypatch.setattr(
+        service, '_query_one',
+        AsyncMock(return_value=ResolverProbe(ip='1.1.1.1', ok=False)))
+
+    clock = {'now': 1000.0}
+    monkeypatch.setattr(
+        'tether_ddns.reachability.time.monotonic', lambda: clock['now'])
+
+    with patch('tether_ddns.reachability._log.warning') as warn:
+        await service.check()  # first failure -> warns
+        await service.check()  # still within throttle -> silent
+        clock['now'] += 100.0
+        await service.check()  # still within throttle -> silent
+        clock['now'] += 250.0
+        await service.check()  # throttle elapsed -> warns
+    assert warn.call_count == 2
+
+
+@pytest.mark.asyncio
+async def test_recovery_logs_info_and_resets_throttle(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Going offline then online logs recovery and re-warns on next outage."""
+    service = ReachabilityService(
+        resolvers=['1.1.1.1'], quorum=1, warn_throttle_seconds=300.0)
+    probe = {'ok': False}
+
+    async def fake_query_one(ip: str) -> ResolverProbe:
+        return ResolverProbe(ip=ip, ok=probe['ok'])
+
+    monkeypatch.setattr(service, '_query_one', fake_query_one)
+
+    clock = {'now': 1000.0}
+    monkeypatch.setattr(
+        'tether_ddns.reachability.time.monotonic', lambda: clock['now'])
+
+    with patch('tether_ddns.reachability._log.warning') as warn, \
+            patch('tether_ddns.reachability._log.info') as info:
+        await service.check()  # offline -> warns
+        probe['ok'] = True
+        await service.check()  # online -> info recovery
+        probe['ok'] = False
+        await service.check()  # offline again -> warns immediately (throttle reset)
+    assert warn.call_count == 2
+    assert info.call_count == 1
