@@ -33,4 +33,28 @@ describe('Rail', () => {
     const { container } = render(<Rail {...base} online={false} />);
     expect(container.querySelector('.rail-status .dot.offline')).toBeTruthy();
   });
+
+  it('renders a resize handle', () => {
+    const { container } = render(<Rail {...base} />);
+    expect(container.querySelector('.rail-resizer')).toBeTruthy();
+  });
+
+  it('persists a dragged width to localStorage on pointer drag', () => {
+    const { container } = render(<Rail {...base} />);
+    const resizer = container.querySelector('.rail-resizer') as HTMLElement;
+    fireEvent.pointerDown(resizer, { clientX: 260 });
+    fireEvent(document, new MouseEvent('pointermove', { clientX: 260 } as MouseEventInit));
+    fireEvent(document, new MouseEvent('pointerup', {} as MouseEventInit));
+    expect(localStorage.getItem('tether-rail-width')).toBe('260');
+  });
+
+  it('does not start a resize when collapsed', () => {
+    localStorage.removeItem('tether-rail-width');
+    const { container } = render(<Rail {...base} collapsed />);
+    const resizer = container.querySelector('.rail-resizer') as HTMLElement;
+    fireEvent.pointerDown(resizer, { clientX: 260 });
+    fireEvent(document, new MouseEvent('pointermove', { clientX: 260 } as MouseEventInit));
+    fireEvent(document, new MouseEvent('pointerup', {} as MouseEventInit));
+    expect(localStorage.getItem('tether-rail-width')).toBeNull();
+  });
 });

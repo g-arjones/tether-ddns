@@ -4,7 +4,11 @@ import { formatUptime } from '../utils';
 
 export const QUORUM_BARS = 24;
 export const QUORUM = 2;
-const MAX_LAT = 45;
+// Full-scale of the latency bar; healthy public-resolver DNS round-trips run
+// tens of ms, so anything at/over MAX_LAT_MS pins the bar full.
+const MAX_LAT_MS = 120;
+// Above this a resolver is flagged "slow" (amber) rather than healthy (accent).
+const SLOW_LAT_MS = 80;
 
 export interface ReachabilityPanelProps { reachability: Reachability; }
 
@@ -44,8 +48,8 @@ export function ReachabilityPanel({ reachability: r }: ReachabilityPanelProps): 
               </div>
             );
           }
-          const w = Math.min(100, (x.latency_ms / MAX_LAT) * 100);
-          const slow = x.latency_ms > 30 ? ' slow' : '';
+          const w = Math.min(100, (x.latency_ms / MAX_LAT_MS) * 100);
+          const slow = x.latency_ms > SLOW_LAT_MS ? ' slow' : '';
           return (
             <div className="res-row" key={x.ip}>
               <span className="res-ip">{x.ip}</span>

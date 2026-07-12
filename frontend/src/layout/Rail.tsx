@@ -1,6 +1,9 @@
-import type { JSX } from 'react';
+import type { JSX, PointerEvent as ReactPointerEvent } from 'react';
 
 export type ViewKey = 'overview' | 'domains' | 'hooks' | 'logs' | 'settings';
+
+const RAIL_MIN = 190;
+const RAIL_MAX = 380;
 
 export interface RailProps {
   active: ViewKey;
@@ -15,8 +18,36 @@ export interface RailProps {
 
 interface NavDef { key: ViewKey; label: string; icon: JSX.Element; count?: number; }
 
+function startResize(e: ReactPointerEvent<HTMLDivElement>, collapsed: boolean): void {
+  if (collapsed) return;
+  e.preventDefault();
+  const root = document.documentElement;
+  document.body.style.userSelect = 'none';
+  document.body.style.cursor = 'col-resize';
+  let lastW: number | null = null;
+  const move = (ev: PointerEvent) => {
+    lastW = Math.min(RAIL_MAX, Math.max(RAIL_MIN, ev.clientX));
+    root.style.setProperty('--rail-w', `${lastW}px`);
+  };
+  const up = () => {
+    document.body.style.userSelect = '';
+    document.body.style.cursor = '';
+    if (lastW != null) {
+      try {
+        localStorage.setItem('tether-rail-width', String(lastW));
+      } catch {
+        /* ignore */
+      }
+    }
+    document.removeEventListener('pointermove', move);
+    document.removeEventListener('pointerup', up);
+  };
+  document.addEventListener('pointermove', move);
+  document.addEventListener('pointerup', up);
+}
+
 export function Rail(props: RailProps): JSX.Element {
-  const { active, onSelect, domainCount, hookCount, online, mobileOpen } = props;
+  const { active, onSelect, domainCount, hookCount, online, mobileOpen, collapsed } = props;
   const items: NavDef[] = [
     { key: 'overview', label: 'Overview', icon: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="9" /><rect x="14" y="3" width="7" height="5" /><rect x="14" y="12" width="7" height="9" /><rect x="3" y="16" width="7" height="5" /></svg>) },
     { key: 'domains', label: 'Domains', count: domainCount, icon: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><path d="M2 12h20M12 2a15 15 0 0 1 0 20 15 15 0 0 1 0-20z" /></svg>) },
@@ -53,6 +84,11 @@ export function Rail(props: RailProps): JSX.Element {
           <span>{online ? 'Online' : 'Offline'}</span>
         </div>
       </div>
+      <div
+        className="rail-resizer"
+        title="Drag to resize"
+        onPointerDown={(e) => startResize(e, collapsed)}
+      />
     </aside>
   );
 }

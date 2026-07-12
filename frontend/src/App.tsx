@@ -57,6 +57,13 @@ export default function App() {
 
   const [activeView, setActiveView] = useState<ViewKey>('overview');
   const [railMobileOpen, setRailMobileOpen] = useState(false);
+  const [railCollapsed, setRailCollapsed] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('tether-rail-collapsed') === '1';
+    } catch {
+      return false;
+    }
+  });
 
   const [domainModalOpen, setDomainModalOpen] = useState(false);
   const [editingDomain, setEditingDomain] = useState<DomainConfig | null>(null);
@@ -71,6 +78,37 @@ export default function App() {
       /* ignore */
     }
   }, [theme]);
+
+  // Restore a previously dragged rail width once on mount.
+  useEffect(() => {
+    try {
+      const w = localStorage.getItem('tether-rail-width');
+      if (w) {
+        const clamped = Math.min(380, Math.max(190, parseInt(w, 10)));
+        document.documentElement.style.setProperty('--rail-w', `${clamped}px`);
+      }
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  // Reflect collapse state on <html> and persist it.
+  useEffect(() => {
+    document.documentElement.classList.toggle('rail-collapsed', railCollapsed);
+    try {
+      localStorage.setItem('tether-rail-collapsed', railCollapsed ? '1' : '0');
+    } catch {
+      /* ignore */
+    }
+  }, [railCollapsed]);
+
+  const toggleRail = useCallback(() => {
+    if (window.matchMedia('(max-width: 860px)').matches) {
+      setRailMobileOpen((v) => !v);
+    } else {
+      setRailCollapsed((v) => !v);
+    }
+  }, []);
 
   const pushToast = useCallback((message: string, kind: ToastKind = 'info') => {
     const id = Math.random().toString(36).slice(2, 9);
@@ -237,7 +275,7 @@ export default function App() {
           domainCount={domains.length}
           hookCount={hooks.length}
           online={snapshot?.online ?? false}
-          collapsed={false}
+          collapsed={railCollapsed}
           mobileOpen={railMobileOpen}
           onCloseMobile={() => setRailMobileOpen(false)}
         />
@@ -253,7 +291,7 @@ export default function App() {
             theme={theme}
             onRefresh={handleRefresh}
             onToggleTheme={toggleTheme}
-            onToggleRail={() => setRailMobileOpen((v) => !v)}
+            onToggleRail={toggleRail}
           />
           <main className="page">
             {activeView === 'overview' && (
