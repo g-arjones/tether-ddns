@@ -1,4 +1,4 @@
-import type { Provider, HookDef, Settings, StateSnapshot, DomainConfig, HookConfig } from './types';
+import type { Provider, HookDef, Settings, StateSnapshot, DomainConfig, HookConfig, AboutInfo } from './types';
 
 async function json<T>(url: string, init?: RequestInit): Promise<T> {
   const res = init ? await fetch(url, init) : await fetch(url);
@@ -26,3 +26,4 @@ export const updateHook = (id: string, input: unknown) => json(`/api/hooks-confi
 export const deleteHook = (id: string) => json(`/api/hooks-config/${id}`, { method: 'DELETE' });
 export const runHook = (id: string) => json<{ ran: number; skipped: string[] }>(`/api/hooks-config/${id}/run`, { method: 'POST' });
 export const refresh = () => json('/api/refresh', { method: 'POST' });
+export const getAbout = () => json<AboutInfo>('/api/about');

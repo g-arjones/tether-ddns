@@ -935,3 +935,13 @@ header.topbar {
   .toast-wrap { left: 16px; right: 16px; bottom: 16px; }
   .toast { max-width: none; }
 }
+
+/* ---------- About ---------- */
+.about-header { display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; }
+.about-header h2 { font-size: 20px; font-weight: 700; letter-spacing: -.3px; }
+.about-desc { color: var(--text-2); font-size: 14px; max-width: 60ch; }
+.about-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--border); }
+.about-row:last-child { border-bottom: none; }
+.about-name { font-size: 14px; color: var(--text); }
+.about-ver { font-family: var(--mono); font-size: 13px; font-weight: 650; color: var(--text-2); }
+.about-error { color: var(--warn); font-size: 13px; margin-bottom: 8px; }

@@ -32,3 +32,7 @@ export interface StateSnapshot {
 
 export interface DomainConfig { id: string; hostname: string; provider: string; record_type: string; enabled: boolean; provider_config?: Record<string, unknown>; }
 export interface HookConfig { id: string; hook: string; events: string[]; config?: Record<string, unknown>; }
+export interface AboutInfo {
+  app: { name: string; version: string; description: string };
+  backend: Record<string, string>;
+}
