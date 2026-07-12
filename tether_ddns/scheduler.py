@@ -216,9 +216,14 @@ class Scheduler:
 
     def _publish_next_check(self, state: RuntimeState) -> None:
         """Publish the sync job's next fire time to runtime state."""
-        job = self._scheduler.get_job('sync')  # pyright: ignore[reportUnknownMemberType,reportUnknownVariableType]
-        next_run = getattr(job, 'next_run_time', None) if job else None  # pyright: ignore[reportUnknownArgumentType]
-        state.set_next_check_at(next_run.timestamp() if next_run else None)
+        sc = self._scheduler
+        get = sc.get_job  # pyright: ignore[reportUnknownMemberType,reportUnknownVariableType]
+        job = get('sync')  # pyright: ignore[reportUnknownVariableType]
+        next_run = (
+            getattr(job, 'next_run_time', None)  # pyright: ignore[reportUnknownArgumentType]
+            if job else None)
+        ts = next_run.timestamp() if next_run else None
+        state.set_next_check_at(ts)
 
     async def check_reachability(self, cfg: AppConfig, state: RuntimeState) -> None:
         """Run the DNS-quorum check; fire reachability_changed on transition."""
