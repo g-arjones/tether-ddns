@@ -8,6 +8,7 @@ from pydantic import BaseModel, SecretStr
 
 import pytest
 
+from tether_ddns.errors import TetherError
 from tether_ddns.hooks.base import IpChangedEvent
 from tether_ddns.hooks.registered_hooks.router_firewall import (
     RouterFirewallConfig,
@@ -255,8 +256,8 @@ async def test_on_ip_changed_skips_family_mismatch() -> None:
 
 
 @pytest.mark.asyncio
-async def test_on_ip_changed_rule_not_found_does_not_apply() -> None:
-    """When the named rule is absent, no apply POST is sent."""
+async def test_handle_rule_not_found_raises() -> None:
+    """When the named rule is absent, the hook raises and still logs out."""
     session = MagicMock()
     session.get = MagicMock(side_effect=[
         _text_cm(_PUBKEY_HTML),
@@ -273,12 +274,13 @@ async def test_on_ip_changed_rule_not_found_does_not_apply() -> None:
     ])
     cs = _patch_session(session)
     try:
-        await RouterFirewallHook().on_ip_changed(
-            IpChangedEvent(new_ip='2001:db8::9', family='ipv6'),
-            _cfg(rule_name='Wireguard'))
+        with pytest.raises(TetherError):
+            await RouterFirewallHook().on_ip_changed(
+                IpChangedEvent(new_ip='2001:db8::9', family='ipv6'),
+                _cfg(rule_name='Wireguard'))
     finally:
         cs.stop()
-    # Only login + logout POSTs; no apply POST.
+    # login (1) + logout (1) POSTs; no apply POST.
     assert session.post.call_count == 2
 
 
@@ -293,8 +295,9 @@ async def test_on_ip_changed_aborts_without_salt() -> None:
     session.post = MagicMock()
     cs = _patch_session(session)
     try:
-        await RouterFirewallHook().on_ip_changed(
-            IpChangedEvent(new_ip='2001:db8::9', family='ipv6'), _cfg())
+        with pytest.raises(TetherError):
+            await RouterFirewallHook().on_ip_changed(
+                IpChangedEvent(new_ip='2001:db8::9', family='ipv6'), _cfg())
     finally:
         cs.stop()
     session.post.assert_not_called()

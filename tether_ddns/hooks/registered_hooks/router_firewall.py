@@ -19,6 +19,7 @@ import aiohttp
 
 from pydantic import BaseModel, SecretStr
 
+from tether_ddns.errors import TetherError
 from tether_ddns.hooks.base import Hook, IpChangedEvent, register_hook
 from tether_ddns.logging_setup import get_logger
 from tether_ddns.schema_fields import labeled_field
@@ -270,33 +271,29 @@ class RouterFirewallHook(Hook):
         async with aiohttp.ClientSession(
                 connector=connector, cookie_jar=jar) as session:
             public_key = await self._login(session, base, headers, config)
-            if public_key is None:
-                return
-            token = await self._prepare_ipfilter(session, base, headers, config)
-            if token is None:
+            try:
+                token = await self._prepare_ipfilter(
+                    session, base, headers, config)
+                await self._apply(
+                    session, base, headers, config, ip, token, public_key)
+            finally:
                 await self._logout(session, base, headers)
-                return
-            await self._apply(
-                session, base, headers, config, ip, token, public_key)
-            await self._logout(session, base, headers)
 
     async def _login(
         self, session: aiohttp.ClientSession, base: str,
         headers: dict[str, str], config: RouterFirewallConfig,
-    ) -> tuple[int, int] | None:
-        """Log in and return the router's RSA public key, or None on failure."""
+    ) -> tuple[int, int]:
+        """Log in and return the router's RSA public key; raise on failure."""
         async with session.get(f'{base}/', headers=headers) as resp:
             public_key = parse_public_key(await resp.text())
         if public_key is None:
-            _log.warning('Router firewall: could not obtain public key')
-            return None
+            raise TetherError('Router firewall: could not obtain public key')
         async with session.get(
                 f'{base}/?_type=loginData&_tag=login_token',
                 headers=headers) as resp:
             salt = parse_login_salt(await resp.text())
         if not salt:
-            _log.warning('Router firewall: could not obtain login salt')
-            return None
+            raise TetherError('Router firewall: could not obtain login salt')
         login_data = {
             'action': 'login',
             'Username': config.username,
@@ -312,7 +309,7 @@ class RouterFirewallHook(Hook):
     async def _prepare_ipfilter(
         self, session: aiohttp.ClientSession, base: str,
         headers: dict[str, str], config: RouterFirewallConfig,
-    ) -> str | None:
+    ) -> str:
         """Open the IP-filter view and return its write token when present."""
         async with session.get(f'{base}/', headers=headers) as resp:
             await resp.text()
@@ -329,9 +326,8 @@ class RouterFirewallHook(Hook):
                 headers=headers) as resp:
             data = await resp.text()
         if token is None or not parse_rule_present(data, config.rule_name):
-            _log.warning(
-                'Router firewall: rule %s or token not found', config.rule_name)
-            return None
+            raise TetherError(
+                f'Router firewall: rule {config.rule_name} or token not found')
         return token
 
     async def _apply(
@@ -355,9 +351,9 @@ class RouterFirewallHook(Hook):
             status = resp.status
         if status == 200 and 'SessionTimeout' not in result:
             _log.info('Router firewall: applied %s -> %s', config.rule_name, ip)
-        else:
-            _log.warning(
-                'Router firewall: apply failed (%s): %s', status, result[:200])
+            return
+        raise TetherError(
+            f'Router firewall: apply failed ({status}): {result[:200]}')
 
     async def _logout(
         self, session: aiohttp.ClientSession, base: str,
