@@ -68,9 +68,11 @@ class RuntimeState:
                 prior_runtime is not None
                 and prior_config is not None
                 and prior_config.model_copy(update={'enabled': d.enabled}) == d)
-            self.domains[d.id] = (
-                prior_runtime if unchanged
-                else DomainRuntime(id=d.id, status='pending'))
+            if unchanged:
+                assert prior_runtime is not None
+                self.domains[d.id] = prior_runtime
+            else:
+                self.domains[d.id] = DomainRuntime(id=d.id, status='pending')
             self._configs[d.id] = d
         self._emit()
 

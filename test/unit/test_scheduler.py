@@ -736,3 +736,39 @@ async def test_run_hook_now_success_skips_synced_without_ip() -> None:
         assert seen == []
     finally:
         HOOK_REGISTRY.pop('_spynoipok', None)
+
+
+@pytest.mark.asyncio
+async def test_edited_domain_repushes_without_ip_change() -> None:
+    """Editing a synced domain's hostname forces a re-push next cycle."""
+    load_providers()
+    domain = DomainConfig(
+        id='a', hostname='old.example.com', provider='duckdns',
+        provider_config={'token': 'x', 'domain': 'old'})
+    cfg = AppConfig(domains=[domain])
+    state = RuntimeState()
+    state.rebuild(cfg)
+    state.online = True
+    state.set_public_ipv4('9.9.9.9')
+    state.set_status('a', 'synced', ip='9.9.9.9')
+    # User edits the hostname; the API mutates cfg and rebuilds.
+    cfg.domains[0] = DomainConfig(
+        id='a', hostname='new.example.com', provider='duckdns',
+        provider_config={'token': 'x', 'domain': 'old'})
+    state.rebuild(cfg)
+    assert state.domains['a'].status == 'pending'
+    sched = scheduler.Scheduler()
+    update = AsyncMock(return_value='9.9.9.9')
+    with patch(
+        'tether_ddns.scheduler.ReachabilityService.check',
+        new=AsyncMock(return_value=_online(True)),
+    ), patch(
+        'tether_ddns.scheduler.detect_public_ip',
+        new=AsyncMock(return_value='9.9.9.9'),
+    ), patch(
+        'tether_ddns.providers.ddns_providers.duckdns.DuckDNSProvider.update',
+        new=update,
+    ):
+        await sched.sync_ips(cfg, state)
+    update.assert_called_once()
+    assert state.domains['a'].status == 'synced'
