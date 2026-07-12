@@ -6,7 +6,7 @@ from typing import Callable, Literal
 
 from pydantic import BaseModel
 
-from tether_ddns.config import AppConfig
+from tether_ddns.config import AppConfig, DomainConfig
 
 Status = Literal['synced', 'pending', 'error', 'updating']
 Listener = Callable[[dict[str, object]], None]
@@ -38,6 +38,7 @@ class RuntimeState:
         self.public_ipv6: str | None = None
         self.online: bool = False
         self.domains: dict[str, DomainRuntime] = {}
+        self._configs: dict[str, DomainConfig] = {}
         self._listeners: list[Listener] = []
 
     def add_listener(self, cb: Listener) -> None:
@@ -50,12 +51,27 @@ class RuntimeState:
             self._listeners.remove(cb)
 
     def rebuild(self, cfg: AppConfig) -> None:
-        """Reset domain runtimes from configuration, preserving history."""
+        """Reset domain runtimes from configuration, preserving history.
+
+        A domain that is new, or whose record-affecting config changed, starts
+        fresh at 'pending'; an unchanged domain keeps its runtime. The
+        enabled flag is excluded from the change comparison.
+        """
         previous = self.domains
-        self.domains = {
-            d.id: previous.get(d.id) or DomainRuntime(id=d.id, status='pending')
-            for d in cfg.domains
-        }
+        prev_configs = self._configs
+        self.domains = {}
+        self._configs = {}
+        for d in cfg.domains:
+            prior_runtime = previous.get(d.id)
+            prior_config = prev_configs.get(d.id)
+            unchanged = (
+                prior_runtime is not None
+                and prior_config is not None
+                and prior_config.model_copy(update={'enabled': d.enabled}) == d)
+            self.domains[d.id] = (
+                prior_runtime if unchanged
+                else DomainRuntime(id=d.id, status='pending'))
+            self._configs[d.id] = d
         self._emit()
 
     def set_public_ipv4(self, ip: str | None) -> None:

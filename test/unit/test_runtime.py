@@ -144,3 +144,62 @@ def test_set_freshness_returns_transition() -> None:
     assert state.set_freshness('a', '9.9.9.9') == 'pending'
     assert state.set_freshness('a', '9.9.9.9') is None
     assert state.set_freshness('a', '1.2.3.4') == 'synced'
+
+
+def test_rebuild_resets_changed_hostname() -> None:
+    """A domain whose hostname changed restarts at pending with ip cleared."""
+    cfg = AppConfig(domains=[
+        DomainConfig(id='a', hostname='a.example.com', provider='duckdns')])
+    state = RuntimeState()
+    state.rebuild(cfg)
+    state.set_status('a', 'synced', ip='1.2.3.4')
+    cfg2 = AppConfig(domains=[
+        DomainConfig(id='a', hostname='b.example.com', provider='duckdns')])
+    state.rebuild(cfg2)
+    assert state.domains['a'].status == 'pending'
+    assert state.domains['a'].ip is None
+
+
+def test_rebuild_resets_changed_provider_config() -> None:
+    """A domain whose provider_config changed restarts at pending."""
+    cfg = AppConfig(domains=[
+        DomainConfig(id='a', hostname='a.example.com', provider='duckdns',
+                     provider_config={'token': 'x', 'domain': 'a'})])
+    state = RuntimeState()
+    state.rebuild(cfg)
+    state.set_status('a', 'synced', ip='1.2.3.4')
+    cfg2 = AppConfig(domains=[
+        DomainConfig(id='a', hostname='a.example.com', provider='duckdns',
+                     provider_config={'token': 'y', 'domain': 'a'})])
+    state.rebuild(cfg2)
+    assert state.domains['a'].status == 'pending'
+
+
+def test_rebuild_preserves_unchanged_domain() -> None:
+    """Rebuilding with identical config preserves status/ip/updated."""
+    cfg = AppConfig(domains=[
+        DomainConfig(id='a', hostname='a.example.com', provider='duckdns')])
+    state = RuntimeState()
+    state.rebuild(cfg)
+    state.set_status('a', 'synced', ip='1.2.3.4')
+    prior_updated = state.domains['a'].updated
+    state.rebuild(AppConfig(domains=[
+        DomainConfig(id='a', hostname='a.example.com', provider='duckdns')]))
+    assert state.domains['a'].status == 'synced'
+    assert state.domains['a'].ip == '1.2.3.4'
+    assert state.domains['a'].updated == prior_updated
+
+
+def test_rebuild_enable_toggle_does_not_reset() -> None:
+    """Toggling enabled alone must not reset a synced domain."""
+    cfg = AppConfig(domains=[
+        DomainConfig(id='a', hostname='a.example.com', provider='duckdns',
+                     enabled=True)])
+    state = RuntimeState()
+    state.rebuild(cfg)
+    state.set_status('a', 'synced', ip='1.2.3.4')
+    state.rebuild(AppConfig(domains=[
+        DomainConfig(id='a', hostname='a.example.com', provider='duckdns',
+                     enabled=False)]))
+    assert state.domains['a'].status == 'synced'
+    assert state.domains['a'].ip == '1.2.3.4'
