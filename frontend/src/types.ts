@@ -34,5 +34,5 @@ export interface DomainConfig { id: string; hostname: string; provider: string; 
 export interface HookConfig { id: string; hook: string; events: string[]; config?: Record<string, unknown>; }
 export interface AboutInfo {
   app: { name: string; version: string; description: string };
-  backend: Record<string, string>;
+  backend: { name: string; version: string }[];
 }

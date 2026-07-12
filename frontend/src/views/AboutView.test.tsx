@@ -5,10 +5,16 @@ import * as api from '../api';
 
 const about = {
   app: { name: 'Tether', version: '0.0.1', description: 'Self-hosted DDNS test blurb.' },
-  backend: {
-    python: '3.12.7', apscheduler: '3.11.3', fastapi: '0.139.0', pydantic: '2.13.4',
-    aiodns: '4.0.4', aiohttp: '3.14.1', uvicorn: '0.51.0', websockets: '16.1',
-  },
+  backend: [
+    { name: 'Python', version: '3.12.7' },
+    { name: 'APScheduler', version: '3.11.3' },
+    { name: 'FastAPI', version: '0.139.0' },
+    { name: 'Pydantic', version: '2.13.4' },
+    { name: 'aiodns', version: '4.0.4' },
+    { name: 'aiohttp', version: '3.14.1' },
+    { name: 'Uvicorn', version: '0.51.0' },
+    { name: 'websockets', version: '16.1' },
+  ],
 };
 
 describe('AboutView', () => {
@@ -18,7 +24,8 @@ describe('AboutView', () => {
     expect(await screen.findByText('Self-hosted DDNS test blurb.')).toBeInTheDocument();
     expect(screen.getByText('Backend')).toBeInTheDocument();
     expect(screen.getByText('Frontend')).toBeInTheDocument();
-    expect(await screen.findByText('0.139.0')).toBeInTheDocument(); // fastapi
+    expect(await screen.findByText('0.139.0')).toBeInTheDocument(); // FastAPI
+    expect(screen.getByText('FastAPI')).toBeInTheDocument();
     expect(screen.getByText('React')).toBeInTheDocument();
   });
 

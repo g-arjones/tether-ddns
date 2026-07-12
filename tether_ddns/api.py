@@ -24,16 +24,16 @@ from tether_ddns.providers.base import PROVIDER_REGISTRY
 APP_NAME = 'Tether'
 APP_DISTRIBUTION = 'tether-dns'
 
-# display key -> installed distribution name
-_BACKEND_DISTS: dict[str, str] = {
-    'apscheduler': 'APScheduler',
-    'fastapi': 'fastapi',
-    'pydantic': 'pydantic',
-    'aiodns': 'aiodns',
-    'aiohttp': 'aiohttp',
-    'uvicorn': 'uvicorn',
-    'websockets': 'websockets',
-}
+# ordered (display name, installed distribution name)
+_BACKEND_DISTS: list[tuple[str, str]] = [
+    ('APScheduler', 'APScheduler'),
+    ('FastAPI', 'fastapi'),
+    ('Pydantic', 'pydantic'),
+    ('aiodns', 'aiodns'),
+    ('aiohttp', 'aiohttp'),
+    ('Uvicorn', 'uvicorn'),
+    ('websockets', 'websockets'),
+]
 
 
 def _dist_version(dist: str) -> str:
@@ -51,9 +51,12 @@ def _about_payload() -> dict[str, object]:
         summary = metadata.metadata(APP_DISTRIBUTION).get('Summary') or ''
     except metadata.PackageNotFoundError:
         app_version, summary = 'unknown', ''
-    backend: dict[str, str] = {'python': platform.python_version()}
-    for key, dist in _BACKEND_DISTS.items():
-        backend[key] = _dist_version(dist)
+    backend: list[dict[str, str]] = [
+        {'name': 'Python', 'version': platform.python_version()},
+    ]
+    backend.extend(
+        {'name': name, 'version': _dist_version(dist)}
+        for name, dist in _BACKEND_DISTS)
     return {
         'app': {
             'name': APP_NAME,

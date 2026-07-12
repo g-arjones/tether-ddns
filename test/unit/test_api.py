@@ -167,11 +167,13 @@ def test_about_returns_app_and_backend(tmp_path: Path) -> None:
     body: dict[str, Any] = resp.json()
     assert body['app']['name'] == 'Tether'
     assert isinstance(body['app']['version'], str) and body['app']['version']
-    backend: dict[str, str] = body['backend']
-    for key in ('python', 'apscheduler', 'fastapi', 'pydantic',
-                'aiodns', 'aiohttp', 'uvicorn', 'websockets'):
-        assert key in backend
-        assert isinstance(backend[key], str) and backend[key]
+    backend: list[dict[str, str]] = body['backend']
+    names = {row['name'] for row in backend}
+    for name in ('Python', 'APScheduler', 'FastAPI', 'Pydantic',
+                 'aiodns', 'aiohttp', 'Uvicorn', 'websockets'):
+        assert name in names
+    for row in backend:
+        assert isinstance(row['version'], str) and row['version']
 
 
 def test_about_unknown_package_falls_back(tmp_path: Path) -> None:
@@ -189,7 +191,9 @@ def test_about_unknown_package_falls_back(tmp_path: Path) -> None:
         with _client(tmp_path) as client:
             resp: Any = client.get('/api/about')
     assert resp.status_code == 200
-    assert resp.json()['backend']['fastapi'] == 'unknown'
+    backend: list[dict[str, str]] = resp.json()['backend']
+    fastapi_row = next(r for r in backend if r['name'] == 'FastAPI')
+    assert fastapi_row['version'] == 'unknown'
 
 
 def test_settings_update_unknown_key_returns_422(tmp_path: Path) -> None:

@@ -2,11 +2,6 @@ import { useEffect, useState, type JSX } from 'react';
 import type { AboutInfo } from '../types';
 import { getAbout } from '../api';
 
-const BACKEND_ORDER = [
-  'python', 'apscheduler', 'fastapi', 'pydantic',
-  'aiodns', 'aiohttp', 'uvicorn', 'websockets',
-] as const;
-
 const FRONTEND_ROWS: [string, string][] = [
   ['React', __REACT_VERSION__],
   ['Vite', __VITE_VERSION__],
@@ -46,8 +41,8 @@ export function AboutView(): JSX.Element {
         <div className="panel">
           <div className="sg-title">Backend</div>
           {failed && <div className="about-error">Couldn&apos;t load version info.</div>}
-          {BACKEND_ORDER.map((k) => (
-            <Row key={k} name={k} version={about?.backend[k] ?? '—'} />
+          {(about?.backend ?? []).map((row) => (
+            <Row key={row.name} name={row.name} version={row.version} />
           ))}
         </div>
         <div className="panel">
