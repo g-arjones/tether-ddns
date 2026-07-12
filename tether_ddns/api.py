@@ -238,8 +238,12 @@ def register_routes(app: FastAPI) -> None:
         current = app.state.config.settings
         set_fields = payload.model_dump(exclude_unset=True)
         merged = AppSettings(**{**current.model_dump(), **set_fields})
+        interval_changed = merged.check_interval != current.check_interval
         app.state.config.settings = merged
         _persist(app)
+        if interval_changed:
+            app.state.scheduler.reschedule_sync(
+                app.state.config, app.state.runtime)
         dumped: dict[str, object] = merged.model_dump()
         return dumped
 

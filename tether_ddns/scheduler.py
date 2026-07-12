@@ -202,6 +202,14 @@ class Scheduler:
         self._scheduler.start()
         self._publish_next_check(state)
 
+    def reschedule_sync(self, cfg: AppConfig, state: RuntimeState) -> None:
+        """Re-add the sync job with the current check interval and republish."""
+        self._scheduler.add_job(  # pyright: ignore[reportUnknownMemberType]
+            self.sync_ips, 'interval', seconds=cfg.settings.check_interval,
+            args=[cfg, state], id='sync', replace_existing=True,
+        )
+        self._publish_next_check(state)
+
     def run_startup_check(self, cfg: AppConfig, state: RuntimeState) -> None:
         """Schedule one immediate, non-blocking check cycle at startup."""
         self._scheduler.add_job(  # pyright: ignore[reportUnknownMemberType]

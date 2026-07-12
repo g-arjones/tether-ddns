@@ -835,3 +835,35 @@ async def test_start_publishes_next_check_at() -> None:
         assert state.next_check_at > 0
     finally:
         sched.shutdown()
+
+
+@pytest.mark.asyncio
+async def test_reschedule_sync_applies_new_interval() -> None:
+    """reschedule_sync re-adds the sync job and updates next_check_at."""
+    sched = scheduler.Scheduler()
+    cfg = AppConfig()
+    state = RuntimeState()
+    sched.start(cfg, state)
+    try:
+        first = state.next_check_at
+        assert first is not None
+        cfg.settings.check_interval = 60
+        sched.reschedule_sync(cfg, state)
+        assert state.next_check_at is not None
+    finally:
+        sched.shutdown()
+
+
+def test_reschedule_sync_republishes_next_check() -> None:
+    """reschedule_sync re-adds the sync job and republishes next_check_at."""
+    sched = scheduler.Scheduler()
+    cfg = AppConfig()
+    state = RuntimeState()
+    fake = MagicMock()
+    with patch.object(sched, '_scheduler', fake):
+        sched.reschedule_sync(cfg, state)
+    kwargs = fake.add_job.call_args.kwargs
+    assert kwargs['id'] == 'sync'
+    assert kwargs['seconds'] == cfg.settings.check_interval
+    assert kwargs['replace_existing'] is True
+    fake.get_job.assert_called_with('sync')
