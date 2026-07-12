@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import asyncio
 import time
-from typing import cast
 
 import aiodns
 
@@ -32,7 +31,7 @@ class ReachabilityResult(BaseModel):
     successes: int
     total: int
     details: dict[str, str] = Field(default_factory=dict)
-    probes: list[ResolverProbe] = Field(default_factory=lambda: [])
+    probes: list[ResolverProbe] = Field(default_factory=list[ResolverProbe])
 
 
 class ReachabilityService:
@@ -69,9 +68,9 @@ class ReachabilityService:
 
     async def check(self) -> ReachabilityResult:
         """Query all resolvers concurrently and evaluate the quorum."""
-        probes = cast(
-            tuple[ResolverProbe, ...],
-            await asyncio.gather(*(self._query_one(ip) for ip in self._resolver_ips)))
+        probes: list[ResolverProbe]
+        probes = list(await asyncio.gather(
+            *(self._query_one(ip) for ip in self._resolver_ips)))
         details = {
             p.ip: 'ok' if p.ok else 'unreachable' for p in probes}
         successes = sum(1 for p in probes if p.ok)
@@ -83,4 +82,4 @@ class ReachabilityService:
         return ReachabilityResult(
             online=online, successes=successes,
             total=len(self._resolver_ips), details=details,
-            probes=list(probes))
+            probes=probes)
