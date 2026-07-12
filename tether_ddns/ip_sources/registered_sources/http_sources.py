@@ -8,9 +8,10 @@ import aiohttp
 from tether_ddns.ip_sources.base import IPFamily, IPSource, register_ip_source
 
 
-async def _fetch(url: str) -> str | None:
+async def _fetch(url: str) -> str:
     async with aiohttp.ClientSession() as session:
         async with session.get(url) as resp:
+            resp.raise_for_status()
             return (await resp.text()).strip()
 
 
@@ -25,7 +26,7 @@ class IpifySource(IPSource):
         'ipv6': 'https://api6.ipify.org',
     }
 
-    async def detect(self, family: IPFamily) -> str | None:
+    async def detect(self, family: IPFamily) -> str:
         """Return the public IP from ipify for the family."""
         return await _fetch(self._URLS[family])
 
@@ -41,6 +42,6 @@ class IcanhazipSource(IPSource):
         'ipv6': 'https://ipv6.icanhazip.com',
     }
 
-    async def detect(self, family: IPFamily) -> str | None:
+    async def detect(self, family: IPFamily) -> str:
         """Return the public IP from icanhazip for the family."""
         return await _fetch(self._URLS[family])

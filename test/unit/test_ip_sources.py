@@ -58,3 +58,26 @@ async def test_ipify_source_reads_ipv6_endpoint() -> None:
     ) as fetch:
         assert await source.detect('ipv6') == '2001:db8::1'
         fetch.assert_awaited_once_with('https://api6.ipify.org')
+
+
+@pytest.mark.asyncio
+async def test_detect_public_ip_returns_none_and_logs_debug_on_error(caplog) -> None:
+    """A raising source yields None and a DEBUG log, not an error."""
+    import logging
+    from tether_ddns.ip_sources import base
+
+    @base.register_ip_source
+    class _Boom(base.IPSource):
+        key = '_boom'
+        display_name = 'Boom'
+
+        async def detect(self, family: base.IPFamily) -> str:
+            raise RuntimeError('no route')
+
+    try:
+        with caplog.at_level(logging.DEBUG, logger='tether_ddns'):
+            result = await base.detect_public_ip('_boom', 'ipv6')
+        assert result is None
+        assert any(r.levelno == logging.DEBUG for r in caplog.records)
+    finally:
+        base.IP_SOURCE_REGISTRY.pop('_boom', None)

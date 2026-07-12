@@ -22,8 +22,8 @@ class IPSource(ABC):
     display_name: str = ''
 
     @abstractmethod
-    async def detect(self, family: 'IPFamily') -> str | None:
-        """Return the detected public IP for the family, or None on failure."""
+    async def detect(self, family: 'IPFamily') -> str:
+        """Return the detected public IP for the family; raise on failure."""
         raise NotImplementedError
 
 
@@ -54,5 +54,6 @@ async def detect_public_ip(source_key: str, family: 'IPFamily') -> str | None:
     try:
         return await cls().detect(family)
     except Exception:  # noqa: BLE001 - detection failure must not raise
-        _log.exception('IP source %s failed for %s', source_key, family)
+        _log.debug(
+            'IP source %s failed for %s', source_key, family, exc_info=True)
         return None
