@@ -159,6 +159,39 @@ def test_settings_update_bad_type_returns_422(tmp_path: Path) -> None:
     assert resp.status_code == 422
 
 
+def test_about_returns_app_and_backend(tmp_path: Path) -> None:
+    """GET /api/about returns app metadata and backend versions."""
+    with _client(tmp_path) as client:
+        resp: Any = client.get('/api/about')
+    assert resp.status_code == 200
+    body: dict[str, Any] = resp.json()
+    assert body['app']['name'] == 'Tether'
+    assert isinstance(body['app']['version'], str) and body['app']['version']
+    backend: dict[str, str] = body['backend']
+    for key in ('python', 'apscheduler', 'fastapi', 'pydantic',
+                'aiodns', 'aiohttp', 'uvicorn', 'websockets'):
+        assert key in backend
+        assert isinstance(backend[key], str) and backend[key]
+
+
+def test_about_unknown_package_falls_back(tmp_path: Path) -> None:
+    """A missing distribution yields 'unknown' rather than a 500."""
+    import importlib.metadata as md
+
+    real_version = md.version
+
+    def fake_version(dist: str) -> str:
+        if dist == 'fastapi':
+            raise md.PackageNotFoundError(dist)
+        return real_version(dist)
+
+    with patch('tether_ddns.api.metadata.version', side_effect=fake_version):
+        with _client(tmp_path) as client:
+            resp: Any = client.get('/api/about')
+    assert resp.status_code == 200
+    assert resp.json()['backend']['fastapi'] == 'unknown'
+
+
 def test_settings_update_unknown_key_returns_422(tmp_path: Path) -> None:
     """An unknown settings key is rejected with 422."""
     with _client(tmp_path) as client:

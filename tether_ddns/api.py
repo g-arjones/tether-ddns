@@ -2,6 +2,9 @@
 # pyright: reportUnusedFunction=false
 from __future__ import annotations
 
+import platform
+from importlib import metadata
+
 from fastapi import APIRouter, FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 
 from pydantic import BaseModel, ConfigDict
@@ -16,6 +19,49 @@ from tether_ddns.config import (
 from tether_ddns.hooks.base import EVENT_SPECS, HOOK_REGISTRY
 from tether_ddns.ip_sources.base import IP_SOURCE_REGISTRY
 from tether_ddns.providers.base import PROVIDER_REGISTRY
+
+
+APP_NAME = 'Tether'
+APP_DISTRIBUTION = 'tether-dns'
+
+# display key -> installed distribution name
+_BACKEND_DISTS: dict[str, str] = {
+    'apscheduler': 'APScheduler',
+    'fastapi': 'fastapi',
+    'pydantic': 'pydantic',
+    'aiodns': 'aiodns',
+    'aiohttp': 'aiohttp',
+    'uvicorn': 'uvicorn',
+    'websockets': 'websockets',
+}
+
+
+def _dist_version(dist: str) -> str:
+    """Return an installed distribution version, or 'unknown'."""
+    try:
+        return metadata.version(dist)
+    except metadata.PackageNotFoundError:
+        return 'unknown'
+
+
+def _about_payload() -> dict[str, object]:
+    """Assemble app metadata and backend runtime versions."""
+    try:
+        app_version = metadata.version(APP_DISTRIBUTION)
+        summary = metadata.metadata(APP_DISTRIBUTION).get('Summary') or ''
+    except metadata.PackageNotFoundError:
+        app_version, summary = 'unknown', ''
+    backend: dict[str, str] = {'python': platform.python_version()}
+    for key, dist in _BACKEND_DISTS.items():
+        backend[key] = _dist_version(dist)
+    return {
+        'app': {
+            'name': APP_NAME,
+            'version': app_version,
+            'description': summary,
+        },
+        'backend': backend,
+    }
 
 
 class DomainInput(BaseModel):
@@ -105,6 +151,10 @@ def register_routes(app: FastAPI) -> None:
             {'key': k, 'display_name': c.display_name, 'schema': c.config_schema()}
             for k, c in PROVIDER_REGISTRY.items()
         ]
+
+    @router.get('/about')
+    def get_about() -> dict[str, object]:
+        return _about_payload()
 
     @router.get('/hooks')
     def get_hooks() -> list[dict[str, object]]:
