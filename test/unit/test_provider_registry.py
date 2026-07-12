@@ -15,8 +15,8 @@ def test_register_provider_adds_to_registry() -> None:
 
         async def update(
             self, hostname: str, record_type: str, ip: str, config: BaseModel,
-        ) -> base.UpdateResult:
-            return base.UpdateResult(success=True, ip=ip)
+        ) -> str:
+            return ip
 
     assert base.PROVIDER_REGISTRY['dummy'] is _Dummy
 
@@ -45,8 +45,8 @@ def test_default_config_model_is_empty_config() -> None:
 
         async def update(
             self, hostname: str, record_type: str, ip: str, config: BaseModel,
-        ) -> base.UpdateResult:
-            return base.UpdateResult(success=True, ip=ip)
+        ) -> str:
+            return ip
 
     assert _NoConfig.ConfigModel is base.EmptyConfig
     validated = _NoConfig.ConfigModel.model_validate({})

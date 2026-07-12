@@ -68,8 +68,7 @@ async def test_update_success() -> None:
             'box.arjones.com', 'AAAA', '2001:db8::1', _cfg())
     finally:
         cs.stop()
-    assert result.success is True
-    assert result.ip == '2001:db8::1'
+    assert result == '2001:db8::1'
     _, kwargs = session.put.call_args
     assert kwargs['json']['type'] == 'AAAA'
     assert kwargs['json']['content'] == '2001:db8::1'
@@ -77,21 +76,22 @@ async def test_update_success() -> None:
 
 @pytest.mark.asyncio
 async def test_update_zone_not_found() -> None:
-    """No matching zone yields a failure result."""
+    """No matching zone raises TetherError."""
+    from tether_ddns.errors import TetherError
     session = _session(get_payloads=[{'result': []}], put_payload={})
     cs = _patch_session(session)
     try:
-        result = await CloudflareProvider().update(
-            'box.arjones.com', 'A', '1.2.3.4', _cfg())
+        with pytest.raises(TetherError, match='zone'):
+            await CloudflareProvider().update(
+                'box.arjones.com', 'A', '1.2.3.4', _cfg())
     finally:
         cs.stop()
-    assert result.success is False
-    assert 'zone' in result.message
 
 
 @pytest.mark.asyncio
 async def test_update_record_not_found() -> None:
-    """Zone matched but no record yields a failure result."""
+    """Zone matched but no record raises TetherError."""
+    from tether_ddns.errors import TetherError
     session = _session(
         get_payloads=[
             {'result': [{'id': 'z1', 'name': 'arjones.com'}]},
@@ -101,17 +101,17 @@ async def test_update_record_not_found() -> None:
     )
     cs = _patch_session(session)
     try:
-        result = await CloudflareProvider().update(
-            'box.arjones.com', 'A', '1.2.3.4', _cfg())
+        with pytest.raises(TetherError, match='not found'):
+            await CloudflareProvider().update(
+                'box.arjones.com', 'A', '1.2.3.4', _cfg())
     finally:
         cs.stop()
-    assert result.success is False
-    assert 'not found' in result.message
 
 
 @pytest.mark.asyncio
 async def test_update_api_error() -> None:
-    """A Cloudflare error response surfaces its messages."""
+    """A Cloudflare error response raises TetherError with the error message."""
+    from tether_ddns.errors import TetherError
     session = _session(
         get_payloads=[
             {'result': [{'id': 'z1', 'name': 'arjones.com'}]},
@@ -121,12 +121,11 @@ async def test_update_api_error() -> None:
     )
     cs = _patch_session(session)
     try:
-        result = await CloudflareProvider().update(
-            'box.arjones.com', 'A', '1.2.3.4', _cfg())
+        with pytest.raises(TetherError, match='bad token'):
+            await CloudflareProvider().update(
+                'box.arjones.com', 'A', '1.2.3.4', _cfg())
     finally:
         cs.stop()
-    assert result.success is False
-    assert 'bad token' in result.message
 
 
 @pytest.mark.asyncio
@@ -148,7 +147,7 @@ async def test_update_picks_longest_matching_zone() -> None:
             'box.sub.arjones.com', 'A', '1.2.3.4', _cfg())
     finally:
         cs.stop()
-    assert result.success is True
+    assert result == '1.2.3.4'
     # the record lookup used the longest zone id (z2)
     record_call = session.get.call_args_list[1]
     assert '/zones/z2/dns_records' in record_call.args[0]

@@ -18,9 +18,8 @@ def _online(online: bool) -> ReachabilityResult:
     return ReachabilityResult(online=online, successes=3 if online else 0, total=3)
 
 
-def _ok_result(ip: str) -> object:
-    from tether_ddns.providers.base import UpdateResult
-    return UpdateResult(success=True, ip=ip, message='ok')
+def _ok_result(ip: str) -> str:
+    return ip
 
 
 @pytest.mark.asyncio
@@ -74,10 +73,9 @@ async def test_sync_domain_success_marks_synced() -> None:
     )
     state = RuntimeState()
     state.rebuild(AppConfig(domains=[domain]))
-    from tether_ddns.providers.base import UpdateResult
     with patch(
         'tether_ddns.providers.ddns_providers.duckdns.DuckDNSProvider.update',
-        new=AsyncMock(return_value=UpdateResult(success=True, ip='5.6.7.8')),
+        new=AsyncMock(return_value='5.6.7.8'),
     ):
         await scheduler.sync_domain(domain, '1.2.3.4', state)
     assert state.domains['a'].status == 'synced'
@@ -100,7 +98,6 @@ async def test_check_once_online_transition_and_ip_change() -> None:
     state = RuntimeState()
     state.rebuild(cfg)
     sched = scheduler.Scheduler()
-    from tether_ddns.providers.base import UpdateResult
     with patch(
         'tether_ddns.scheduler.ReachabilityService.check',
         new=AsyncMock(return_value=_online(True)),
@@ -109,7 +106,7 @@ async def test_check_once_online_transition_and_ip_change() -> None:
         new=AsyncMock(return_value='9.9.9.9'),
     ), patch(
         'tether_ddns.providers.ddns_providers.duckdns.DuckDNSProvider.update',
-        new=AsyncMock(return_value=UpdateResult(success=True, ip='9.9.9.9')),
+        new=AsyncMock(return_value='9.9.9.9'),
     ):
         await sched.check_once(cfg, state)
     assert state.online is True
@@ -174,7 +171,6 @@ async def test_check_once_retries_error_domain_without_ip_change() -> None:
     state.set_public_ipv4('9.9.9.9')
     state.set_status('a', 'error', message='earlier failure')
     sched = scheduler.Scheduler()
-    from tether_ddns.providers.base import UpdateResult
     with patch(
         'tether_ddns.scheduler.ReachabilityService.check',
         new=AsyncMock(return_value=_online(True)),
@@ -183,7 +179,7 @@ async def test_check_once_retries_error_domain_without_ip_change() -> None:
         new=AsyncMock(return_value='9.9.9.9'),
     ), patch(
         'tether_ddns.providers.ddns_providers.duckdns.DuckDNSProvider.update',
-        new=AsyncMock(return_value=UpdateResult(success=True, ip='9.9.9.9')),
+        new=AsyncMock(return_value='9.9.9.9'),
     ):
         await sched.check_once(cfg, state)
     assert state.domains['a'].status == 'synced'

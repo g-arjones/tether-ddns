@@ -7,9 +7,9 @@ import aiohttp
 
 from pydantic import BaseModel, SecretStr
 
+from tether_ddns.errors import TetherError
 from tether_ddns.providers.base import (
     DDNSProvider,
-    UpdateResult,
     register_provider,
 )
 from tether_ddns.schema_fields import labeled_field
@@ -71,7 +71,7 @@ class CloudflareProvider(DDNSProvider):
 
     async def update(
         self, hostname: str, record_type: str, ip: str, config: BaseModel,
-    ) -> UpdateResult:
+    ) -> str:
         """Resolve the zone and record for hostname and update it to ip."""
         assert isinstance(config, CloudflareConfig)
         headers = {
@@ -85,9 +85,7 @@ class CloudflareProvider(DDNSProvider):
                 z for z in zones if zone_matches(str(z.get('name', '')), hostname)]
             zone = max(matches, key=lambda z: len(str(z.get('name', ''))), default=None)
             if zone is None:
-                return UpdateResult(
-                    success=False, ip=ip,
-                    message=f'no matching Cloudflare zone for {hostname}')
+                raise TetherError(f'no matching Cloudflare zone for {hostname}')
             zone_id = str(zone.get('id', ''))
 
             params = {'type': record_type, 'name': hostname}
@@ -95,9 +93,7 @@ class CloudflareProvider(DDNSProvider):
                     f'{_API}/zones/{zone_id}/dns_records', params=params) as resp:
                 records = _result_list(await resp.json())
             if not records:
-                return UpdateResult(
-                    success=False, ip=ip,
-                    message=f'record {hostname} ({record_type}) not found')
+                raise TetherError(f'record {hostname} ({record_type}) not found')
             record_id = str(records[0].get('id', ''))
 
             body = {
@@ -112,7 +108,6 @@ class CloudflareProvider(DDNSProvider):
                 payload: object = await resp.json()
 
         if _is_success(payload):
-            return UpdateResult(success=True, ip=ip, message='updated')
+            return ip
         errors = _error_messages(payload)
-        return UpdateResult(
-            success=False, ip=ip, message=errors or 'Cloudflare update failed')
+        raise TetherError(errors or 'Cloudflare update failed')

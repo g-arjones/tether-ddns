@@ -7,7 +7,6 @@ from fastapi.testclient import TestClient
 
 from tether_ddns.app import create_app
 from tether_ddns.config import AppConfig, ConfigStore
-from tether_ddns.providers.base import UpdateResult
 from tether_ddns.reachability import ReachabilityResult
 
 
@@ -178,7 +177,7 @@ def test_sync_and_delete_domain(tmp_path: Path) -> None:
         client.app.state.runtime.public_ipv4 = '203.0.113.1'
         with patch(
             'tether_ddns.providers.ddns_providers.duckdns.DuckDNSProvider.update',
-            new=AsyncMock(return_value=UpdateResult(success=True, ip='203.0.113.1')),
+            new=AsyncMock(return_value='203.0.113.1'),
         ):
             synced: Any = client.post(f'/api/domains/{domain_id}/sync')
         assert synced.status_code == 200
@@ -205,7 +204,7 @@ def test_manual_sync_fires_no_domain_update_events(tmp_path: Path) -> None:
 
         with patch(
             'tether_ddns.providers.ddns_providers.duckdns.DuckDNSProvider.update',
-            new=AsyncMock(return_value=UpdateResult(success=True, ip='203.0.113.1')),
+            new=AsyncMock(return_value='203.0.113.1'),
         ), patch(
             'tether_ddns.scheduler.dispatch_domain_update_success', new=_spy,
         ), patch(
@@ -230,7 +229,7 @@ def test_sync_detects_ip_when_unknown(tmp_path: Path) -> None:
             new=AsyncMock(return_value='203.0.113.9'),
         ), patch(
             'tether_ddns.providers.ddns_providers.duckdns.DuckDNSProvider.update',
-            new=AsyncMock(return_value=UpdateResult(success=True, ip='203.0.113.9')),
+            new=AsyncMock(return_value='203.0.113.9'),
         ) as upd:
             resp: Any = client.post(f'/api/domains/{created["id"]}/sync')
         assert resp.status_code == 200
@@ -250,7 +249,7 @@ def test_sync_aaaa_uses_ipv6(tmp_path: Path) -> None:
             new=AsyncMock(return_value='2001:db8::9'),
         ), patch(
             'tether_ddns.providers.ddns_providers.duckdns.DuckDNSProvider.update',
-            new=AsyncMock(return_value=UpdateResult(success=True, ip='2001:db8::9')),
+            new=AsyncMock(return_value='2001:db8::9'),
         ) as upd:
             resp: Any = client.post(f'/api/domains/{created["id"]}/sync')
         assert resp.status_code == 200

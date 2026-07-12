@@ -14,14 +14,6 @@ _log = get_logger()
 PROVIDER_REGISTRY: dict[str, type['DDNSProvider']] = {}
 
 
-class UpdateResult(BaseModel):
-    """Outcome of a provider update attempt."""
-
-    success: bool
-    ip: str | None = None
-    message: str = ''
-
-
 class EmptyConfig(BaseModel):
     """Default provider config model for providers without configuration."""
 
@@ -41,8 +33,8 @@ class DDNSProvider(ABC):
     @abstractmethod
     async def update(
         self, hostname: str, record_type: str, ip: str, config: BaseModel,
-    ) -> UpdateResult:
-        """Update the DNS record and return the result."""
+    ) -> str:
+        """Update the DNS record and return the assigned IP; raise on failure."""
         raise NotImplementedError
 
 

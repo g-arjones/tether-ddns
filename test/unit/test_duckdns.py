@@ -25,13 +25,13 @@ async def test_update_success() -> None:
         cs.return_value.__aenter__ = AsyncMock(return_value=session)
         cs.return_value.__aexit__ = AsyncMock(return_value=False)
         result = await provider.update('myhost', 'A', '1.2.3.4', _cfg())
-    assert result.success is True
-    assert result.ip == '1.2.3.4'
+    assert result == '1.2.3.4'
 
 
 @pytest.mark.asyncio
 async def test_update_failure() -> None:
-    """A non-OK body yields an unsuccessful result."""
+    """A non-OK body raises a TetherError."""
+    from tether_ddns.errors import TetherError
     provider = DuckDNSProvider()
     resp = MagicMock()
     resp.text = AsyncMock(return_value='KO')
@@ -41,5 +41,5 @@ async def test_update_failure() -> None:
     with patch('tether_ddns.providers.ddns_providers.duckdns.aiohttp.ClientSession') as cs:
         cs.return_value.__aenter__ = AsyncMock(return_value=session)
         cs.return_value.__aexit__ = AsyncMock(return_value=False)
-        result = await provider.update('myhost', 'A', '1.2.3.4', _cfg())
-    assert result.success is False
+        with pytest.raises(TetherError, match='DuckDNS returned'):
+            await provider.update('myhost', 'A', '1.2.3.4', _cfg())

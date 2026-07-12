@@ -39,16 +39,14 @@ async def sync_domain(domain: DomainConfig, ip: str, state: RuntimeState) -> Sta
     state.set_status(domain.id, 'updating')
     try:
         config = provider_cls.ConfigModel.model_validate(domain.provider_config)
-        result = await provider_cls().update(domain.hostname, domain.record_type, ip, config)
+        assigned = await provider_cls().update(
+            domain.hostname, domain.record_type, ip, config)
     except Exception as exc:  # noqa: BLE001 - provider errors must be contained
         _log.exception('Provider %s failed for %s', domain.provider, domain.hostname)
         state.set_status(domain.id, 'error', message=str(exc))
         return 'error'
-    if result.success:
-        state.set_status(domain.id, 'synced', ip=result.ip or ip, message=result.message)
-        return 'synced'
-    state.set_status(domain.id, 'error', message=result.message)
-    return 'error'
+    state.set_status(domain.id, 'synced', ip=assigned or ip, message='')
+    return 'synced'
 
 
 async def _dispatch(event_key: str, event: object, cfg: AppConfig) -> None:

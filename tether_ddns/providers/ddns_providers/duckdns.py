@@ -5,9 +5,9 @@ import aiohttp
 
 from pydantic import BaseModel, SecretStr
 
+from tether_ddns.errors import TetherError
 from tether_ddns.providers.base import (
     DDNSProvider,
-    UpdateResult,
     register_provider,
 )
 
@@ -29,7 +29,7 @@ class DuckDNSProvider(DDNSProvider):
 
     async def update(
         self, hostname: str, record_type: str, ip: str, config: BaseModel,
-    ) -> UpdateResult:
+    ) -> str:
         """Update the DuckDNS record for the configured domain."""
         assert isinstance(config, DuckDNSConfig)
         url = 'https://www.duckdns.org/update'
@@ -41,4 +41,6 @@ class DuckDNSProvider(DDNSProvider):
         async with aiohttp.ClientSession() as session:
             async with session.get(url, params=params) as resp:
                 body = (await resp.text()).strip()
-        return UpdateResult(success=body == 'OK', ip=ip, message=body)
+        if body != 'OK':
+            raise TetherError(f'DuckDNS returned {body}')
+        return ip
