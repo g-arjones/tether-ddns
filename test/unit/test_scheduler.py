@@ -1,4 +1,5 @@
 """Tests for scheduler dispatch and exception isolation."""
+import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from pydantic import BaseModel
@@ -10,7 +11,7 @@ from tether_ddns.config import AppConfig, DomainConfig, HookConfig
 from tether_ddns.hooks.base import (
     IpChangedEvent, ReachabilityChangedEvent, load_hooks)
 from tether_ddns.providers.base import load_providers
-from tether_ddns.reachability import ReachabilityResult
+from tether_ddns.reachability import ReachabilityResult, ResolverProbe
 from tether_ddns.runtime import RuntimeState
 
 
@@ -772,3 +773,60 @@ async def test_edited_domain_repushes_without_ip_change() -> None:
         await sched.sync_ips(cfg, state)
     update.assert_called_once()
     assert state.domains['a'].status == 'synced'
+
+
+def _reach(online: bool) -> ReachabilityResult:
+    return ReachabilityResult(
+        online=online, successes=3 if online else 0, total=3,
+        probes=[ResolverProbe(ip='1.1.1.1', ok=online, latency_ms=4.0)])
+
+
+def test_check_reachability_records_every_run(monkeypatch: pytest.MonkeyPatch) -> None:
+    sched = scheduler.Scheduler()
+
+    async def fake_check() -> ReachabilityResult:
+        return _reach(True)
+
+    monkeypatch.setattr(sched._reachability, 'check', fake_check)  # noqa: SLF001
+    cfg = AppConfig()
+    state = RuntimeState()
+    asyncio.run(sched.check_reachability(cfg, state))
+    asyncio.run(sched.check_reachability(cfg, state))
+    assert state.reachability_checks == 2
+    assert state.online is True
+
+
+def test_check_reachability_dispatches_only_on_transition(monkeypatch: pytest.MonkeyPatch) -> None:
+    sched = scheduler.Scheduler()
+    online = [False]
+
+    async def fake_check() -> ReachabilityResult:
+        return _reach(online[0])
+
+    dispatched: list[bool] = []
+
+    async def fake_dispatch(event: ReachabilityChangedEvent, cfg: AppConfig) -> None:
+        dispatched.append(event.online)
+
+    monkeypatch.setattr(sched._reachability, 'check', fake_check)  # noqa: SLF001
+    monkeypatch.setattr(
+        'tether_ddns.scheduler.dispatch_reachability_changed', fake_dispatch)
+    cfg = AppConfig()
+    state = RuntimeState()
+    online[0] = True
+    asyncio.run(sched.check_reachability(cfg, state))   # transition -> dispatch
+    asyncio.run(sched.check_reachability(cfg, state))   # steady -> no dispatch
+    assert dispatched == [True]
+
+
+@pytest.mark.asyncio
+async def test_start_publishes_next_check_at() -> None:
+    sched = scheduler.Scheduler()
+    cfg = AppConfig()
+    state = RuntimeState()
+    sched.start(cfg, state)
+    try:
+        assert state.next_check_at is not None
+        assert state.next_check_at > 0
+    finally:
+        sched.shutdown()

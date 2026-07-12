@@ -200,6 +200,7 @@ class Scheduler:
             args=[cfg, state], id='sync', replace_existing=True,
         )
         self._scheduler.start()
+        self._publish_next_check(state)
 
     def run_startup_check(self, cfg: AppConfig, state: RuntimeState) -> None:
         """Schedule one immediate, non-blocking check cycle at startup."""
@@ -213,12 +214,18 @@ class Scheduler:
         if self._scheduler.running:
             self._scheduler.shutdown(wait=False)
 
+    def _publish_next_check(self, state: RuntimeState) -> None:
+        """Publish the sync job's next fire time to runtime state."""
+        job = self._scheduler.get_job('sync')  # pyright: ignore[reportUnknownMemberType,reportUnknownVariableType]
+        next_run = getattr(job, 'next_run_time', None) if job else None  # pyright: ignore[reportUnknownArgumentType]
+        state.set_next_check_at(next_run.timestamp() if next_run else None)
+
     async def check_reachability(self, cfg: AppConfig, state: RuntimeState) -> None:
         """Run the DNS-quorum check; fire reachability_changed on transition."""
+        was_online = state.online
         reach = await self._reachability.check()
-        if reach.online != state.online:
-            was_online = state.online
-            state.set_online(reach.online)
+        transitioned = state.record_reachability(reach)
+        if transitioned:
             await dispatch_reachability_changed(
                 ReachabilityChangedEvent(
                     online=reach.online, was_online=was_online), cfg)
@@ -280,6 +287,7 @@ class Scheduler:
                         domain_id=domain.id, hostname=domain.hostname,
                         record_type=domain.record_type, family=family,
                         ip=ip, message=message), cfg)
+        self._publish_next_check(state)
 
     async def check_once(self, cfg: AppConfig, state: RuntimeState) -> None:
         """Run reachability then, if online, an IP sync (startup/refresh)."""
