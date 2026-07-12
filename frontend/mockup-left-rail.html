@@ -219,7 +219,7 @@ header.topbar {
 .btn-sm { padding: 7px 12px; font-size: 13px; }
 
 /* ---------- Page container ---------- */
-.page { padding: 26px 28px 80px; max-width: 1200px; width: 100%; }
+.page { padding: 26px 28px 80px; max-width: 1200px; width: 100%; margin: 0 auto; }
 .view { display: none; animation: viewIn .28s cubic-bezier(.2,.8,.2,1); }
 .view.active { display: block; }
 @keyframes viewIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
@@ -269,20 +269,47 @@ header.topbar {
 .ip-row .ip-addr { font-family: var(--mono); font-size: 15px; font-weight: 650; letter-spacing: -.3px; margin-top: 4px; }
 .ip-row .ip-since { font-size: 11.5px; color: var(--text-3); text-align: right; }
 
-/* sparkline */
-.spark { display: flex; align-items: flex-end; gap: 3px; height: 46px; margin-top: 4px; }
-.spark span { flex: 1; background: rgba(59,130,246,.22); border-radius: 3px 3px 0 0; transition: var(--transition); min-height: 3px; }
-.spark span.live { background: var(--accent); }
+/* reachability instrument */
+.reach-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
+.reach-uptime { display: flex; align-items: baseline; gap: 8px; }
+.reach-uptime .up-val { font-size: 22px; font-weight: 750; letter-spacing: -.5px; font-variant-numeric: tabular-nums; }
+.reach-uptime .up-val.down { color: var(--err); }
+.reach-uptime .up-sub { font-size: 12px; color: var(--text-3); }
+.reach-badge { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 650; padding: 4px 9px; border-radius: 999px; }
+.reach-badge .rb-dot { width: 7px; height: 7px; border-radius: 50%; }
+.reach-badge.up { background: var(--ok-soft); color: var(--ok); } .reach-badge.up .rb-dot { background: var(--ok); }
+.reach-badge.down { background: var(--err-soft); color: var(--err); } .reach-badge.down .rb-dot { background: var(--err); }
 
-/* activity feed */
-.feed { display: flex; flex-direction: column; }
-.feed-item { display: flex; gap: 12px; padding: 11px 0; border-bottom: 1px solid var(--border); }
-.feed-item:last-child { border-bottom: none; }
-.feed-dot { width: 8px; height: 8px; border-radius: 50%; margin-top: 6px; flex: none; }
-.feed-body { min-width: 0; }
-.feed-body .fmsg { font-size: 13px; }
-.feed-body .fmsg .mono { font-family: var(--mono); font-size: 12.5px; color: var(--text); }
-.feed-body .ftime { font-size: 11.5px; color: var(--text-3); margin-top: 2px; }
+.quorum { display: flex; align-items: flex-end; gap: 3px; height: 46px; }
+.quorum span { flex: 1; border-radius: 3px 3px 0 0; min-height: 3px; background: var(--accent); opacity: .9; transition: var(--transition); }
+.quorum span.degraded { background: var(--warn); }
+.quorum span.down { background: var(--err); }
+.quorum span.live { box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--accent) 55%, transparent); }
+.quorum-scale { display: flex; justify-content: space-between; font-size: 10.5px; color: var(--text-3); margin-top: 5px; }
+
+.resolvers { display: flex; flex-direction: column; gap: 9px; margin-top: 16px; }
+.res-row { display: grid; grid-template-columns: 84px 1fr auto; align-items: center; gap: 11px; }
+.res-ip { font-family: var(--mono); font-size: 12.5px; font-weight: 650; color: var(--text-2); }
+.res-track { height: 6px; border-radius: 999px; background: var(--bg); border: 1px solid var(--border-strong); overflow: hidden; }
+.res-fill { height: 100%; border-radius: 999px; background: var(--accent); transition: width var(--transition); }
+.res-fill.slow { background: var(--warn); }
+.res-lat { font-family: var(--mono); font-size: 12px; font-weight: 650; color: var(--text-2); font-variant-numeric: tabular-nums; min-width: 52px; text-align: right; }
+.res-lat.timeout { color: var(--err); }
+
+/* record-health panel */
+.health-bar { display: flex; height: 12px; border-radius: 999px; overflow: hidden; background: var(--surface-2); margin-bottom: 16px; }
+.health-bar span { min-width: 3px; }
+.health-legend { display: flex; flex-wrap: wrap; gap: 12px 18px; }
+.hl-item { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.hl-dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+.hl-label { color: var(--text-2); }
+.hl-count { font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; }
+.panel-divider { height: 1px; background: var(--border); margin: 18px 0; }
+.nc-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 9px; }
+.nc-label { font-size: 12px; color: var(--text-3); font-weight: 600; text-transform: uppercase; letter-spacing: .5px; }
+.nc-time { font-size: 15px; font-weight: 650; letter-spacing: -.3px; font-variant-numeric: tabular-nums; }
+.nc-track { height: 6px; border-radius: 999px; background: var(--bg); border: 1px solid var(--border-strong); overflow: hidden; }
+.nc-fill { height: 100%; background: var(--accent); border-radius: 999px; width: 100%; }
 
 /* ---------- Domain cards ---------- */
 .domain-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 16px; margin-bottom: 20px; }
@@ -592,14 +619,24 @@ header.topbar {
           <div class="panel">
             <div class="panel-head"><h4>Public IP</h4><span class="sub">dual-stack · ipify</span></div>
             <div class="ip-readout" id="ipReadout"></div>
-            <div style="margin-top:18px">
-              <div class="panel-head" style="margin-bottom:8px"><h4 style="font-size:12.5px;color:var(--text-3);text-transform:uppercase;letter-spacing:.5px">Reachability · last 24 checks</h4></div>
-              <div class="spark" id="spark"></div>
+            <div class="panel-divider"></div>
+            <div class="reach-head">
+              <div class="reach-uptime"><span class="up-val" id="upVal">—</span><span class="up-sub" id="upSub">since start</span></div>
+              <span class="reach-badge up" id="reachBadge"><span class="rb-dot"></span>Online</span>
             </div>
+            <div class="quorum" id="quorum" title="Reachability quorum per check"></div>
+            <div class="quorum-scale"><span>24 checks ago</span><span>now</span></div>
+            <div class="resolvers" id="resolvers"></div>
           </div>
           <div class="panel">
-            <div class="panel-head"><h4>Recent activity</h4><span class="sub">live</span></div>
-            <div class="feed" id="feed"></div>
+            <div class="panel-head"><h4>Record health</h4><span class="sub" id="healthCount">0 domains</span></div>
+            <div class="health-bar" id="healthBar"></div>
+            <div class="health-legend" id="healthLegend"></div>
+            <div class="panel-divider"></div>
+            <div class="next-check">
+              <div class="nc-top"><span class="nc-label">Next check</span><span class="nc-time" id="nextCheck">—</span></div>
+              <div class="nc-track"><div class="nc-fill" id="ncFill"></div></div>
+            </div>
           </div>
         </div>
       </section>
@@ -671,18 +708,18 @@ header.topbar {
           </div>
           <div class="panel">
             <div class="settings-group">
-              <div class="sg-title">Detection</div>
+              <div class="sg-title">Behavior</div>
               <div class="switch-row">
-                <div class="sr-text"><span class="t">IPv4 detection</span><span class="d">Detect and update A records.</span></div>
-                <label class="switch"><input type="checkbox" id="setV4" checked><span class="slider"></span></label>
+                <div class="sr-text"><span class="t">Update on startup</span><span class="d">Force a sync when the service launches.</span></div>
+                <label class="switch"><input type="checkbox" id="setStartup" checked><span class="slider"></span></label>
               </div>
               <div class="switch-row">
-                <div class="sr-text"><span class="t">IPv6 detection</span><span class="d">Detect and update AAAA records.</span></div>
-                <label class="switch"><input type="checkbox" id="setV6" checked><span class="slider"></span></label>
+                <div class="sr-text"><span class="t">Notifications</span><span class="d">Notify on IP change and update failures.</span></div>
+                <label class="switch"><input type="checkbox" id="setNotify" checked><span class="slider"></span></label>
               </div>
               <div class="switch-row">
-                <div class="sr-text"><span class="t">Reachability quorum</span><span class="d">Require a DNS-resolver quorum before updating.</span></div>
-                <label class="switch"><input type="checkbox" id="setQuorum" checked><span class="slider"></span></label>
+                <div class="sr-text"><span class="t">Retry on failure</span><span class="d">Auto-retry failed updates with backoff.</span></div>
+                <label class="switch"><input type="checkbox" id="setRetry" checked><span class="slider"></span></label>
               </div>
             </div>
           </div>
@@ -782,7 +819,16 @@ const state = {
   ip6: '2606:4700:4700::1111',
   ip4since: '2h 14m',
   interval: 300,
-  spark: Array.from({length: 24}, (_, i) => (i === 9 || i === 17) ? 0 : 1),
+  reach: {
+    resolvers: ['1.1.1.1', '8.8.8.8', '9.9.9.9'],
+    bases: { '1.1.1.1': 11, '8.8.8.8': 22, '9.9.9.9': 17 },
+    quorum: 2,
+    startedAt: Date.now() - (3 * 3600 + 14 * 60) * 1000,
+    history: [],
+    latest: [],
+    checks: 238,
+    online: 236,
+  },
   domains: [
     { id: 'd1', provider: 'duckdns',    host: 'home.duckdns.org',     type: 'A',        ip: '203.0.113.42',       status: 'synced',  enabled: true,  updated: '2 min ago' },
     { id: 'd2', provider: 'cloudflare', host: 'vpn.example.net',      type: 'A + AAAA', ip: '203.0.113.42',       status: 'synced',  enabled: true,  updated: '2 min ago' },
@@ -855,26 +901,119 @@ function renderStats() {
       <div class="stat-value">${c.value}</div>
       <div class="stat-sub">${c.sub}</div>
     </div>`).join('');
+  renderHealth();
 }
 
 function renderIpReadout() {
   $('#ipReadout').innerHTML = `
     <div class="ip-row"><div><div class="ip-meta">IPv4 · A</div><div class="ip-addr">${state.ip4}</div></div><div class="ip-since">stable<br>${state.ip4since}</div></div>
     <div class="ip-row"><div><div class="ip-meta">IPv6 · AAAA</div><div class="ip-addr">${state.ip6}</div></div><div class="ip-since">stable<br>${state.ip4since}</div></div>`;
-  $('#spark').innerHTML = state.spark.map((v, i) => `<span class="${i === state.spark.length - 1 ? 'live' : ''}" style="height:${v ? (30 + (i * 37 % 60)) : 6}%" title="${v ? 'reachable' : 'miss'}"></span>`).join('');
 }
 
-function renderFeed() {
-  const map = { INFO: 'var(--accent)', WARNING: 'var(--warn)', ERROR: 'var(--err)' };
-  const recent = [...state.logs].slice(-6).reverse();
-  $('#feed').innerHTML = recent.map(l => `
-    <div class="feed-item">
-      <span class="feed-dot" style="background:${map[l.level]}"></span>
-      <div class="feed-body"><div class="fmsg">${highlightMono(l.msg)}</div><div class="ftime">${l.time}</div></div>
-    </div>`).join('');
+/* ---------- Reachability instrument (quorum + latency + uptime) ---------- */
+function humanDur(ms) {
+  const s = Math.floor(ms / 1000);
+  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60);
+  if (h > 0) return `${h}h ${m}m`;
+  if (m > 0) return `${m}m`;
+  return `${s}s`;
 }
-function highlightMono(msg) {
-  return msg.replace(/((?:\d{1,3}\.){3}\d{1,3}|[0-9a-f:]{6,}::[0-9a-f:]*|[a-z0-9.-]+\.(?:org|net|com))/gi, '<span class="mono">$1</span>');
+function seedReach() {
+  const r = state.reach;
+  const pattern = [3,3,3,3,3,2,3,3,3,3,3,3,3,2,3,3,3,3,3,3,3,3,3,3];
+  r.history = pattern.map(ok => ({ ok, total: 3 }));
+  r.latest = r.resolvers.map(ip => ({ ip, ok: true, lat: r.bases[ip] }));
+}
+function sampleCheck() {
+  const r = state.reach;
+  const latest = r.resolvers.map(ip => {
+    const ok = Math.random() > 0.04;
+    const base = r.bases[ip];
+    const lat = ok ? Math.round(base * (0.7 + Math.random() * 0.7)) : null;
+    return { ip, ok, lat };
+  });
+  return { ok: latest.filter(x => x.ok).length, total: r.resolvers.length, latest };
+}
+function pushCheck() {
+  const r = state.reach;
+  const c = sampleCheck();
+  r.history.push({ ok: c.ok, total: c.total });
+  if (r.history.length > 24) r.history.shift();
+  r.latest = c.latest;
+  r.checks += 1;
+  if (c.ok >= r.quorum) r.online += 1;
+  state.online = c.ok >= r.quorum;
+  renderReachability();
+  return c;
+}
+function renderReachability() {
+  const r = state.reach;
+  const upVal = $('#upVal'); if (!upVal) return;
+  const pct = r.checks ? (r.online / r.checks * 100) : 100;
+  const lastOk = r.history.length ? r.history[r.history.length - 1].ok >= r.quorum : true;
+  upVal.textContent = pct.toFixed(1) + '%';
+  upVal.classList.toggle('down', !lastOk);
+  $('#upSub').textContent = `${r.online}/${r.checks} checks · up ${humanDur(Date.now() - r.startedAt)}`;
+  const badge = $('#reachBadge');
+  badge.className = 'reach-badge ' + (lastOk ? 'up' : 'down');
+  badge.innerHTML = `<span class="rb-dot"></span>${lastOk ? 'Online' : 'Offline'}`;
+  $('#quorum').innerHTML = r.history.map((h, i) => {
+    const cls = h.ok < r.quorum ? 'down' : (h.ok < h.total ? 'degraded' : '');
+    const live = i === r.history.length - 1 ? ' live' : '';
+    const height = Math.max(14, Math.round(h.ok / h.total * 100));
+    return `<span class="${cls}${live}" style="height:${height}%" title="${h.ok}/${h.total} resolvers ok"></span>`;
+  }).join('');
+  const maxLat = 45;
+  $('#resolvers').innerHTML = r.latest.map(x => {
+    if (!x.ok || x.lat == null) {
+      return `<div class="res-row"><span class="res-ip">${x.ip}</span><div class="res-track"><div class="res-fill" style="width:0%"></div></div><span class="res-lat timeout">timeout</span></div>`;
+    }
+    const w = Math.min(100, x.lat / maxLat * 100);
+    const slow = x.lat > 30 ? ' slow' : '';
+    return `<div class="res-row"><span class="res-ip">${x.ip}</span><div class="res-track"><div class="res-fill${slow}" style="width:${w}%"></div></div><span class="res-lat">${x.lat} ms</span></div>`;
+  }).join('');
+}
+
+function renderHealth() {
+  const bar = $('#healthBar');
+  if (!bar) return;
+  const order = [
+    ['synced', 'Synced', 'var(--ok)'],
+    ['pending', 'Pending', 'var(--warn)'],
+    ['error', 'Error', 'var(--err)'],
+    ['paused', 'Paused', 'var(--muted-status)'],
+  ];
+  const counts = { synced: 0, pending: 0, error: 0, paused: 0 };
+  state.domains.forEach(d => {
+    let s = d.enabled ? d.status : 'paused';
+    if (s === 'updating') s = 'pending';
+    counts[s in counts ? s : 'pending']++;
+  });
+  const n = state.domains.length;
+  $('#healthCount').textContent = `${n} ${n === 1 ? 'domain' : 'domains'}`;
+  const segs = order.filter(([k]) => counts[k] > 0)
+    .map(([k, , c]) => `<span style="flex:${counts[k]};background:${c}" title="${counts[k]} ${k}"></span>`).join('');
+  bar.innerHTML = segs || `<span style="flex:1;background:var(--surface-2)"></span>`;
+  $('#healthLegend').innerHTML = order
+    .map(([k, label, c]) => `<div class="hl-item"><span class="hl-dot" style="background:${c}"></span><span class="hl-label">${label}</span><span class="hl-count">${counts[k]}</span></div>`).join('');
+}
+
+/* live "next check" countdown, derived from the check interval */
+let nextCheckAt = 0, countdownTimer = null;
+function resetCountdown() { nextCheckAt = Date.now() + state.interval * 1000; tickCountdown(); }
+function tickCountdown() {
+  const t = $('#nextCheck'), fill = $('#ncFill');
+  if (!t) return;
+  const remain = Math.max(0, Math.round((nextCheckAt - Date.now()) / 1000));
+  const m = Math.floor(remain / 60), s = remain % 60;
+  t.textContent = `${m}:${String(s).padStart(2, '0')}`;
+  if (fill) fill.style.width = (remain / state.interval * 100) + '%';
+  if (remain <= 0) { const chk = pushCheck(); renderTopIp(); log('INFO', `Scheduled check complete · quorum ${chk.ok}/${chk.total}`); resetCountdown(); }
+}
+function startCountdown() {
+  resetCountdown();
+  if (countdownTimer) clearInterval(countdownTimer);
+  countdownTimer = setInterval(tickCountdown, 1000);
 }
 
 function renderDomains() {
@@ -989,7 +1128,6 @@ function log(level, msg) {
   state.logs.push({ time: fmtTime(Date.now()), level, msg });
   if (state.logs.length > 200) state.logs.shift();
   if ($('#view-logs').classList.contains('active')) renderLogs(true);
-  if ($('#view-overview').classList.contains('active')) renderFeed();
 }
 
 function syncDomain(id) {
@@ -1059,12 +1197,11 @@ $('#refreshBtn').onclick = function () {
       log('INFO', `Public IPv4 changed → ${state.ip4}`);
       state.domains.forEach(d => { if (d.enabled && d.type !== 'AAAA') { d.status = 'pending'; d.updated = 'just now'; } });
       toast('Public IP changed — records pending', 'info');
-    } else {
-      log('INFO', 'Reachability quorum 3/3 · no IP change');
     }
-    state.spark = [...state.spark.slice(1), 1];
+    const chk = pushCheck();
+    if (!changed) log('INFO', `Reachability quorum ${chk.ok}/${chk.total} · no IP change`);
     this.classList.remove('spin');
-    renderTopIp(); renderIpReadout(); renderStats(); renderDomains(); renderFeed();
+    renderTopIp(); renderIpReadout(); renderStats(); renderDomains();
   }, 1200);
 };
 
@@ -1154,7 +1291,7 @@ const PAGE_META = {
   domains:  ['Domains', 'Records tracked against your public IP'],
   hooks:    ['Hooks', 'React to IP-change and update events'],
   logs:     ['Logs', 'Streaming application output'],
-  settings: ['Settings', 'Scheduling, detection, and IP source'],
+  settings: ['Settings', 'Scheduling, behavior, and IP source'],
 };
 function navigate(view) {
   $$('.nav-item').forEach(n => n.classList.toggle('active', n.dataset.view === view));
@@ -1162,7 +1299,7 @@ function navigate(view) {
   $('#pageTitle').textContent = PAGE_META[view][0];
   $('#pageSub').textContent = PAGE_META[view][1];
   if (view === 'logs') renderLogs();
-  if (view === 'overview') { renderStats(); renderIpReadout(); renderFeed(); }
+  if (view === 'overview') { renderStats(); renderIpReadout(); }
   closeRail();
   window.scrollTo({ top: 0 });
 }
@@ -1323,9 +1460,9 @@ $$('#logFilters .filter-chip').forEach(c => c.onclick = () => {
 $$('#intervalChips .chip').forEach(c => c.onclick = () => {
   $$('#intervalChips .chip').forEach(x => x.classList.remove('active'));
   c.classList.add('active'); state.interval = +c.dataset.int;
-  renderStats(); toast('Settings saved', 'success'); log('INFO', `Check interval set to ${fmtInterval(state.interval)}`);
+  renderStats(); resetCountdown(); toast('Settings saved', 'success'); log('INFO', `Check interval set to ${fmtInterval(state.interval)}`);
 });
-['setV4', 'setV6', 'setQuorum'].forEach(id => $('#' + id).onchange = () => toast('Settings saved', 'success'));
+['setStartup', 'setNotify', 'setRetry'].forEach(id => $('#' + id).onchange = () => toast('Settings saved', 'success'));
 $('#setSource').onchange = e => { toast('Settings saved', 'success'); log('INFO', `IP source → ${e.target.value}`); };
 
 /* ============================================================
@@ -1385,7 +1522,9 @@ applyThemeIcon();
 renderTopIp();
 renderStats();
 renderIpReadout();
-renderFeed();
+seedReach();
+renderReachability();
+startCountdown();
 renderDomains();
 renderHooks();
 renderLogs();
