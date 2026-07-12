@@ -1,7 +1,7 @@
 """Tests for the ring-buffer logging handler."""
 import logging
 import sys
-from typing import TextIO, cast
+from typing import Any, TextIO, cast
 
 import pytest
 
@@ -150,7 +150,7 @@ def test_ring_handler_includes_exception_detail() -> None:
     except ValueError:
         logger.exception('operation failed')
     logger.removeHandler(handler)
-    messages = [r['message'] for r in handler.snapshot()]
+    messages: list[Any] = [r['message'] for r in handler.snapshot()]
     assert any(
         'operation failed' in m and 'ValueError' in m and 'kaboom' in m
         for m in messages)

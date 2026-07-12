@@ -133,7 +133,8 @@ Create a module under `tether_ddns/providers/ddns_providers/`:
 
 ```python
 from pydantic import BaseModel, SecretStr
-from tether_ddns.providers.base import DDNSProvider, UpdateResult, register_provider
+from tether_ddns.errors import TetherError
+from tether_ddns.providers.base import DDNSProvider, register_provider
 
 
 class MyConfig(BaseModel):
@@ -148,10 +149,12 @@ class MyProvider(DDNSProvider):
 
     async def update(
         self, hostname: str, record_type: str, ip: str, config: BaseModel,
-    ) -> UpdateResult:
+    ) -> str:
         assert isinstance(config, MyConfig)
         # ...perform the update...
-        return UpdateResult(success=True, ip=ip)
+        if not success:
+            raise TetherError('Update failed: provider returned error')
+        return ip
 ```
 
 ### Add a hook
@@ -208,6 +211,11 @@ class MyConfig(BaseModel):
 
 Create a module under `tether_ddns/ip_sources/registered_sources/`:
 
+**Error handling:** Providers, hooks, and IP sources should raise
+`tether_ddns.errors.TetherError` (or any exception) on failure. The scheduler
+and detect layer log the exception message, which is now visible in the in-app
+log viewer.
+
 ```python
 from tether_ddns.ip_sources.base import IPSource, register_ip_source
 
@@ -217,8 +225,8 @@ class MySource(IPSource):
     key = 'mysource'
     display_name = 'My Source'
 
-    async def detect(self) -> str | None:
-        # return the detected public IP, or None on failure
+    async def detect(self) -> str:
+        # return the detected public IP, or raise on failure
         ...
 ```
 

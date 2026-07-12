@@ -1,6 +1,8 @@
 """Tests for the IP-source registry and built-in HTTP sources."""
 from unittest.mock import AsyncMock, MagicMock, patch
 
+from _pytest.logging import LogCaptureFixture
+
 import pytest
 
 from tether_ddns.ip_sources import base
@@ -61,13 +63,15 @@ async def test_ipify_source_reads_ipv6_endpoint() -> None:
 
 
 @pytest.mark.asyncio
-async def test_detect_public_ip_returns_none_and_logs_debug_on_error(caplog) -> None:
+async def test_detect_public_ip_returns_none_and_logs_debug_on_error(
+    caplog: LogCaptureFixture,
+) -> None:
     """A raising source yields None and a DEBUG log, not an error."""
     import logging
     from tether_ddns.ip_sources import base
 
     @base.register_ip_source
-    class _Boom(base.IPSource):
+    class _Boom(base.IPSource):  # pyright: ignore[reportUnusedClass]
         key = '_boom'
         display_name = 'Boom'
 
