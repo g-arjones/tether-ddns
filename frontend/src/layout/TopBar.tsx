@@ -42,15 +42,16 @@ export function TopBar(props: TopBarProps): JSX.Element {
           <p>{subtitle}</p>
         </div>
         <div className="topbar-spacer" />
-        <div className="ip-pill" title="Detected public IPv4">
-          <span className={`dot${online ? '' : ' offline'}`} />
-          <span className="label">IPv4</span>
-          <span className="val">{ipv4 ?? '—'}</span>
-        </div>
-        <div className="ip-pill ip-v6" title="Detected public IPv6">
-          <span className={`dot${online ? '' : ' offline'}`} />
-          <span className="label">IPv6</span>
-          <span className="val">{ipv6 ?? '—'}</span>
+        <div className={`ip-pill${online ? '' : ' offline'}`} title="Detected public IP addresses">
+          <span className="seg" title="Detected public IPv4">
+            <span className="dot" />
+            <span className="k">IPv4</span>
+            <span className="v">{ipv4 ?? '—'}</span>
+          </span>
+          <span className="seg ip-v6" title="Detected public IPv6">
+            <span className="k">IPv6</span>
+            <span className="v">{ipv6 ?? '—'}</span>
+          </span>
         </div>
         <button className={`icon-btn${refreshing ? ' spin' : ''}`} type="button" title="Refresh all" aria-label="Refresh all" onClick={onRefresh}>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
