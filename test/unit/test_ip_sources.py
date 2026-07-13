@@ -63,6 +63,32 @@ async def test_ipify_source_reads_ipv6_endpoint() -> None:
 
 
 @pytest.mark.asyncio
+async def test_cloudflare_source_reads_txt_record() -> None:
+    """The Cloudflare source returns the decoded TXT answer for a family."""
+    base.load_ip_sources()
+    source = base.IP_SOURCE_REGISTRY['cloudflare']()
+    record = MagicMock()
+    record.data = MagicMock(spec=MagicMock)
+    record.data.data = b'203.0.113.5'
+    response = MagicMock()
+    response.answer = [record]
+    resolver = MagicMock()
+    resolver.query_dns = AsyncMock(return_value=response)
+    target = 'tether_ddns.ip_sources.registered_sources.dns_sources.aiodns.DNSResolver'
+    with patch(target) as dns_resolver, patch(
+        'tether_ddns.ip_sources.registered_sources.dns_sources.TXTRecordData',
+        MagicMock,
+    ):
+        dns_resolver.return_value.__aenter__ = AsyncMock(return_value=resolver)
+        dns_resolver.return_value.__aexit__ = AsyncMock(return_value=False)
+        assert await source.detect('ipv4') == '203.0.113.5'
+        dns_resolver.assert_called_once_with(nameservers=['1.1.1.1'])
+        resolver.query_dns.assert_awaited_once_with(
+            'whoami.Cloudflare', 'TXT', qclass='CHAOS',
+        )
+
+
+@pytest.mark.asyncio
 async def test_detect_public_ip_returns_none_and_logs_debug_on_error(
     caplog: LogCaptureFixture,
 ) -> None:
