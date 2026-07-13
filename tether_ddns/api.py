@@ -22,7 +22,7 @@ from tether_ddns.providers.base import PROVIDER_REGISTRY
 
 
 APP_NAME = 'Tether'
-APP_DISTRIBUTION = 'tether-dns'
+APP_DISTRIBUTION = 'tether-ddns'
 
 # ordered (display name, installed distribution name)
 _BACKEND_DISTS: list[tuple[str, str]] = [

@@ -1,5 +1,5 @@
 [project]
-name = "tether-dns"
+name = "tether-ddns"
 version = "0.0.1"
 description = "Self-hosted dynamic DNS — keep your DNS records pointed at your changing public IP."
 requires-python = ">=3.12"
