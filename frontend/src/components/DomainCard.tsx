@@ -52,15 +52,15 @@ export function DomainCard({ domain, runtime, onSync, onEdit, onDelete, onToggle
           <div className="ip-label">Assigned {domain.record_type === 'AAAA' ? 'IPv6' : 'IPv4'}</div>
           <div className="ip-val">{runtime.ip ?? '—'}</div>
         </div>
-        <label className="switch">
-          <input type="checkbox" checked={domain.enabled} onChange={() => onToggle(domain.id)} />
-          <span className="slider" />
-        </label>
       </div>
 
       <div className="dc-foot">
         <div className="dc-updated">Updated {relTime(runtime.updated)}</div>
         <div className="dc-actions">
+          <label className="switch">
+            <input type="checkbox" checked={domain.enabled} onChange={() => onToggle(domain.id)} />
+            <span className="slider" />
+          </label>
           <button type="button" className="act-btn" title="Force update now" onClick={() => onSync(domain.id)}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M23 4v6h-6M1 20v-6h6" /><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" /></svg>
           </button>

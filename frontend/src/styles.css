@@ -334,14 +334,13 @@ header.topbar {
 @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .3; } }
 
 .dc-ip {
-  display: flex; align-items: center; justify-content: space-between;
   background: var(--surface-2); border: 1px solid var(--border);
-  border-radius: var(--radius-sm); padding: 12px 14px;
+  border-radius: var(--radius-sm); padding: 12px 14px; min-width: 0;
 }
 .dc-ip .ip-label { font-size: 11px; color: var(--text-3); font-weight: 600; text-transform: uppercase; letter-spacing: .5px; }
-.dc-ip .ip-val { font-family: var(--mono); font-size: 15px; font-weight: 650; letter-spacing: -.3px; margin-top: 3px; }
+.dc-ip .ip-val { font-family: var(--mono); font-size: 13.5px; font-weight: 650; letter-spacing: -.3px; margin-top: 3px; word-break: break-all; }
 .dc-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-.dc-updated { font-size: 12.5px; color: var(--text-2); display: flex; align-items: center; gap: 6px; }
+.dc-updated { font-size: 12.5px; color: var(--text-2); display: flex; align-items: center; gap: 6px; min-width: 0; }
 .dc-updated svg { width: 14px; height: 14px; color: var(--text-3); }
 .dc-actions { display: flex; gap: 6px; align-items: center; }
 .act-btn {
@@ -739,19 +738,19 @@ header.topbar {
 @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .3; } }
 
 .dc-ip {
-  display: flex; align-items: center; justify-content: space-between;
   background: var(--surface-2);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   padding: 12px 14px;
+  min-width: 0;
 }
 .dc-ip .ip-label { font-size: 11px; color: var(--text-3); font-weight: 600; text-transform: uppercase; letter-spacing: .5px; }
-.dc-ip .ip-val { font-family: var(--mono); font-size: 15px; font-weight: 650; letter-spacing: -.3px; margin-top: 3px; }
+.dc-ip .ip-val { font-family: var(--mono); font-size: 13.5px; font-weight: 650; letter-spacing: -.3px; margin-top: 3px; word-break: break-all; }
 
 .dc-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-.dc-updated { font-size: 12.5px; color: var(--text-2); display: flex; align-items: center; gap: 6px; }
+.dc-updated { font-size: 12.5px; color: var(--text-2); display: flex; align-items: center; gap: 6px; min-width: 0; }
 .dc-updated svg { width: 14px; height: 14px; color: var(--text-3); }
-.dc-actions { display: flex; gap: 6px; }
+.dc-actions { display: flex; gap: 6px; align-items: center; }
 .act-btn {
   width: 34px; height: 34px; border-radius: 9px;
   display: grid; place-items: center;

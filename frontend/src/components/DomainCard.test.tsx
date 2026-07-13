@@ -48,4 +48,17 @@ describe('DomainCard', () => {
     fireEvent.click(switchInput);
     expect(onToggle).toHaveBeenCalledWith('a');
   });
+
+  it('places the toggle in the footer, not the IP row', () => {
+    const onToggle = vi.fn();
+    const { container } = render(<DomainCard
+      domain={{ id: 'a', hostname: 'home.example.com', provider: 'duckdns', record_type: 'AAAA', enabled: true }}
+      runtime={{ id: 'a', status: 'synced', ip: '2001:0db8:85a3:0000:0000:8a2e:0370:7334', updated: Date.now() / 1000, message: '' }}
+      onSync={vi.fn()} onEdit={vi.fn()} onDelete={vi.fn()} onToggle={onToggle} />);
+    expect(container.querySelector('.dc-ip .switch')).toBeNull();
+    const footSwitch = container.querySelector('.dc-foot .switch input') as HTMLInputElement;
+    expect(footSwitch).toBeTruthy();
+    fireEvent.click(footSwitch);
+    expect(onToggle).toHaveBeenCalledWith('a');
+  });
 });
