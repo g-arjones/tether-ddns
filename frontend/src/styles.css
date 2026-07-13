@@ -174,14 +174,16 @@ header.topbar {
 .topbar-spacer { flex: 1; }
 
 .ip-pill {
-  display: flex; align-items: center; gap: 9px;
-  padding: 7px 13px; background: var(--surface);
+  display: flex; align-items: stretch; min-width: 0; overflow: hidden;
+  background: var(--surface);
   border: 1px solid var(--border); border-radius: 999px; font-size: 13px;
 }
+.ip-pill .seg { display: flex; align-items: center; gap: 8px; padding: 7px 13px; min-width: 0; }
+.ip-pill .seg + .seg { border-left: 1px solid var(--border); }
 .ip-pill .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 0 4px var(--ok-soft); flex: none; }
-.ip-pill .dot.offline { background: var(--err); box-shadow: 0 0 0 4px var(--err-soft); }
-.ip-pill .label { color: var(--text-3); font-weight: 500; }
-.ip-pill .val { font-family: var(--mono); font-weight: 600; letter-spacing: -.3px; }
+.ip-pill.offline .dot { background: var(--err); box-shadow: 0 0 0 4px var(--err-soft); }
+.ip-pill .k { color: var(--text-3); font-weight: 500; flex: none; }
+.ip-pill .v { font-family: var(--mono); font-weight: 600; letter-spacing: -.3px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .icon-btn {
   width: 40px; height: 40px; border-radius: 12px;
@@ -254,13 +256,14 @@ header.topbar {
 /* IP readout */
 .ip-readout { display: flex; flex-direction: column; gap: 12px; }
 .ip-row {
-  display: flex; align-items: center; justify-content: space-between;
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
   background: var(--surface-2); border: 1px solid var(--border);
   border-radius: var(--radius-sm); padding: 13px 15px;
 }
+.ip-row > div:first-child { min-width: 0; }
 .ip-row .ip-meta { font-size: 11px; color: var(--text-3); font-weight: 600; text-transform: uppercase; letter-spacing: .5px; }
-.ip-row .ip-addr { font-family: var(--mono); font-size: 15px; font-weight: 650; letter-spacing: -.3px; margin-top: 4px; }
-.ip-row .ip-since { font-size: 11.5px; color: var(--text-3); text-align: right; }
+.ip-row .ip-addr { font-family: var(--mono); font-size: 15px; font-weight: 650; letter-spacing: -.3px; margin-top: 4px; word-break: break-all; }
+.ip-row .ip-since { font-size: 11.5px; color: var(--text-3); text-align: right; flex: none; }
 
 /* reachability instrument */
 .reach-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
@@ -305,7 +308,7 @@ header.topbar {
 .nc-fill { height: 100%; background: var(--accent); border-radius: 999px; width: 100%; }
 
 /* ---------- Domain cards ---------- */
-.domain-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 16px; margin-bottom: 20px; }
+.domain-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(340px, 100%), 1fr)); gap: 16px; margin-bottom: 20px; }
 .domain-card {
   background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
   padding: 18px; transition: var(--transition); position: relative;
@@ -407,7 +410,7 @@ header.topbar {
 .log-empty { color: var(--text-3); padding: 20px; text-align: center; }
 
 /* ---------- Settings ---------- */
-.settings-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }
+.settings-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr)); gap: 16px; }
 .settings-group { display: flex; flex-direction: column; gap: 16px; }
 .sg-title { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .6px; color: var(--text-3); }
 .switch-row { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
@@ -512,11 +515,15 @@ header.topbar {
   .ov-grid { grid-template-columns: 1fr; }
   .stats { grid-template-columns: repeat(2, 1fr); }
 }
+@media (max-width: 900px) {
+  .ip-pill .ip-v6 { display: none; }
+}
 @media (max-width: 860px) {
   .shell { grid-template-columns: 1fr; }
   .rail {
     position: fixed; left: 0; top: 0; width: 244px; height: 100vh;
     transform: translateX(-100%); transition: transform var(--transition); box-shadow: var(--shadow);
+    z-index: calc(var(--z-backdrop) + 1);
   }
   .rail.open { transform: none; }
   .rail-toggle { display: grid; }
@@ -529,7 +536,7 @@ header.topbar {
   .page { padding: 20px 16px 70px; }
   .stats { grid-template-columns: 1fr; gap: 12px; }
   .domain-grid { grid-template-columns: 1fr; }
-  .ip-pill.ip-v6 { display: none; }
+  .ip-pill { display: none; }
   .field-row { grid-template-columns: 1fr; }
   .toast-wrap { left: 16px; right: 16px; bottom: 16px; }
   .toast { max-width: none; }
@@ -599,17 +606,18 @@ header.topbar {
 .topbar-spacer { flex: 1; }
 
 .ip-pill {
-  display: flex; align-items: center; gap: 10px;
-  padding: 8px 14px;
+  display: flex; align-items: stretch; min-width: 0; overflow: hidden;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 999px;
   font-size: 13px;
 }
-.ip-pill .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 0 4px var(--ok-soft); }
-.ip-pill .dot.offline { background: var(--err); box-shadow: 0 0 0 4px var(--err-soft); }
-.ip-pill .label { color: var(--text-3); font-weight: 500; }
-.ip-pill .val { font-family: var(--mono); font-weight: 600; letter-spacing: -.3px; }
+.ip-pill .seg { display: flex; align-items: center; gap: 8px; padding: 8px 14px; min-width: 0; }
+.ip-pill .seg + .seg { border-left: 1px solid var(--border); }
+.ip-pill .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 0 4px var(--ok-soft); flex: none; }
+.ip-pill.offline .dot { background: var(--err); box-shadow: 0 0 0 4px var(--err-soft); }
+.ip-pill .k { color: var(--text-3); font-weight: 500; flex: none; }
+.ip-pill .v { font-family: var(--mono); font-weight: 600; letter-spacing: -.3px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .icon-btn {
   width: 40px; height: 40px;
@@ -923,9 +931,10 @@ header.topbar {
 /* ---------- Responsive ---------- */
 @media (max-width: 900px) {
   .stats { grid-template-columns: repeat(2, 1fr); }
+  .ip-pill .ip-v6 { display: none; }
 }
 @media (max-width: 620px) {
-  .ip-pill .label { display: none; }
+  .ip-pill { display: none; }
   .brand-text p { display: none; }
   .domain-grid { grid-template-columns: 1fr; }
   .stats { gap: 12px; }
