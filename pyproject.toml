@@ -37,11 +37,14 @@ dev = [
 requires = ["setuptools>=61"]
 build-backend = "setuptools.build_meta"
 
-[tool.setuptools]
-packages = ["tether_ddns"]
-
 [tool.setuptools.package-data]
 tether_ddns = ['py.typed']
 
+[tool.setuptools.packages.find]
+include = ["tether_ddns.*", "tether_ddns"]
+
 [tool.ruff.lint.pydocstyle]
 convention = "pep257"
+
+[project.scripts]
+tether-ddns = "tether_ddns.__main__:main"

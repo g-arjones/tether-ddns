@@ -19,20 +19,18 @@ COPY pyproject.toml uv.lock README.md ./
 COPY tether_ddns/ ./tether_ddns/
 # Bring in the built static assets from stage 1.
 COPY --from=frontend /app/tether_ddns/static ./tether_ddns/static
-RUN python -m venv /opt/venv \
-    && uv pip install --python /opt/venv/bin/python .
+RUN uv sync --no-dev
 
 # --- Stage 3: slim runtime ---
 FROM python:3.12-alpine AS runtime
 RUN apk add --no-cache libstdc++ \
     && adduser -D -h /home/app app \
     && mkdir /data && chown app:app /data
-COPY --from=builder /opt/venv /opt/venv
-COPY --from=builder /app/tether_ddns /app/tether_ddns
-ENV PATH=/opt/venv/bin:$PATH \
+COPY --from=builder /app /app
+ENV PATH=/app/.venv/bin:$PATH \
     TETHER_DDNS_CONFIG_PATH=/data/tether-ddns.json \
     PYTHONUNBUFFERED=1
 WORKDIR /app
 EXPOSE 8000
 USER app
-CMD ["python", "-m", "tether_ddns"]
+CMD ["tether-ddns"]

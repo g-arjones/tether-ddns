@@ -31,7 +31,7 @@ def resolve_bind(
 
 def main() -> None:  # pragma: no cover - starts a real server
     """Run the FastAPI app under uvicorn."""
-    parser = argparse.ArgumentParser(prog='tether_ddns')
+    parser = argparse.ArgumentParser(prog='tether-ddns')
     parser.add_argument('--host', help=f'bind host (env {HOST_ENV})')
     parser.add_argument(
         '--port', type=int, help=f'bind port (env {PORT_ENV})',
