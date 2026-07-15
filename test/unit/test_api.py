@@ -18,7 +18,8 @@ def _client(tmp_path: Path) -> Any:
     config = AppConfig()
     config.settings.update_on_startup = False
     store.save(config)
-    return TestClient(create_app(store))
+    state_store = StateStore(tmp_path / 'state.json')
+    return TestClient(create_app(store, state_store))
 
 
 def test_restores_domain_status_on_startup(tmp_path: Path) -> None:

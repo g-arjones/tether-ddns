@@ -13,6 +13,7 @@ from tether_ddns.services.dispatch import DispatchService
 from tether_ddns.services.sync import SyncService
 
 REACHABILITY_INTERVAL_SECONDS = 30
+STATE_FLUSH_INTERVAL_SECONDS = 30
 
 
 class Scheduler:
@@ -41,6 +42,11 @@ class Scheduler:
             seconds=self._ctx.config.settings.check_interval,
             args=[], id='sync', replace_existing=True,
         )
+        self._scheduler.add_job(  # pyright: ignore[reportUnknownMemberType]
+            self.flush_state, 'interval',
+            seconds=STATE_FLUSH_INTERVAL_SECONDS,
+            args=[], id='state-flush', replace_existing=True,
+        )
         self._scheduler.start()
         self._publish_next_check(self._ctx.runtime)
 
@@ -60,8 +66,13 @@ class Scheduler:
             id='startup', replace_existing=True,
         )
 
+    def flush_state(self) -> None:
+        """Persist the current runtime state to disk."""
+        self._ctx.persist_state()
+
     def shutdown(self) -> None:
-        """Stop the scheduler."""
+        """Flush runtime state, then stop the scheduler."""
+        self._ctx.persist_state()
         if self._scheduler.running:
             self._scheduler.shutdown(wait=False)
 
