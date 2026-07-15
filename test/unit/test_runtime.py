@@ -1,5 +1,7 @@
 """Tests for the runtime state container."""
+import time
 from collections import deque
+from typing import cast
 
 from tether_ddns.config import AppConfig, DomainConfig
 from tether_ddns.reachability import ReachabilityResult, ResolverProbe
@@ -119,46 +121,103 @@ def test_set_public_ipv4_and_ipv6_emit_snapshot() -> None:
     assert 'public_ip' not in seen[-1]
 
 
-def test_model_dump_excludes_ephemeral_fields() -> None:
-    """Persisted payload omits listeners, configs, latest, and next_check_at."""
+def test_model_dump_excludes_ephemeral_and_reachability_series() -> None:
+    """Persisted payload omits ephemerals and the reachability telemetry series."""
     state = RuntimeState()
     state.set_next_check_at(123.0)
+    state.set_public_ipv4('1.2.3.4')
+    state.record_reachability(
+        ReachabilityResult(online=True, successes=3, total=3, probes=[]))
     dumped = state.model_dump()
+    # Ephemeral / derived (pre-existing exclusions).
     assert 'reachability_latest' not in dumped
     assert 'next_check_at' not in dumped
     assert '_listeners' not in dumped
     assert '_configs' not in dumped
-    assert dumped['reachability_started_at'] == state.reachability_started_at
+    # Reachability telemetry series (newly excluded).
+    assert 'reachability_started_at' not in dumped
+    assert 'reachability_checks' not in dumped
+    assert 'reachability_online' not in dumped
+    assert 'reachability_history' not in dumped
+    assert 'reachability_since' not in dumped
+    # Still persisted.
+    assert dumped['public_ipv4'] == '1.2.3.4'
+    assert dumped['online'] is True
+    assert 'ipv4_changed_at' in dumped
+    assert 'domains' in dumped
 
 
-def test_model_round_trip_preserves_persisted_state() -> None:
-    """A dumped-then-validated model keeps IPs, domains, and history."""
+def test_snapshot_still_emits_full_reachability_block() -> None:
+    """snapshot() (the frontend payload) keeps the whole reachability block."""
     state = RuntimeState()
-    state.set_public_ipv4('1.2.3.4')
     state.record_reachability(
         ReachabilityResult(online=True, successes=3, total=3, probes=[]))
-    payload = state.model_dump()
-    restored = RuntimeState.model_validate(payload)
-    assert restored.public_ipv4 == '1.2.3.4'
-    assert restored.reachability_checks == 1
-    assert restored.reachability_online == 1
-    assert len(restored.reachability_history) == 1
+    snap = state.snapshot()
+    reach = snap['reachability']
+    assert isinstance(reach, dict)
+    reach_dict = cast('dict[str, object]', reach)
+    assert set(reach_dict) == {
+        'since', 'checks', 'online', 'history', 'latest'}
+    assert reach_dict['checks'] == 1
 
 
-def test_history_is_bounded_deque_after_validate() -> None:
-    """CRITICAL: history round-trips into a deque capped at the history size."""
+def test_reachability_since_resets_on_transition() -> None:
+    """reachability_since is reset only when the online state transitions."""
     state = RuntimeState()
-    for _ in range(REACHABILITY_HISTORY_SIZE + 10):
+    boot_since = state.reachability_since
+    # Steady offline (starts offline): no transition, since unchanged.
+    state.record_reachability(
+        ReachabilityResult(online=False, successes=0, total=3, probes=[]))
+    assert state.reachability_since == boot_since
+    # offline -> online: transition, since advances to ~now.
+    before = time.time()
+    state.record_reachability(
+        ReachabilityResult(online=True, successes=3, total=3, probes=[]))
+    up_since = state.reachability_since
+    assert up_since >= before
+    assert up_since > boot_since
+    # Steady online: no transition, since unchanged.
+    state.record_reachability(
+        ReachabilityResult(online=True, successes=3, total=3, probes=[]))
+    assert state.reachability_since == up_since
+    # online -> offline: transition, since resets again to ~now.
+    before_down = time.time()
+    state.record_reachability(
+        ReachabilityResult(online=False, successes=0, total=3, probes=[]))
+    assert state.reachability_since >= before_down
+
+
+def test_round_trip_drops_series_keeps_status() -> None:
+    """After a dump/validate round-trip the series is reset but status survives."""
+    state = RuntimeState()
+    state.set_public_ipv4('9.9.9.9')
+    state.set_online(True)
+    for _ in range(5):
+        state.record_reachability(
+            ReachabilityResult(online=True, successes=3, total=3, probes=[]))
+    restored = RuntimeState.model_validate(state.model_dump())
+    # Series rebuilds from empty.
+    assert restored.reachability_checks == 0
+    assert restored.reachability_online == 0
+    assert len(restored.reachability_history) == 0
+    # Meaningful status survives.
+    assert restored.public_ipv4 == '9.9.9.9'
+    assert restored.online is True
+
+
+def test_history_is_bounded_deque() -> None:
+    """CRITICAL: the live history deque stays capped at the history size.
+
+    The series is not persisted, but the in-memory deque must remain bounded so
+    long-running operation cannot grow it without limit.
+    """
+    state = RuntimeState()
+    for _ in range(REACHABILITY_HISTORY_SIZE + 30):
         state.record_reachability(
             ReachabilityResult(online=True, successes=1, total=1, probes=[]))
-    restored = RuntimeState.model_validate(state.model_dump())
-    assert isinstance(restored.reachability_history, deque)
-    assert restored.reachability_history.maxlen == REACHABILITY_HISTORY_SIZE
-    # Appending beyond the cap must not grow the buffer.
-    for _ in range(20):
-        restored.record_reachability(
-            ReachabilityResult(online=True, successes=1, total=1, probes=[]))
-    assert len(restored.reachability_history) == REACHABILITY_HISTORY_SIZE
+    assert isinstance(state.reachability_history, deque)
+    assert state.reachability_history.maxlen == REACHABILITY_HISTORY_SIZE
+    assert len(state.reachability_history) == REACHABILITY_HISTORY_SIZE
 
 
 def test_listeners_survive_model_construction() -> None:
@@ -207,8 +266,8 @@ def test_restore_adds_new_domain_as_pending() -> None:
     assert fresh.domains['b'].status == 'pending'
 
 
-def test_restore_copies_public_ips_and_history() -> None:
-    """Restore brings over IPs, change timestamps, and reachability counters."""
+def test_restore_copies_public_ips_but_not_series() -> None:
+    """Restore brings over IPs and timestamps; the series is not persisted."""
     saved = RuntimeState()
     saved.set_public_ipv4('9.9.9.9')
     saved.record_reachability(
@@ -218,8 +277,10 @@ def test_restore_copies_public_ips_and_history() -> None:
     fresh.restore(RuntimeState.model_validate(saved.model_dump()), cfg)
     assert fresh.public_ipv4 == '9.9.9.9'
     assert fresh.ipv4_changed_at is not None
-    assert fresh.reachability_checks == 1
-    assert len(fresh.reachability_history) == 1
+    # The reachability telemetry series is excluded from persistence, so a
+    # dump/validate round-trip resets it; restore copies those defaults.
+    assert fresh.reachability_checks == 0
+    assert len(fresh.reachability_history) == 0
 
 
 def test_remove_listener_and_unknown_status() -> None:
@@ -326,7 +387,7 @@ def test_reachability_fields_initialised() -> None:
     assert state.next_check_at is None
     assert state.ipv4_changed_at is None
     assert state.ipv6_changed_at is None
-    assert isinstance(state.reachability_started_at, float)
+    assert isinstance(state.reachability_since, float)
 
 
 def test_check_record_shape() -> None:
@@ -404,7 +465,7 @@ def test_snapshot_includes_reachability_block() -> None:
     assert isinstance(reach, dict)
     assert reach['checks'] == 1
     assert reach['online'] == 1
-    assert isinstance(reach['started_at'], float)
+    assert isinstance(reach['since'], float)
     assert reach['history'] == [
         {'ts': reach['history'][0]['ts'], 'successes': 3, 'total': 3}]
     assert reach['latest'] == [

@@ -4,7 +4,6 @@ from pathlib import Path
 
 import pytest
 
-from tether_ddns.reachability import ReachabilityResult
 from tether_ddns.runtime import RuntimeState
 from tether_ddns.state_store import StateStore
 
@@ -34,17 +33,16 @@ def test_load_missing_returns_none(tmp_path: Path) -> None:
 
 
 def test_save_then_load_round_trips(tmp_path: Path) -> None:
-    """Saved state is read back with IPs and reachability counters intact."""
+    """Saved state is read back with IPs and online status intact."""
     store = StateStore(tmp_path / 'state.json')
     state = RuntimeState()
     state.set_public_ipv4('1.2.3.4')
-    state.record_reachability(
-        ReachabilityResult(online=True, successes=3, total=3, probes=[]))
+    state.set_online(True)
     store.save(state)
     loaded = store.load()
     assert loaded is not None
     assert loaded.public_ipv4 == '1.2.3.4'
-    assert loaded.reachability_checks == 1
+    assert loaded.online is True
 
 
 def test_load_corrupt_returns_none_and_warns(

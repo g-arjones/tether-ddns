@@ -22,7 +22,7 @@ export function ReachabilityPanel({ reachability: r }: ReachabilityPanelProps): 
       <div className="reach-head">
         <div className="reach-uptime">
           <span className={`up-val${online ? '' : ' down'}`}>{pct}</span>
-          <span className="up-sub">{r.online}/{r.checks} checks · up {formatUptime(r.started_at)}</span>
+          <span className="up-sub">{r.online}/{r.checks} checks · {online ? 'up' : 'down'} {formatUptime(r.since)}</span>
         </div>
         <span className={`reach-badge ${online ? 'up' : 'down'}`}><span className="rb-dot" />{online ? 'Online' : 'Offline'}</span>
       </div>

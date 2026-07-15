@@ -50,11 +50,21 @@ class RuntimeState(BaseModel):
     public_ipv6: str | None = None
     online: bool = False
     domains: dict[str, DomainRuntime] = Field(default_factory=dict)
-    reachability_started_at: float = Field(default_factory=time.time)
-    reachability_checks: int = 0
-    reachability_online: int = 0
+    # Reachability telemetry is deliberately NOT persisted. It is a live,
+    # per-check time-series that turns over every ~30 min, so persisting it
+    # (a) rewrites the state file on every 30 s check and (b) would turn the
+    # since-boot uptime% (online / checks) into a meaningless all-time figure
+    # across restarts. These stay in memory and in snapshot() for the live UI;
+    # the sparkline and uptime% intentionally rebuild after a restart.
+    #
+    # Timestamp the current online/offline state began; reset on each
+    # transition so the UI can show "up/down for <duration>".
+    reachability_since: float = Field(default_factory=time.time, exclude=True)
+    reachability_checks: int = Field(default=0, exclude=True)
+    reachability_online: int = Field(default=0, exclude=True)
     reachability_history: deque[CheckRecord] = Field(
-        default_factory=lambda: deque(maxlen=REACHABILITY_HISTORY_SIZE))
+        default_factory=lambda: deque(maxlen=REACHABILITY_HISTORY_SIZE),
+        exclude=True)
     reachability_latest: list[ResolverProbe] = Field(
         default_factory=list[ResolverProbe], exclude=True)
     next_check_at: float | None = Field(default=None, exclude=True)
@@ -68,7 +78,13 @@ class RuntimeState(BaseModel):
     @field_validator('reachability_history', mode='before')
     @classmethod
     def _bound_history(cls, value: object) -> 'deque[CheckRecord]':
-        """Re-wrap any incoming sequence into a bounded history deque."""
+        """Re-wrap any incoming sequence into a bounded history deque.
+
+        Defensive only: ``reachability_history`` is excluded from persistence,
+        so this does not run on a normal load (which uses the default factory).
+        It still guards explicit construction with a ``reachability_history=``
+        argument.
+        """
         if isinstance(value, deque) and value.maxlen == REACHABILITY_HISTORY_SIZE:
             return cast('deque[CheckRecord]', value)
         raw: list[object] = (
@@ -103,7 +119,6 @@ class RuntimeState(BaseModel):
         self.online = other.online
         self.ipv4_changed_at = other.ipv4_changed_at
         self.ipv6_changed_at = other.ipv6_changed_at
-        self.reachability_started_at = other.reachability_started_at
         self.reachability_checks = other.reachability_checks
         self.reachability_online = other.reachability_online
         self.reachability_history = deque(
@@ -159,6 +174,8 @@ class RuntimeState(BaseModel):
     def record_reachability(self, result: ReachabilityResult) -> bool:
         """Record a reachability check; return True on an online transition."""
         transitioned = result.online != self.online
+        if transitioned:
+            self.reachability_since = time.time()
         self.reachability_history.append(CheckRecord(
             ts=time.time(), successes=result.successes, total=result.total))
         self.reachability_checks += 1
@@ -216,7 +233,7 @@ class RuntimeState(BaseModel):
             'online': self.online,
             'next_check_at': self.next_check_at,
             'reachability': {
-                'started_at': self.reachability_started_at,
+                'since': self.reachability_since,
                 'checks': self.reachability_checks,
                 'online': self.reachability_online,
                 'history': [r.model_dump() for r in self.reachability_history],

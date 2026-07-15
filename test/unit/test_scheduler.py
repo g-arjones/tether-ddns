@@ -919,3 +919,55 @@ def test_flush_state_writes(tmp_path: Path) -> None:
     loaded = ss.load()
     assert loaded is not None
     assert loaded.public_ipv6 == '2001:db8::1'
+
+
+def test_flush_state_skips_write_when_unchanged(tmp_path: Path) -> None:
+    """A second flush with no state change performs no additional save."""
+    cfg = AppConfig()
+    state = RuntimeState()
+    state.set_public_ipv4('1.2.3.4')
+    ss = StateStore(tmp_path / 'state.json')
+    ctx = _ctx(cfg, state, ss)
+    sched = scheduler.Scheduler(
+        ctx, SyncService(ctx, AsyncMock()), AsyncMock(), ReachabilityProbe())
+    with patch.object(ss, 'save', wraps=ss.save) as save:
+        sched.flush_state()
+        sched.flush_state()
+    assert save.call_count == 1
+
+
+def test_flush_state_writes_again_after_real_change(tmp_path: Path) -> None:
+    """A persisted-field change between flushes triggers another save."""
+    cfg = AppConfig(domains=[
+        DomainConfig(id='a', hostname='a.example.com', provider='duckdns')])
+    state = RuntimeState()
+    state.rebuild(cfg)
+    ss = StateStore(tmp_path / 'state.json')
+    ctx = _ctx(cfg, state, ss)
+    sched = scheduler.Scheduler(
+        ctx, SyncService(ctx, AsyncMock()), AsyncMock(), ReachabilityProbe())
+    with patch.object(ss, 'save', wraps=ss.save) as save:
+        sched.flush_state()
+        state.set_status('a', 'synced', ip='1.2.3.4')
+        sched.flush_state()
+    assert save.call_count == 2
+
+
+def test_flush_state_ignores_reachability_ticks(tmp_path: Path) -> None:
+    """record_reachability between flushes does not cause a second save."""
+    cfg = AppConfig()
+    state = RuntimeState()
+    ss = StateStore(tmp_path / 'state.json')
+    ctx = _ctx(cfg, state, ss)
+    sched = scheduler.Scheduler(
+        ctx, SyncService(ctx, AsyncMock()), AsyncMock(), ReachabilityProbe())
+    with patch.object(ss, 'save', wraps=ss.save) as save:
+        sched.flush_state()
+        state.record_reachability(
+            ReachabilityResult(online=False, successes=0, total=3, probes=[]))
+        # The tick genuinely mutated in-memory telemetry...
+        assert state.reachability_checks == 1
+        sched.flush_state()
+    # ...but online stays False and the telemetry series is excluded, so the
+    # persisted payload is unchanged and no second save occurs.
+    assert save.call_count == 1

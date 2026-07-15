@@ -4,7 +4,7 @@ import { ReachabilityPanel } from './ReachabilityPanel';
 import type { Reachability } from '../types';
 
 const reach: Reachability = {
-  started_at: 0, checks: 100, online: 98,
+  since: 0, checks: 100, online: 98,
   history: Array.from({ length: 30 }, (_, i) => ({ ts: i, successes: 3, total: 3 })),
   latest: [
     { ip: '1.1.1.1', ok: true, latency_ms: 11.2 },
@@ -30,5 +30,17 @@ describe('ReachabilityPanel', () => {
   it('handles zero checks with a dash', () => {
     render(<ReachabilityPanel reachability={{ ...reach, checks: 0, online: 0, history: [], latest: [] }} />);
     expect(screen.getByText('—')).toBeInTheDocument();
+  });
+  it('shows "up" when the latest check is online', () => {
+    render(<ReachabilityPanel reachability={reach} />);
+    expect(screen.getByText(/up \d/)).toBeInTheDocument();
+  });
+  it('shows "down" when the latest check is offline', () => {
+    const offline: Reachability = {
+      ...reach,
+      history: Array.from({ length: 30 }, (_, i) => ({ ts: i, successes: 0, total: 3 })),
+    };
+    render(<ReachabilityPanel reachability={offline} />);
+    expect(screen.getByText(/down \d/)).toBeInTheDocument();
   });
 });
