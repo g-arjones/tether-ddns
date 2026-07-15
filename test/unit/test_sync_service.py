@@ -1,4 +1,5 @@
 """Tests for SyncService domain sync and IP orchestration."""
+from typing import cast
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -47,3 +48,31 @@ async def test_sync_domain_success_marks_synced() -> None:
         result = await svc.sync_domain(domain, '1.2.3.4')
     assert result == 'synced'
     assert state.domains['d1'].status == 'synced'
+
+
+@pytest.mark.asyncio
+async def test_sync_ips_offline_is_noop() -> None:
+    """When offline, sync_ips does nothing and detects no IPs."""
+    state = RuntimeState()
+    state.online = False
+    svc = _svc(AppConfig(), state)
+    await svc.sync_ips()
+    assert state.public_ipv4 is None
+
+
+@pytest.mark.asyncio
+async def test_refresh_public_ips_dispatches_on_change() -> None:
+    """A newly detected IPv4 updates state, is returned, and dispatched."""
+    state = RuntimeState()
+    state.online = True
+    svc = _svc(AppConfig(), state)
+    with pytest.MonkeyPatch.context() as mp:
+        async def _detect(source: str, family: str) -> str | None:
+            """Return an IPv4 only."""
+            return '1.2.3.4' if family == 'ipv4' else None
+        mp.setattr('tether_ddns.services.sync.detect_public_ip', _detect)
+        changed = await svc.refresh_public_ips()
+    assert changed == {'ipv4'}
+    assert state.public_ipv4 == '1.2.3.4'
+    disp = svc._dispatch.dispatch  # noqa: SLF001  # pyright: ignore[reportPrivateUsage]
+    cast(AsyncMock, disp).assert_awaited()
