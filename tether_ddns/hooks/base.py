@@ -4,6 +4,7 @@ from __future__ import annotations
 import importlib
 import pkgutil
 from abc import ABC
+from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Literal, TYPE_CHECKING
 
@@ -31,6 +32,11 @@ class EmptyConfig(BaseModel):
 
 class HookEventBase(BaseModel):
     """Base for all hook event payloads."""
+
+    @classmethod
+    def from_context(cls, ctx: 'AppContext') -> Sequence['HookEventBase']:
+        """Build events of this type from the current context."""
+        return []
 
 
 class IpChangedEvent(HookEventBase):
