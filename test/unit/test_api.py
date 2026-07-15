@@ -6,8 +6,10 @@ from unittest.mock import AsyncMock, patch
 from fastapi.testclient import TestClient
 
 from tether_ddns.app import create_app
-from tether_ddns.config import AppConfig, ConfigStore
+from tether_ddns.config import AppConfig, ConfigStore, DomainConfig
 from tether_ddns.reachability import ReachabilityResult
+from tether_ddns.runtime import RuntimeState
+from tether_ddns.state_store import StateStore
 
 
 def _client(tmp_path: Path) -> Any:
@@ -17,6 +19,27 @@ def _client(tmp_path: Path) -> Any:
     config.settings.update_on_startup = False
     store.save(config)
     return TestClient(create_app(store))
+
+
+def test_restores_domain_status_on_startup(tmp_path: Path) -> None:
+    """A persisted synced domain is restored (not reset to pending) on boot."""
+    store = ConfigStore(tmp_path / 'cfg.json')
+    config = AppConfig(domains=[
+        DomainConfig(id='a', hostname='a.example.com', provider='duckdns')])
+    config.settings.update_on_startup = False
+    store.save(config)
+
+    seeded = RuntimeState()
+    seeded.rebuild(config)
+    seeded.set_status('a', 'synced', ip='1.2.3.4')
+    state_store = StateStore(tmp_path / 'state.json')
+    state_store.save(seeded)
+
+    app = create_app(store=store, state_store=state_store)
+    with TestClient(app):
+        runtime: RuntimeState = app.state.runtime
+        assert runtime.domains['a'].status == 'synced'
+        assert runtime.domains['a'].ip == '1.2.3.4'
 
 
 def test_state_endpoint_returns_snapshot(tmp_path: Path) -> None:
