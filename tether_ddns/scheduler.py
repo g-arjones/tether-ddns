@@ -29,6 +29,7 @@ class Scheduler:
         self._sync = sync
         self._dispatch = dispatch
         self._reachability = reachability
+        self._last_state_json: str | None = None
 
     def start(self) -> None:
         """Schedule the reachability and IP-sync jobs and start."""
@@ -67,12 +68,21 @@ class Scheduler:
         )
 
     def flush_state(self) -> None:
-        """Persist the current runtime state to disk."""
+        """Persist runtime state to disk only when the payload has changed.
+
+        Skips redundant writes: the reachability telemetry is excluded from the
+        persisted model, so a plain reachability tick produces an identical
+        payload and no disk write.
+        """
+        payload = self._ctx.runtime.model_dump_json()
+        if payload == self._last_state_json:
+            return
         self._ctx.persist_state()
+        self._last_state_json = payload
 
     def shutdown(self) -> None:
-        """Flush runtime state, then stop the scheduler."""
-        self._ctx.persist_state()
+        """Flush runtime state (if changed), then stop the scheduler."""
+        self.flush_state()
         if self._scheduler.running:
             self._scheduler.shutdown(wait=False)
 
