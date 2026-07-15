@@ -169,13 +169,19 @@ lifespan finally -> scheduler.shutdown()
 ## Persisted vs. excluded state
 
 **Persisted:** `public_ipv4`, `public_ipv6`, `ipv4_changed_at`, `ipv6_changed_at`,
-`online`, `reachability_started_at`, `reachability_checks`, `reachability_online`,
-`reachability_history` (list of `CheckRecord`), `domains`
-(`id → DomainRuntime`: status/ip/updated/message).
+`online`, `domains` (`id → DomainRuntime`: status/ip/updated/message).
 
 **Excluded (in-memory only):** `_listeners`, `_configs`, `reachability_latest`
-(derived from the last probe), `next_check_at` (derived from the scheduler), and
-application logs (`LogRingHandler` ring buffer — deliberately ephemeral).
+(derived from the last probe), `next_check_at` (derived from the scheduler),
+`reachability_started_at`, `reachability_checks`, `reachability_online`,
+`reachability_history`, and application logs (`LogRingHandler` ring buffer —
+deliberately ephemeral).
+
+Note: the reachability telemetry series (`reachability_started_at`,
+`reachability_checks`, `reachability_online`, `reachability_history`) was moved
+from Persisted to Excluded in the follow-up design
+`2026-07-15-reachability-persistence-exclusion-design.md` (uptime% window + disk-
+churn fix). `online` remains persisted.
 
 ## File location
 
