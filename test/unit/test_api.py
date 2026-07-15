@@ -236,18 +236,14 @@ def test_manual_sync_fires_no_domain_update_events(tmp_path: Path) -> None:
         client.app.state.runtime.public_ipv4 = '203.0.113.1'
         captured: list[str] = []
 
-        async def _spy(event: object, _cfg: object) -> None:
+        async def _spy(event_key: str, event: object) -> None:
             captured.append(type(event).__name__)
 
         with patch(
             'tether_ddns.providers.ddns_providers.duckdns.DuckDNSProvider.update',
             new=AsyncMock(return_value='203.0.113.1'),
-        ), patch(
-            'tether_ddns.scheduler.dispatch_domain_update_success', new=_spy,
-        ), patch(
-            'tether_ddns.scheduler.dispatch_domain_update_error', new=_spy,
-        ), patch(
-            'tether_ddns.scheduler.dispatch_domain_update_pending', new=_spy,
+        ), patch.object(
+            client.app.state.dispatch, 'dispatch', new=_spy,
         ):
             resp: Any = client.post(f'/api/domains/{created["id"]}/sync')
         assert resp.status_code == 200

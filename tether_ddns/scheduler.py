@@ -5,16 +5,17 @@ from apscheduler.schedulers.asyncio import (  # pyright: ignore[reportMissingTyp
     AsyncIOScheduler,
 )
 
-from tether_ddns.config import AppConfig, DomainConfig, HookConfig
+from tether_ddns.config import AppConfig, DomainConfig
 from tether_ddns.hooks.base import (
     DomainUpdateErrorEvent, DomainUpdatePendingEvent,
-    DomainUpdateSuccessEvent, HOOK_REGISTRY, IpChangedEvent,
+    DomainUpdateSuccessEvent, IpChangedEvent,
     ReachabilityChangedEvent)
 from tether_ddns.ip_sources.base import IPFamily, detect_public_ip
 from tether_ddns.logging_setup import get_logger
 from tether_ddns.providers.base import PROVIDER_REGISTRY
 from tether_ddns.reachability import ReachabilityService
 from tether_ddns.runtime import RuntimeState, Status
+from tether_ddns.services.dispatch import DispatchService
 
 _log = get_logger()
 
@@ -49,144 +50,14 @@ async def sync_domain(domain: DomainConfig, ip: str, state: RuntimeState) -> Sta
     return 'synced'
 
 
-async def _dispatch(event_key: str, event: object, cfg: AppConfig) -> None:
-    """Invoke every matching enabled hook, isolating exceptions."""
-    for hook_cfg in cfg.hooks:
-        hook_cls = HOOK_REGISTRY.get(hook_cfg.hook)
-        if hook_cls is None:
-            _log.warning('Unknown hook %s', hook_cfg.hook)
-            continue
-        if (not hook_cfg.enabled
-                or event_key not in hook_cfg.events
-                or event_key not in hook_cls.supported_events()):
-            continue
-        try:
-            config = hook_cls.ConfigModel.model_validate(hook_cfg.config)
-            await hook_cls()._dispatch(  # type: ignore[reportPrivateUsage]  # noqa: SLF001
-                event_key, event, config)  # type: ignore[arg-type]
-        except Exception:  # noqa: BLE001 - hook errors must be contained
-            _log.exception('Hook %s failed on %s', hook_cfg.hook, event_key)
-
-
-async def dispatch_ip_changed(event: IpChangedEvent, cfg: AppConfig) -> None:
-    """Dispatch an ip_changed event to matching hooks."""
-    await _dispatch('ip_changed', event, cfg)
-
-
-async def dispatch_reachability_changed(
-        event: ReachabilityChangedEvent, cfg: AppConfig) -> None:
-    """Dispatch a reachability_changed event to matching hooks."""
-    await _dispatch('reachability_changed', event, cfg)
-
-
-async def dispatch_domain_update_pending(
-        event: DomainUpdatePendingEvent, cfg: AppConfig) -> None:
-    """Dispatch a domain_update_pending event to matching hooks."""
-    await _dispatch('domain_update_pending', event, cfg)
-
-
-async def dispatch_domain_update_success(
-        event: DomainUpdateSuccessEvent, cfg: AppConfig) -> None:
-    """Dispatch a domain_update_success event to matching hooks."""
-    await _dispatch('domain_update_success', event, cfg)
-
-
-async def dispatch_domain_update_error(
-        event: DomainUpdateErrorEvent, cfg: AppConfig) -> None:
-    """Dispatch a domain_update_error event to matching hooks."""
-    await _dispatch('domain_update_error', event, cfg)
-
-
-async def run_hook_now(
-    hook_cfg: HookConfig, cfg: AppConfig, state: RuntimeState,
-) -> dict[str, object]:
-    """Fire a hook for its enabled+supported events using current state.
-
-    Returns {'ran': <handle invocations>, 'skipped': [<event keys skipped>]}.
-    """
-    hook_cls = HOOK_REGISTRY.get(hook_cfg.hook)
-    if hook_cls is None:
-        _log.warning('Unknown hook %s', hook_cfg.hook)
-        return {'ran': 0, 'skipped': list(hook_cfg.events)}
-    jobs: list[tuple[str, object]] = []
-    skipped: list[str] = []
-    supported = hook_cls.supported_events()
-    for event_key in hook_cfg.events:
-        if event_key not in supported:
-            continue
-        if event_key == 'reachability_changed':
-            jobs.append((
-                event_key,
-                ReachabilityChangedEvent(
-                    online=state.online, was_online=state.online)))
-        elif event_key == 'ip_changed':
-            candidates: tuple[tuple[IPFamily, str | None], ...] = (
-                ('ipv4', state.public_ipv4), ('ipv6', state.public_ipv6))
-            families: list[tuple[IPFamily, str]] = [
-                (family, ip) for family, ip in candidates if ip]
-            if not families:
-                skipped.append('ip_changed')
-            for family, ip in families:
-                jobs.append((
-                    event_key,
-                    IpChangedEvent(old_ip=ip, new_ip=ip, family=family)))
-        elif event_key in (
-                'domain_update_pending', 'domain_update_success',
-                'domain_update_error'):
-            status_for_key = {
-                'domain_update_pending': 'pending',
-                'domain_update_success': 'synced',
-                'domain_update_error': 'error',
-            }[event_key]
-            matched = False
-            for domain in cfg.domains:
-                runtime = state.domains.get(domain.id)
-                if runtime is None or runtime.status != status_for_key:
-                    continue
-                family = _family_for(domain.record_type)
-                if event_key == 'domain_update_pending':
-                    current_ip = (state.public_ipv4 if family == 'ipv4'
-                                  else state.public_ipv6)
-                    jobs.append((event_key, DomainUpdatePendingEvent(
-                        domain_id=domain.id, hostname=domain.hostname,
-                        record_type=domain.record_type, family=family,
-                        current_ip=current_ip)))
-                    matched = True
-                elif event_key == 'domain_update_success':
-                    if runtime.ip is None:
-                        continue
-                    jobs.append((event_key, DomainUpdateSuccessEvent(
-                        domain_id=domain.id, hostname=domain.hostname,
-                        record_type=domain.record_type, family=family,
-                        ip=runtime.ip)))
-                    matched = True
-                else:  # domain_update_error
-                    jobs.append((event_key, DomainUpdateErrorEvent(
-                        domain_id=domain.id, hostname=domain.hostname,
-                        record_type=domain.record_type, family=family,
-                        ip=runtime.ip, message=runtime.message)))
-                    matched = True
-            if not matched:
-                skipped.append(event_key)
-    ran = 0
-    for event_key, event in jobs:
-        try:
-            config = hook_cls.ConfigModel.model_validate(hook_cfg.config)
-            await hook_cls()._dispatch(  # type: ignore[reportPrivateUsage]  # noqa: SLF001
-                event_key, event, config)  # type: ignore[arg-type]
-        except Exception:  # noqa: BLE001 - hook errors must be contained
-            _log.exception('Hook %s failed on %s', hook_cfg.hook, event_key)
-        ran += 1
-    return {'ran': ran, 'skipped': skipped}
-
-
 class Scheduler:
     """Owns the APScheduler instance and periodic checks."""
 
-    def __init__(self) -> None:
-        """Create an unstarted scheduler."""
+    def __init__(self, dispatch: DispatchService) -> None:
+        """Create an unstarted scheduler bound to a dispatcher."""
         self._scheduler = AsyncIOScheduler()
         self._reachability = ReachabilityService()
+        self._dispatch = dispatch
 
     def start(self, cfg: AppConfig, state: RuntimeState) -> None:
         """Schedule the reachability and IP-sync jobs and start."""
@@ -239,9 +110,10 @@ class Scheduler:
         reach = await self._reachability.check()
         transitioned = state.record_reachability(reach)
         if transitioned:
-            await dispatch_reachability_changed(
+            await self._dispatch.dispatch(
+                'reachability_changed',
                 ReachabilityChangedEvent(
-                    online=reach.online, was_online=was_online), cfg)
+                    online=reach.online, was_online=was_online))
 
     async def sync_ips(self, cfg: AppConfig, state: RuntimeState) -> None:
         """When online, refresh both IP families and sync domains."""
@@ -254,14 +126,16 @@ class Scheduler:
             old = state.public_ipv4
             state.set_public_ipv4(ipv4)
             changed.add('ipv4')
-            await dispatch_ip_changed(
-                IpChangedEvent(old_ip=old, new_ip=ipv4, family='ipv4'), cfg)
+            await self._dispatch.dispatch(
+                'ip_changed',
+                IpChangedEvent(old_ip=old, new_ip=ipv4, family='ipv4'))
         if ipv6 is not None and ipv6 != state.public_ipv6:
             old6 = state.public_ipv6
             state.set_public_ipv6(ipv6)
             changed.add('ipv6')
-            await dispatch_ip_changed(
-                IpChangedEvent(old_ip=old6, new_ip=ipv6, family='ipv6'), cfg)
+            await self._dispatch.dispatch(
+                'ip_changed',
+                IpChangedEvent(old_ip=old6, new_ip=ipv6, family='ipv6'))
         by_family: dict[IPFamily, str | None] = {
             'ipv4': state.public_ipv4, 'ipv6': state.public_ipv6}
         for domain in cfg.domains:
@@ -269,11 +143,12 @@ class Scheduler:
             ip = by_family[family]
             if not domain.enabled:
                 if state.set_freshness(domain.id, ip) == 'pending':
-                    await dispatch_domain_update_pending(
+                    await self._dispatch.dispatch(
+                        'domain_update_pending',
                         DomainUpdatePendingEvent(
                             domain_id=domain.id, hostname=domain.hostname,
                             record_type=domain.record_type, family=family,
-                            current_ip=ip), cfg)
+                            current_ip=ip))
                 continue
             if ip is None:
                 continue
@@ -288,18 +163,20 @@ class Scheduler:
             if terminal == before:
                 continue
             if terminal == 'synced':
-                await dispatch_domain_update_success(
+                await self._dispatch.dispatch(
+                    'domain_update_success',
                     DomainUpdateSuccessEvent(
                         domain_id=domain.id, hostname=domain.hostname,
                         record_type=domain.record_type, family=family,
-                        ip=ip), cfg)
+                        ip=ip))
             elif terminal == 'error':
                 message = state.domains[domain.id].message
-                await dispatch_domain_update_error(
+                await self._dispatch.dispatch(
+                    'domain_update_error',
                     DomainUpdateErrorEvent(
                         domain_id=domain.id, hostname=domain.hostname,
                         record_type=domain.record_type, family=family,
-                        ip=ip, message=message), cfg)
+                        ip=ip, message=message))
         self._publish_next_check(state)
 
     async def check_once(self, cfg: AppConfig, state: RuntimeState) -> None:

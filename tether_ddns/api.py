@@ -19,6 +19,8 @@ from tether_ddns.config import (
 from tether_ddns.hooks.base import EVENT_SPECS, HOOK_REGISTRY
 from tether_ddns.ip_sources.base import IP_SOURCE_REGISTRY
 from tether_ddns.providers.base import PROVIDER_REGISTRY
+from tether_ddns.services.collection import find_or_404
+from tether_ddns.services.dispatch import DispatchService
 
 
 APP_NAME = 'Tether'
@@ -191,26 +193,21 @@ def register_routes(app: FastAPI) -> None:
 
     @router.put('/domains/{domain_id}')
     def update_domain(domain_id: str, payload: DomainInput) -> dict[str, object]:
-        for i, d in enumerate(app.state.config.domains):
-            if d.id == domain_id:
-                data = payload.model_dump()
-                data['provider_config'] = merge_secrets(
-                    _provider_schema(payload.provider),
-                    payload.provider_config, d.provider_config)
-                updated = DomainConfig(id=domain_id, **data)
-                app.state.config.domains[i] = updated
-                _persist(app)
-                app.state.runtime.rebuild(app.state.config)
-                return _masked_domain(updated)
-        raise HTTPException(status_code=404, detail='domain not found')
+        i, d = find_or_404(app.state.config.domains, domain_id, 'domain not found')
+        data = payload.model_dump()
+        data['provider_config'] = merge_secrets(
+            _provider_schema(payload.provider),
+            payload.provider_config, d.provider_config)
+        updated = DomainConfig(id=domain_id, **data)
+        app.state.config.domains[i] = updated
+        _persist(app)
+        app.state.runtime.rebuild(app.state.config)
+        return _masked_domain(updated)
 
     @router.delete('/domains/{domain_id}')
     def delete_domain(domain_id: str) -> dict[str, bool]:
-        before = len(app.state.config.domains)
-        app.state.config.domains = [
-            d for d in app.state.config.domains if d.id != domain_id]
-        if len(app.state.config.domains) == before:
-            raise HTTPException(status_code=404, detail='domain not found')
+        i, _ = find_or_404(app.state.config.domains, domain_id, 'domain not found')
+        del app.state.config.domains[i]
         _persist(app)
         app.state.runtime.rebuild(app.state.config)
         return {'ok': True}
@@ -252,34 +249,27 @@ def register_routes(app: FastAPI) -> None:
     @router.put('/hooks-config/{hook_id}')
     def update_hook(hook_id: str, payload: HookInput) -> dict[str, object]:
         _validate_hook_events(payload.hook, payload.events)
-        for i, h in enumerate(app.state.config.hooks):
-            if h.id == hook_id:
-                data = payload.model_dump()
-                data['config'] = merge_secrets(
-                    _hook_schema(payload.hook), payload.config, h.config)
-                updated = HookConfig(id=hook_id, **data)
-                app.state.config.hooks[i] = updated
-                _persist(app)
-                return _masked_hook(updated)
-        raise HTTPException(status_code=404, detail='hook not found')
+        i, h = find_or_404(app.state.config.hooks, hook_id, 'hook not found')
+        data = payload.model_dump()
+        data['config'] = merge_secrets(
+            _hook_schema(payload.hook), payload.config, h.config)
+        updated = HookConfig(id=hook_id, **data)
+        app.state.config.hooks[i] = updated
+        _persist(app)
+        return _masked_hook(updated)
 
     @router.delete('/hooks-config/{hook_id}')
     def delete_hook(hook_id: str) -> dict[str, bool]:
-        before = len(app.state.config.hooks)
-        app.state.config.hooks = [
-            h for h in app.state.config.hooks if h.id != hook_id]
-        if len(app.state.config.hooks) == before:
-            raise HTTPException(status_code=404, detail='hook not found')
+        i, _ = find_or_404(app.state.config.hooks, hook_id, 'hook not found')
+        del app.state.config.hooks[i]
         _persist(app)
         return {'ok': True}
 
     @router.post('/hooks-config/{hook_id}/run')
     async def run_hook(hook_id: str) -> dict[str, object]:
-        from tether_ddns.scheduler import run_hook_now
-        for h in app.state.config.hooks:
-            if h.id == hook_id:
-                return await run_hook_now(h, app.state.config, app.state.runtime)
-        raise HTTPException(status_code=404, detail='hook not found')
+        _, h = find_or_404(app.state.config.hooks, hook_id, 'hook not found')
+        dispatch: DispatchService = app.state.dispatch
+        return await dispatch.run_hook_now(h)
 
     @router.get('/settings')
     def get_settings() -> dict[str, object]:
