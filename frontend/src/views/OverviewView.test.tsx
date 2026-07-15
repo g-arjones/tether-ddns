@@ -9,7 +9,7 @@ const snapshot: StateSnapshot = {
   public_ipv4: '203.0.113.5', public_ipv6: null,
   ipv4_changed_at: 0, ipv6_changed_at: null,
   online: true, next_check_at: null,
-  reachability: { started_at: 0, checks: 10, online: 10, history: [], latest: [] },
+  reachability: { started_at: 0, since: 0, checks: 10, online: 10, history: [], latest: [] },
   domains: [{ id: 'a', status: 'synced', ip: '203.0.113.5', updated: 1, message: '' }],
   settings: { check_interval: 300, ip_source: 'ipify', update_on_startup: true, retry_on_failure: true, notify: true },
   logs: [],

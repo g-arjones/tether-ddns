@@ -9,6 +9,7 @@ export interface ResolverProbe { ip: string; ok: boolean; latency_ms: number | n
 export interface CheckRecord { ts: number; successes: number; total: number; }
 export interface Reachability {
   started_at: number;
+  since: number;
   checks: number;
   online: number;
   history: CheckRecord[];
