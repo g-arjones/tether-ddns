@@ -1,5 +1,6 @@
 """Tests for scheduler dispatch and exception isolation."""
 import asyncio
+from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from pydantic import BaseModel
@@ -17,11 +18,15 @@ from tether_ddns.reachability import (
 from tether_ddns.runtime import RuntimeState
 from tether_ddns.services.dispatch import DispatchService
 from tether_ddns.services.sync import SyncService
+from tether_ddns.state_store import StateStore
 
 
-def _ctx(cfg: AppConfig, state: RuntimeState) -> AppContext:
+def _ctx(
+    cfg: AppConfig, state: RuntimeState, state_store: StateStore | None = None,
+) -> AppContext:
     """Build an AppContext for dispatch tests."""
-    return AppContext(cfg, state, MagicMock(), MagicMock())
+    store = state_store if state_store is not None else MagicMock()
+    return AppContext(cfg, state, MagicMock(), store, MagicMock())
 
 
 def _disp(cfg: AppConfig, state: RuntimeState) -> DispatchService:
@@ -884,3 +889,33 @@ def test_reschedule_sync_republishes_next_check() -> None:
     assert kwargs['seconds'] == cfg.settings.check_interval
     assert kwargs['replace_existing'] is True
     fake.get_job.assert_called_with('sync')
+
+
+def test_shutdown_flushes_state(tmp_path: Path) -> None:
+    """Shutdown persists runtime state before stopping the scheduler."""
+    cfg = AppConfig()
+    state = RuntimeState()
+    state.set_public_ipv4('4.3.2.1')
+    ss = StateStore(tmp_path / 'state.json')
+    ctx = _ctx(cfg, state, ss)
+    sched = scheduler.Scheduler(
+        ctx, SyncService(ctx, AsyncMock()), AsyncMock(), ReachabilityProbe())
+    sched.shutdown()
+    loaded = ss.load()
+    assert loaded is not None
+    assert loaded.public_ipv4 == '4.3.2.1'
+
+
+def test_flush_state_writes(tmp_path: Path) -> None:
+    """flush_state persists the current runtime snapshot."""
+    cfg = AppConfig()
+    state = RuntimeState()
+    state.set_public_ipv6('2001:db8::1')
+    ss = StateStore(tmp_path / 'state.json')
+    ctx = _ctx(cfg, state, ss)
+    sched = scheduler.Scheduler(
+        ctx, SyncService(ctx, AsyncMock()), AsyncMock(), ReachabilityProbe())
+    sched.flush_state()
+    loaded = ss.load()
+    assert loaded is not None
+    assert loaded.public_ipv6 == '2001:db8::1'

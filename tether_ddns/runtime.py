@@ -3,9 +3,9 @@ from __future__ import annotations
 
 import time
 from collections import deque
-from typing import Callable, Literal
+from typing import Callable, Literal, cast
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, field_validator
 
 from tether_ddns.config import AppConfig, DomainConfig
 from tether_ddns.reachability import ReachabilityResult, ResolverProbe
@@ -41,26 +41,44 @@ class DomainRuntime(BaseModel):
     message: str = ''
 
 
-class RuntimeState:
+class RuntimeState(BaseModel):
     """Holds live application state and notifies listeners of changes."""
 
-    def __init__(self) -> None:
-        """Create an empty runtime state."""
-        self.public_ipv4: str | None = None
-        self.public_ipv6: str | None = None
-        self.online: bool = False
-        self.domains: dict[str, DomainRuntime] = {}
-        self._configs: dict[str, DomainConfig] = {}
-        self._listeners: list[Listener] = []
-        self.reachability_started_at: float = time.time()
-        self.reachability_checks: int = 0
-        self.reachability_online: int = 0
-        self.reachability_history: deque[CheckRecord] = deque(
-            maxlen=REACHABILITY_HISTORY_SIZE)
-        self.reachability_latest: list[ResolverProbe] = []
-        self.next_check_at: float | None = None
-        self.ipv4_changed_at: float | None = None
-        self.ipv6_changed_at: float | None = None
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    public_ipv4: str | None = None
+    public_ipv6: str | None = None
+    online: bool = False
+    domains: dict[str, DomainRuntime] = Field(default_factory=dict)
+    reachability_started_at: float = Field(default_factory=time.time)
+    reachability_checks: int = 0
+    reachability_online: int = 0
+    reachability_history: deque[CheckRecord] = Field(
+        default_factory=lambda: deque(maxlen=REACHABILITY_HISTORY_SIZE))
+    reachability_latest: list[ResolverProbe] = Field(
+        default_factory=list[ResolverProbe], exclude=True)
+    next_check_at: float | None = Field(default=None, exclude=True)
+    ipv4_changed_at: float | None = None
+    ipv6_changed_at: float | None = None
+
+    _listeners: list[Listener] = PrivateAttr(default_factory=list[Listener])
+    _configs: dict[str, DomainConfig] = PrivateAttr(
+        default_factory=dict[str, DomainConfig])
+
+    @field_validator('reachability_history', mode='before')
+    @classmethod
+    def _bound_history(cls, value: object) -> 'deque[CheckRecord]':
+        """Re-wrap any incoming sequence into a bounded history deque."""
+        if isinstance(value, deque) and value.maxlen == REACHABILITY_HISTORY_SIZE:
+            return cast('deque[CheckRecord]', value)
+        raw: list[object] = (
+            list(cast('list[object]', value))
+            if isinstance(value, (list, tuple, deque)) else [])
+        records = [
+            v if isinstance(v, CheckRecord) else CheckRecord.model_validate(v)
+            for v in raw
+        ]
+        return deque(records, maxlen=REACHABILITY_HISTORY_SIZE)
 
     def add_listener(self, cb: Listener) -> None:
         """Register a listener called with a snapshot on each change."""
@@ -70,6 +88,28 @@ class RuntimeState:
         """Remove a registered listener."""
         if cb in self._listeners:
             self._listeners.remove(cb)
+
+    def restore(self, other: 'RuntimeState', cfg: AppConfig) -> None:
+        """Load persisted state from ``other`` and seed configs from ``cfg``.
+
+        Copies persisted fields into this instance and populates ``_configs``
+        from the current configuration so a following :meth:`rebuild` keeps the
+        status of persisted domains. Config edits made while the app was down
+        are not specially detected; the next scheduled sync reconciles any
+        stale status.
+        """
+        self.public_ipv4 = other.public_ipv4
+        self.public_ipv6 = other.public_ipv6
+        self.online = other.online
+        self.ipv4_changed_at = other.ipv4_changed_at
+        self.ipv6_changed_at = other.ipv6_changed_at
+        self.reachability_started_at = other.reachability_started_at
+        self.reachability_checks = other.reachability_checks
+        self.reachability_online = other.reachability_online
+        self.reachability_history = deque(
+            other.reachability_history, maxlen=REACHABILITY_HISTORY_SIZE)
+        self.domains = dict(other.domains)
+        self._configs = {d.id: d for d in cfg.domains}
 
     def rebuild(self, cfg: AppConfig) -> None:
         """Reset domain runtimes from configuration, preserving history.

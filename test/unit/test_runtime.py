@@ -119,6 +119,109 @@ def test_set_public_ipv4_and_ipv6_emit_snapshot() -> None:
     assert 'public_ip' not in seen[-1]
 
 
+def test_model_dump_excludes_ephemeral_fields() -> None:
+    """Persisted payload omits listeners, configs, latest, and next_check_at."""
+    state = RuntimeState()
+    state.set_next_check_at(123.0)
+    dumped = state.model_dump()
+    assert 'reachability_latest' not in dumped
+    assert 'next_check_at' not in dumped
+    assert '_listeners' not in dumped
+    assert '_configs' not in dumped
+    assert dumped['reachability_started_at'] == state.reachability_started_at
+
+
+def test_model_round_trip_preserves_persisted_state() -> None:
+    """A dumped-then-validated model keeps IPs, domains, and history."""
+    state = RuntimeState()
+    state.set_public_ipv4('1.2.3.4')
+    state.record_reachability(
+        ReachabilityResult(online=True, successes=3, total=3, probes=[]))
+    payload = state.model_dump()
+    restored = RuntimeState.model_validate(payload)
+    assert restored.public_ipv4 == '1.2.3.4'
+    assert restored.reachability_checks == 1
+    assert restored.reachability_online == 1
+    assert len(restored.reachability_history) == 1
+
+
+def test_history_is_bounded_deque_after_validate() -> None:
+    """CRITICAL: history round-trips into a deque capped at the history size."""
+    state = RuntimeState()
+    for _ in range(REACHABILITY_HISTORY_SIZE + 10):
+        state.record_reachability(
+            ReachabilityResult(online=True, successes=1, total=1, probes=[]))
+    restored = RuntimeState.model_validate(state.model_dump())
+    assert isinstance(restored.reachability_history, deque)
+    assert restored.reachability_history.maxlen == REACHABILITY_HISTORY_SIZE
+    # Appending beyond the cap must not grow the buffer.
+    for _ in range(20):
+        restored.record_reachability(
+            ReachabilityResult(online=True, successes=1, total=1, probes=[]))
+    assert len(restored.reachability_history) == REACHABILITY_HISTORY_SIZE
+
+
+def test_listeners_survive_model_construction() -> None:
+    """Listeners still fire after the BaseModel conversion."""
+    state = RuntimeState()
+    seen: list[dict[str, object]] = []
+    state.add_listener(seen.append)
+    state.set_online(True)
+    assert seen and seen[-1]['online'] is True
+
+
+def test_restore_then_rebuild_preserves_domain_status() -> None:
+    """Restored domain status survives rebuild against the same config.
+
+    Config changes made while the app was down are not specially detected;
+    the next scheduled sync reconciles any stale status (Option A).
+    """
+    cfg = AppConfig(domains=[
+        DomainConfig(id='a', hostname='a.example.com', provider='duckdns')])
+    saved = RuntimeState()
+    saved.rebuild(cfg)
+    saved.set_status('a', 'synced', ip='1.2.3.4')
+
+    fresh = RuntimeState()
+    fresh.restore(RuntimeState.model_validate(saved.model_dump()), cfg)
+    fresh.rebuild(cfg)
+    assert fresh.domains['a'].status == 'synced'
+    assert fresh.domains['a'].ip == '1.2.3.4'
+
+
+def test_restore_adds_new_domain_as_pending() -> None:
+    """A domain absent from persisted state starts pending after rebuild."""
+    saved_cfg = AppConfig(domains=[
+        DomainConfig(id='a', hostname='a.example.com', provider='duckdns')])
+    saved = RuntimeState()
+    saved.rebuild(saved_cfg)
+    saved.set_status('a', 'synced', ip='1.2.3.4')
+
+    cfg2 = AppConfig(domains=[
+        DomainConfig(id='a', hostname='a.example.com', provider='duckdns'),
+        DomainConfig(id='b', hostname='b.example.com', provider='duckdns')])
+    fresh = RuntimeState()
+    fresh.restore(RuntimeState.model_validate(saved.model_dump()), cfg2)
+    fresh.rebuild(cfg2)
+    assert fresh.domains['a'].status == 'synced'
+    assert fresh.domains['b'].status == 'pending'
+
+
+def test_restore_copies_public_ips_and_history() -> None:
+    """Restore brings over IPs, change timestamps, and reachability counters."""
+    saved = RuntimeState()
+    saved.set_public_ipv4('9.9.9.9')
+    saved.record_reachability(
+        ReachabilityResult(online=True, successes=2, total=3, probes=[]))
+    cfg = AppConfig()
+    fresh = RuntimeState()
+    fresh.restore(RuntimeState.model_validate(saved.model_dump()), cfg)
+    assert fresh.public_ipv4 == '9.9.9.9'
+    assert fresh.ipv4_changed_at is not None
+    assert fresh.reachability_checks == 1
+    assert len(fresh.reachability_history) == 1
+
+
 def test_remove_listener_and_unknown_status() -> None:
     """Removed listeners stop receiving and unknown ids are ignored."""
     state = RuntimeState()
