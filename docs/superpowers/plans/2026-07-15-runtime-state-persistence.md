@@ -184,8 +184,12 @@ git commit -m "refactor: make RuntimeState a pydantic BaseModel for serializatio
 Add to `test/unit/test_runtime.py`:
 
 ```python
-def test_restore_then_rebuild_preserves_unchanged_domain() -> None:
-    """A restored, config-unchanged domain keeps its status through rebuild."""
+def test_restore_then_rebuild_preserves_domain_status() -> None:
+    """Restored domain status survives rebuild against the same config.
+
+    Config changes made while the app was down are not specially detected;
+    the next scheduled sync reconciles any stale status (Option A).
+    """
     cfg = AppConfig(domains=[
         DomainConfig(id='a', hostname='a.example.com', provider='duckdns')])
     saved = RuntimeState()
@@ -193,27 +197,28 @@ def test_restore_then_rebuild_preserves_unchanged_domain() -> None:
     saved.set_status('a', 'synced', ip='1.2.3.4')
 
     fresh = RuntimeState()
-    restored = RuntimeState.model_validate(saved.model_dump())
-    fresh.restore(restored, cfg)
+    fresh.restore(RuntimeState.model_validate(saved.model_dump()), cfg)
     fresh.rebuild(cfg)
     assert fresh.domains['a'].status == 'synced'
     assert fresh.domains['a'].ip == '1.2.3.4'
 
 
-def test_restore_then_rebuild_resets_changed_domain() -> None:
-    """A domain whose config changed resets to pending after rebuild."""
-    cfg = AppConfig(domains=[
+def test_restore_adds_new_domain_as_pending() -> None:
+    """A domain absent from persisted state starts pending after rebuild."""
+    saved_cfg = AppConfig(domains=[
         DomainConfig(id='a', hostname='a.example.com', provider='duckdns')])
     saved = RuntimeState()
-    saved.rebuild(cfg)
+    saved.rebuild(saved_cfg)
     saved.set_status('a', 'synced', ip='1.2.3.4')
 
     cfg2 = AppConfig(domains=[
-        DomainConfig(id='a', hostname='a.example.com', provider='cloudflare')])
+        DomainConfig(id='a', hostname='a.example.com', provider='duckdns'),
+        DomainConfig(id='b', hostname='b.example.com', provider='duckdns')])
     fresh = RuntimeState()
     fresh.restore(RuntimeState.model_validate(saved.model_dump()), cfg2)
     fresh.rebuild(cfg2)
-    assert fresh.domains['a'].status == 'pending'
+    assert fresh.domains['a'].status == 'synced'
+    assert fresh.domains['b'].status == 'pending'
 
 
 def test_restore_copies_public_ips_and_history() -> None:
@@ -233,7 +238,7 @@ def test_restore_copies_public_ips_and_history() -> None:
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `pytest test/unit/test_runtime.py::test_restore_then_rebuild_preserves_unchanged_domain -v`
+Run: `pytest test/unit/test_runtime.py::test_restore_then_rebuild_preserves_domain_status -v`
 Expected: FAIL (`RuntimeState` has no attribute `restore`).
 
 - [ ] **Step 3: Implement `restore()`**
@@ -262,7 +267,7 @@ Add this method to `RuntimeState` (place it just before `rebuild`):
         self._configs = {d.id: d for d in cfg.domains}
 ```
 
-Note: seeding `_configs` from `cfg` (not from `other`) is the Option-A mechanism that makes `rebuild`'s change-detection preserve unchanged restored domains.
+Note: seeding `_configs` from `cfg` lets `rebuild` treat every persisted domain as unchanged, preserving its restored status. Config edits made while the app was down are NOT specially detected (only one config exists on disk after a restart); the next scheduled sync reconciles any stale status (Option A, per design decision 7).
 
 - [ ] **Step 4: Run tests to verify they pass**
 

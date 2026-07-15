@@ -89,6 +89,28 @@ class RuntimeState(BaseModel):
         if cb in self._listeners:
             self._listeners.remove(cb)
 
+    def restore(self, other: 'RuntimeState', cfg: AppConfig) -> None:
+        """Load persisted state from ``other`` and seed configs from ``cfg``.
+
+        Copies persisted fields into this instance and populates ``_configs``
+        from the current configuration so a following :meth:`rebuild` keeps the
+        status of persisted domains. Config edits made while the app was down
+        are not specially detected; the next scheduled sync reconciles any
+        stale status.
+        """
+        self.public_ipv4 = other.public_ipv4
+        self.public_ipv6 = other.public_ipv6
+        self.online = other.online
+        self.ipv4_changed_at = other.ipv4_changed_at
+        self.ipv6_changed_at = other.ipv6_changed_at
+        self.reachability_started_at = other.reachability_started_at
+        self.reachability_checks = other.reachability_checks
+        self.reachability_online = other.reachability_online
+        self.reachability_history = deque(
+            other.reachability_history, maxlen=REACHABILITY_HISTORY_SIZE)
+        self.domains = dict(other.domains)
+        self._configs = {d.id: d for d in cfg.domains}
+
     def rebuild(self, cfg: AppConfig) -> None:
         """Reset domain runtimes from configuration, preserving history.
 

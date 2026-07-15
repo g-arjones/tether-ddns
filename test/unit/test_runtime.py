@@ -170,6 +170,58 @@ def test_listeners_survive_model_construction() -> None:
     assert seen and seen[-1]['online'] is True
 
 
+def test_restore_then_rebuild_preserves_domain_status() -> None:
+    """Restored domain status survives rebuild against the same config.
+
+    Config changes made while the app was down are not specially detected;
+    the next scheduled sync reconciles any stale status (Option A).
+    """
+    cfg = AppConfig(domains=[
+        DomainConfig(id='a', hostname='a.example.com', provider='duckdns')])
+    saved = RuntimeState()
+    saved.rebuild(cfg)
+    saved.set_status('a', 'synced', ip='1.2.3.4')
+
+    fresh = RuntimeState()
+    fresh.restore(RuntimeState.model_validate(saved.model_dump()), cfg)
+    fresh.rebuild(cfg)
+    assert fresh.domains['a'].status == 'synced'
+    assert fresh.domains['a'].ip == '1.2.3.4'
+
+
+def test_restore_adds_new_domain_as_pending() -> None:
+    """A domain absent from persisted state starts pending after rebuild."""
+    saved_cfg = AppConfig(domains=[
+        DomainConfig(id='a', hostname='a.example.com', provider='duckdns')])
+    saved = RuntimeState()
+    saved.rebuild(saved_cfg)
+    saved.set_status('a', 'synced', ip='1.2.3.4')
+
+    cfg2 = AppConfig(domains=[
+        DomainConfig(id='a', hostname='a.example.com', provider='duckdns'),
+        DomainConfig(id='b', hostname='b.example.com', provider='duckdns')])
+    fresh = RuntimeState()
+    fresh.restore(RuntimeState.model_validate(saved.model_dump()), cfg2)
+    fresh.rebuild(cfg2)
+    assert fresh.domains['a'].status == 'synced'
+    assert fresh.domains['b'].status == 'pending'
+
+
+def test_restore_copies_public_ips_and_history() -> None:
+    """Restore brings over IPs, change timestamps, and reachability counters."""
+    saved = RuntimeState()
+    saved.set_public_ipv4('9.9.9.9')
+    saved.record_reachability(
+        ReachabilityResult(online=True, successes=2, total=3, probes=[]))
+    cfg = AppConfig()
+    fresh = RuntimeState()
+    fresh.restore(RuntimeState.model_validate(saved.model_dump()), cfg)
+    assert fresh.public_ipv4 == '9.9.9.9'
+    assert fresh.ipv4_changed_at is not None
+    assert fresh.reachability_checks == 1
+    assert len(fresh.reachability_history) == 1
+
+
 def test_remove_listener_and_unknown_status() -> None:
     """Removed listeners stop receiving and unknown ids are ignored."""
     state = RuntimeState()
