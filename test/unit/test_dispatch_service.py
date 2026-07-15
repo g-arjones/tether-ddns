@@ -61,3 +61,60 @@ async def test_run_hook_now_unknown_hook_skips_all() -> None:
     svc = DispatchService(_ctx(AppConfig(hooks=[hc])))
     result = await svc.run_hook_now(hc)
     assert result == {'ran': 0, 'skipped': ['ip_changed']}
+
+
+@pytest.mark.asyncio
+async def test_dispatch_skips_unsupported_event() -> None:
+    """A hook subscribed to an event it does not support is not dispatched."""
+    hook_cls = MagicMock()
+    hook_cls.supported_events.return_value = ('ip_changed',)
+    instance = MagicMock()
+    instance._dispatch = AsyncMock()
+    hook_cls.return_value = instance
+    hc = HookConfig(hook='fake', enabled=True, events=['reachability_changed'])
+    cfg = AppConfig(hooks=[hc])
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setitem(HOOK_REGISTRY, 'fake', hook_cls)
+        svc = DispatchService(_ctx(cfg))
+        await svc.dispatch(
+            'reachability_changed',
+            ReachabilityChangedEvent(online=True))
+    instance._dispatch.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_dispatch_isolates_hook_exception() -> None:
+    """A hook whose dispatch raises does not propagate to the caller."""
+    hook_cls = MagicMock()
+    hook_cls.supported_events.return_value = ('reachability_changed',)
+    instance = MagicMock()
+    instance._dispatch = AsyncMock(side_effect=RuntimeError('boom'))
+    hook_cls.return_value = instance
+    hook_cls.ConfigModel.model_validate.return_value = MagicMock()
+    hc = HookConfig(hook='fake', enabled=True, events=['reachability_changed'])
+    cfg = AppConfig(hooks=[hc])
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setitem(HOOK_REGISTRY, 'fake', hook_cls)
+        svc = DispatchService(_ctx(cfg))
+        await svc.dispatch(
+            'reachability_changed',
+            ReachabilityChangedEvent(online=True))
+    instance._dispatch.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_run_hook_now_skips_event_with_no_synthesized_events() -> None:
+    """An event that synthesizes no events from context is skipped."""
+    hook_cls = MagicMock()
+    hook_cls.supported_events.return_value = ('ip_changed',)
+    instance = MagicMock()
+    instance._dispatch = AsyncMock()
+    hook_cls.return_value = instance
+    hook_cls.ConfigModel.model_validate.return_value = MagicMock()
+    hc = HookConfig(hook='fake', enabled=True, events=['ip_changed'])
+    cfg = AppConfig(hooks=[hc])
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setitem(HOOK_REGISTRY, 'fake', hook_cls)
+        svc = DispatchService(_ctx(cfg))
+        result = await svc.run_hook_now(hc)
+    assert result == {'ran': 0, 'skipped': ['ip_changed']}
