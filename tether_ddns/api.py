@@ -214,23 +214,9 @@ def register_routes(app: FastAPI) -> None:
 
     @router.post('/domains/{domain_id}/sync')
     async def sync_now(domain_id: str) -> dict[str, bool]:
-        from tether_ddns.ip_sources.base import IPFamily, detect_public_ip
-        from tether_ddns.scheduler import sync_domain
         for d in app.state.config.domains:
             if d.id == domain_id:
-                runtime = app.state.runtime
-                family: IPFamily = 'ipv6' if d.record_type == 'AAAA' else 'ipv4'
-                ip = runtime.public_ipv4 if family == 'ipv4' else runtime.public_ipv6
-                if not ip:
-                    ip = await detect_public_ip(app.state.config.settings.ip_source, family)
-                    if not ip:
-                        raise HTTPException(
-                            status_code=503, detail='public IP unknown')
-                    if family == 'ipv4':
-                        runtime.set_public_ipv4(ip)
-                    else:
-                        runtime.set_public_ipv6(ip)
-                await sync_domain(d, ip, runtime)
+                await app.state.sync.sync_one_now(d)
                 return {'ok': True}
         raise HTTPException(status_code=404, detail='domain not found')
 
@@ -285,14 +271,13 @@ def register_routes(app: FastAPI) -> None:
         app.state.config.settings = merged
         _persist(app)
         if interval_changed:
-            app.state.scheduler.reschedule_sync(
-                app.state.config, app.state.runtime)
+            app.state.scheduler.reschedule_sync()
         dumped: dict[str, object] = merged.model_dump()
         return dumped
 
     @router.post('/refresh')
     async def refresh() -> dict[str, bool]:
-        await app.state.scheduler.check_once(app.state.config, app.state.runtime)
+        await app.state.scheduler.check_once()
         return {'ok': True}
 
     @router.websocket('/ws')

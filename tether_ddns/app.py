@@ -19,9 +19,11 @@ from tether_ddns.logging_setup import (
     install_stdout_handler,
 )
 from tether_ddns.providers.base import load_providers
+from tether_ddns.reachability import ReachabilityService
 from tether_ddns.runtime import RuntimeState
 from tether_ddns.scheduler import Scheduler
 from tether_ddns.services.dispatch import DispatchService
+from tether_ddns.services.sync import SyncService
 from tether_ddns.ws import ConnectionManager
 
 _STATIC_DIR = Path(__file__).parent / 'static'
@@ -47,10 +49,11 @@ def create_app(store: ConfigStore | None = None) -> FastAPI:
         runtime.add_listener(lambda snap: manager.sync_broadcast('state', snap))
         ctx = AppContext(config, runtime, resolved_store, manager)
         dispatch = DispatchService(ctx)
-        scheduler = Scheduler(dispatch)
-        scheduler.start(config, runtime)
+        sync = SyncService(ctx, dispatch)
+        scheduler = Scheduler(ctx, sync, ReachabilityService())
+        scheduler.start()
         if config.settings.update_on_startup:
-            scheduler.run_startup_check(config, runtime)
+            scheduler.run_startup_check()
         app.state.store = resolved_store
         app.state.config = config
         app.state.runtime = runtime
@@ -59,6 +62,7 @@ def create_app(store: ConfigStore | None = None) -> FastAPI:
         app.state.scheduler = scheduler
         app.state.ctx = ctx
         app.state.dispatch = dispatch
+        app.state.sync = sync
         try:
             yield
         finally:
