@@ -75,7 +75,13 @@ class RuntimeState(BaseModel):
     @field_validator('reachability_history', mode='before')
     @classmethod
     def _bound_history(cls, value: object) -> 'deque[CheckRecord]':
-        """Re-wrap any incoming sequence into a bounded history deque."""
+        """Re-wrap any incoming sequence into a bounded history deque.
+
+        Defensive only: ``reachability_history`` is excluded from persistence,
+        so this does not run on a normal load (which uses the default factory).
+        It still guards explicit construction with a ``reachability_history=``
+        argument.
+        """
         if isinstance(value, deque) and value.maxlen == REACHABILITY_HISTORY_SIZE:
             return cast('deque[CheckRecord]', value)
         raw: list[object] = (

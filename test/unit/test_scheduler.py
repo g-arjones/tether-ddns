@@ -965,7 +965,9 @@ def test_flush_state_ignores_reachability_ticks(tmp_path: Path) -> None:
         sched.flush_state()
         state.record_reachability(
             ReachabilityResult(online=False, successes=0, total=3, probes=[]))
+        # The tick genuinely mutated in-memory telemetry...
+        assert state.reachability_checks == 1
         sched.flush_state()
-    # online stays False and the telemetry series is excluded, so the persisted
-    # payload is unchanged and no second save occurs.
+    # ...but online stays False and the telemetry series is excluded, so the
+    # persisted payload is unchanged and no second save occurs.
     assert save.call_count == 1

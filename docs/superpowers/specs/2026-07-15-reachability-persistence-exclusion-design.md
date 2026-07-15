@@ -73,11 +73,13 @@ after a restart. Excluding them simply preserves that long-standing behavior.
 
 3. **Comparison key is the serialized JSON string.** `flush_state` computes
    `runtime.model_dump_json()` (which already excludes the reachability series and
-   other ephemerals) and compares it to the last written string. Reusing the exact
-   bytes that would be written guarantees the comparison matches what `save()`
-   persists. The shutdown flush path also updates/uses this memo so a final
-   identical state is not needlessly rewritten (but a genuine last-moment change
-   is still flushed).
+   other ephemerals) and compares it to the last written string. Both sides of the
+   comparison are produced the same way from the same model, so any persisted-field
+   change is detected and an unchanged payload is never rewritten. (Note the on-disk
+   file uses `model_dump_json(indent=2)`; the guard compares un-indented payloads
+   to each other, which is equivalent for change detection.) The shutdown flush
+   path also updates/uses this memo so a final identical state is not needlessly
+   rewritten (but a genuine last-moment change is still flushed).
 
 4. **Persisted vs. excluded is now explicit and documented in code.** Every
    excluded field carries an inline comment stating why, so a future reader (or a
