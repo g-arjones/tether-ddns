@@ -111,11 +111,14 @@ modes are forgiving.
    hydrates the runtime fields **and** seeds `_configs` from the *current* config.
    This matters because `rebuild()`'s "unchanged domain keeps its runtime" check
    requires `_configs` to be populated; on a fresh process it is empty, so without
-   seeding it every restored domain would be treated as changed and reset to
-   `pending`. Seeding `_configs` lets `rebuild()` reuse its existing
-   change-detection: domains whose config did not change while the app was down
-   keep their restored status; domains whose config *did* change reset to
-   `pending`. No persistence logic is duplicated into the reconciliation.
+   seeding it every restored domain would be reset to `pending`. Seeding `_configs`
+   from the current config lets `rebuild()` preserve every persisted domain's
+   restored status. Note: config edits made *while the app was down* are **not**
+   specially detected — after a restart only the current config exists on disk, so
+   there is no prior config to diff against. A domain whose config changed during
+   downtime keeps its persisted status until the next scheduled sync reconciles it
+   (consistent with decision 7). New domains (absent from the snapshot) still start
+   `pending`.
 
 7. **Restored state is trusted as-is (Option A).** No provisional/marking logic and
    no coupling to `update_on_startup`. The persisted values were genuinely real at
