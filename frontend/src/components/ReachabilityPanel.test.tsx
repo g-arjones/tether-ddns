@@ -4,7 +4,7 @@ import { ReachabilityPanel } from './ReachabilityPanel';
 import type { Reachability } from '../types';
 
 const reach: Reachability = {
-  started_at: 0, since: 0, checks: 100, online: 98,
+  since: 0, checks: 100, online: 98,
   history: Array.from({ length: 30 }, (_, i) => ({ ts: i, successes: 3, total: 3 })),
   latest: [
     { ip: '1.1.1.1', ok: true, latency_ms: 11.2 },

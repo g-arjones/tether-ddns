@@ -157,7 +157,7 @@ def test_snapshot_still_emits_full_reachability_block() -> None:
     assert isinstance(reach, dict)
     reach_dict = cast('dict[str, object]', reach)
     assert set(reach_dict) == {
-        'started_at', 'since', 'checks', 'online', 'history', 'latest'}
+        'since', 'checks', 'online', 'history', 'latest'}
     assert reach_dict['checks'] == 1
 
 
@@ -387,7 +387,7 @@ def test_reachability_fields_initialised() -> None:
     assert state.next_check_at is None
     assert state.ipv4_changed_at is None
     assert state.ipv6_changed_at is None
-    assert isinstance(state.reachability_started_at, float)
+    assert isinstance(state.reachability_since, float)
 
 
 def test_check_record_shape() -> None:
@@ -465,7 +465,7 @@ def test_snapshot_includes_reachability_block() -> None:
     assert isinstance(reach, dict)
     assert reach['checks'] == 1
     assert reach['online'] == 1
-    assert isinstance(reach['started_at'], float)
+    assert isinstance(reach['since'], float)
     assert reach['history'] == [
         {'ts': reach['history'][0]['ts'], 'successes': 3, 'total': 3}]
     assert reach['latest'] == [

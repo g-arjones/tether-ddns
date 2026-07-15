@@ -32,7 +32,6 @@ const snapshot: StateSnapshot = {
   online: true,
   next_check_at: null,
   reachability: {
-    started_at: 0,
     since: 0,
     checks: 0,
     online: 0,

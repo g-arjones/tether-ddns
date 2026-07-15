@@ -56,9 +56,9 @@ class RuntimeState(BaseModel):
     # since-boot uptime% (online / checks) into a meaningless all-time figure
     # across restarts. These stay in memory and in snapshot() for the live UI;
     # the sparkline and uptime% intentionally rebuild after a restart.
-    reachability_started_at: float = Field(default_factory=time.time, exclude=True)
+    #
     # Timestamp the current online/offline state began; reset on each
-    # transition so the UI can show "up/down for <duration>". Non-persisted.
+    # transition so the UI can show "up/down for <duration>".
     reachability_since: float = Field(default_factory=time.time, exclude=True)
     reachability_checks: int = Field(default=0, exclude=True)
     reachability_online: int = Field(default=0, exclude=True)
@@ -119,7 +119,6 @@ class RuntimeState(BaseModel):
         self.online = other.online
         self.ipv4_changed_at = other.ipv4_changed_at
         self.ipv6_changed_at = other.ipv6_changed_at
-        self.reachability_started_at = other.reachability_started_at
         self.reachability_checks = other.reachability_checks
         self.reachability_online = other.reachability_online
         self.reachability_history = deque(
@@ -234,7 +233,6 @@ class RuntimeState(BaseModel):
             'online': self.online,
             'next_check_at': self.next_check_at,
             'reachability': {
-                'started_at': self.reachability_started_at,
                 'since': self.reachability_since,
                 'checks': self.reachability_checks,
                 'online': self.reachability_online,

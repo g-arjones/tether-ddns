@@ -32,8 +32,7 @@ state, and for how long" — the instrument-panel intent.
   a False→True transition and resets `since` to now ("up" starts counting from
   first online), while an all-failing start leaves `since=boot` ("down since boot").
 - **Snapshot:** add `since` to the `reachability` block. `reachability_started_at`
-  stays in the payload for now (no consumer after this change; removing it is a
-  separate cleanup, out of scope).
+  is removed (it had no consumer after this change).
 - **Frontend:** `Reachability` type gains `since: number`. `ReachabilityPanel`
   renders the sub-label as `{online ? 'up' : 'down'} {formatUptime(since)}`, using
   the existing `online` derivation (last history bar ≥ QUORUM).
@@ -55,5 +54,4 @@ telemetry exclusion (`2026-07-15-reachability-persistence-exclusion-design.md`).
 
 ## Out of scope
 
-- Removing `reachability_started_at` from the snapshot (separate cleanup).
 - Persisting the current-state duration across restarts.
