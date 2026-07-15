@@ -9,6 +9,7 @@ from tether_ddns.context import AppContext
 from tether_ddns.hooks.base import ReachabilityChangedEvent
 from tether_ddns.reachability import ReachabilityProbe
 from tether_ddns.runtime import RuntimeState
+from tether_ddns.services.dispatch import DispatchService
 from tether_ddns.services.sync import SyncService
 
 REACHABILITY_INTERVAL_SECONDS = 30
@@ -19,12 +20,13 @@ class Scheduler:
 
     def __init__(
         self, ctx: AppContext, sync: SyncService,
-        reachability: ReachabilityProbe,
+        dispatch: DispatchService, reachability: ReachabilityProbe,
     ) -> None:
-        """Create an unstarted scheduler bound to context, sync, reachability."""
+        """Create an unstarted scheduler bound to context, sync, dispatch, reachability."""
         self._scheduler = AsyncIOScheduler()
         self._ctx = ctx
         self._sync = sync
+        self._dispatch = dispatch
         self._reachability = reachability
 
     def start(self) -> None:
@@ -80,8 +82,7 @@ class Scheduler:
         was_online = state.online
         reach = await self._reachability.check()
         if state.record_reachability(reach):
-            sync = self._sync
-            await sync._dispatch.dispatch(  # pyright: ignore[reportPrivateUsage]  # noqa: SLF001
+            await self._dispatch.dispatch(
                 'reachability_changed',
                 ReachabilityChangedEvent(
                     online=reach.online, was_online=was_online))

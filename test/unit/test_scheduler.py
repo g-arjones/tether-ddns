@@ -35,7 +35,7 @@ def _sched(
     """Build a Scheduler wired to a real SyncService over cfg/state."""
     dispatch = disp if disp is not None else AsyncMock()
     sync = SyncService(_ctx(cfg, state), dispatch)
-    return scheduler.Scheduler(_ctx(cfg, state), sync, ReachabilityProbe())
+    return scheduler.Scheduler(_ctx(cfg, state), sync, dispatch, ReachabilityProbe())
 
 
 def _online(online: bool) -> ReachabilityResult:

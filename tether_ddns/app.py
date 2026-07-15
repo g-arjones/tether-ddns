@@ -50,7 +50,7 @@ def create_app(store: ConfigStore | None = None) -> FastAPI:
         ctx = AppContext(config, runtime, resolved_store, manager)
         dispatch = DispatchService(ctx)
         sync = SyncService(ctx, dispatch)
-        scheduler = Scheduler(ctx, sync, ReachabilityProbe())
+        scheduler = Scheduler(ctx, sync, dispatch, ReachabilityProbe())
         scheduler.start()
         if config.settings.update_on_startup:
             scheduler.run_startup_check()
