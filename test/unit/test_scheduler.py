@@ -13,7 +13,7 @@ from tether_ddns.hooks.base import (
     IpChangedEvent, ReachabilityChangedEvent, load_hooks)
 from tether_ddns.providers.base import load_providers
 from tether_ddns.reachability import (
-    ReachabilityResult, ReachabilityService, ResolverProbe)
+    ReachabilityProbe, ReachabilityResult, ResolverProbe)
 from tether_ddns.runtime import RuntimeState
 from tether_ddns.services.dispatch import DispatchService
 from tether_ddns.services.sync import SyncService
@@ -35,7 +35,7 @@ def _sched(
     """Build a Scheduler wired to a real SyncService over cfg/state."""
     dispatch = disp if disp is not None else AsyncMock()
     sync = SyncService(_ctx(cfg, state), dispatch)
-    return scheduler.Scheduler(_ctx(cfg, state), sync, ReachabilityService())
+    return scheduler.Scheduler(_ctx(cfg, state), sync, ReachabilityProbe())
 
 
 def _online(online: bool) -> ReachabilityResult:
@@ -129,7 +129,7 @@ async def test_check_once_online_transition_and_ip_change() -> None:
     state.rebuild(cfg)
     sched = _sched(cfg, state)
     with patch(
-        'tether_ddns.reachability.ReachabilityService.check',
+        'tether_ddns.reachability.ReachabilityProbe.check',
         new=AsyncMock(return_value=_online(True)),
     ), patch(
         'tether_ddns.services.sync.detect_public_ip',
@@ -152,7 +152,7 @@ async def test_check_once_offline_returns_early() -> None:
     sched = _sched(cfg, state)
     detect = AsyncMock(return_value='1.1.1.1')
     with patch(
-        'tether_ddns.reachability.ReachabilityService.check',
+        'tether_ddns.reachability.ReachabilityProbe.check',
         new=AsyncMock(return_value=_online(False)),
     ), patch('tether_ddns.services.sync.detect_public_ip', new=detect):
         await sched.check_once()
@@ -202,7 +202,7 @@ async def test_check_once_retries_error_domain_without_ip_change() -> None:
     state.set_status('a', 'error', message='earlier failure')
     sched = _sched(cfg, state)
     with patch(
-        'tether_ddns.reachability.ReachabilityService.check',
+        'tether_ddns.reachability.ReachabilityProbe.check',
         new=AsyncMock(return_value=_online(True)),
     ), patch(
         'tether_ddns.services.sync.detect_public_ip',
@@ -233,7 +233,7 @@ async def test_check_once_no_retry_when_disabled() -> None:
     sched = _sched(cfg, state)
     update = AsyncMock()
     with patch(
-        'tether_ddns.reachability.ReachabilityService.check',
+        'tether_ddns.reachability.ReachabilityProbe.check',
         new=AsyncMock(return_value=_online(True)),
     ), patch(
         'tether_ddns.services.sync.detect_public_ip',
@@ -441,7 +441,7 @@ async def test_sync_ips_marks_disabled_domain_pending_on_ip_change() -> None:
     sched = _sched(cfg, state)
     update = AsyncMock()
     with patch(
-        'tether_ddns.reachability.ReachabilityService.check',
+        'tether_ddns.reachability.ReachabilityProbe.check',
         new=AsyncMock(return_value=_online(True)),
     ), patch(
         'tether_ddns.services.sync.detect_public_ip',
@@ -470,7 +470,7 @@ async def test_sync_ips_keeps_disabled_domain_synced_when_matching() -> None:
     sched = _sched(cfg, state)
     update = AsyncMock()
     with patch(
-        'tether_ddns.reachability.ReachabilityService.check',
+        'tether_ddns.reachability.ReachabilityProbe.check',
         new=AsyncMock(return_value=_online(True)),
     ), patch(
         'tether_ddns.services.sync.detect_public_ip',
@@ -502,7 +502,7 @@ async def test_sync_ips_fires_success_on_transition() -> None:
     sched = _sched(cfg, state, disp)
 
     with patch(
-        'tether_ddns.reachability.ReachabilityService.check',
+        'tether_ddns.reachability.ReachabilityProbe.check',
         new=AsyncMock(return_value=_online(True)),
     ), patch(
         'tether_ddns.services.sync.detect_public_ip',
@@ -535,7 +535,7 @@ async def test_sync_ips_fires_error_on_transition() -> None:
     sched = _sched(cfg, state, disp)
 
     with patch(
-        'tether_ddns.reachability.ReachabilityService.check',
+        'tether_ddns.reachability.ReachabilityProbe.check',
         new=AsyncMock(return_value=_online(True)),
     ), patch(
         'tether_ddns.services.sync.detect_public_ip',
@@ -569,7 +569,7 @@ async def test_sync_ips_fires_pending_for_disabled_transition() -> None:
     sched = _sched(cfg, state, disp)
 
     with patch(
-        'tether_ddns.reachability.ReachabilityService.check',
+        'tether_ddns.reachability.ReachabilityProbe.check',
         new=AsyncMock(return_value=_online(True)),
     ), patch(
         'tether_ddns.services.sync.detect_public_ip',
@@ -601,7 +601,7 @@ async def test_sync_ips_no_event_without_transition() -> None:
     sched = _sched(cfg, state, disp)
 
     with patch(
-        'tether_ddns.reachability.ReachabilityService.check',
+        'tether_ddns.reachability.ReachabilityProbe.check',
         new=AsyncMock(return_value=_online(True)),
     ), patch(
         'tether_ddns.services.sync.detect_public_ip',
@@ -781,7 +781,7 @@ async def test_edited_domain_repushes_without_ip_change() -> None:
     sched = _sched(cfg, state)
     update = AsyncMock(return_value='9.9.9.9')
     with patch(
-        'tether_ddns.reachability.ReachabilityService.check',
+        'tether_ddns.reachability.ReachabilityProbe.check',
         new=AsyncMock(return_value=_online(True)),
     ), patch(
         'tether_ddns.services.sync.detect_public_ip',

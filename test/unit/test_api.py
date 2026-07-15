@@ -329,7 +329,7 @@ def test_refresh_and_websocket(tmp_path: Path) -> None:
     """POST /api/refresh runs a check and /api/ws streams initial state."""
     reach = ReachabilityResult(online=False, successes=0, total=3)
     with patch(
-        'tether_ddns.reachability.ReachabilityService.check',
+        'tether_ddns.reachability.ReachabilityProbe.check',
         new=AsyncMock(return_value=reach),
     ):
         with _client(tmp_path) as client:

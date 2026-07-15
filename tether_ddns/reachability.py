@@ -34,7 +34,7 @@ class ReachabilityResult(BaseModel):
     probes: list[ResolverProbe] = Field(default_factory=list[ResolverProbe])
 
 
-class ReachabilityService:
+class ReachabilityProbe:
     """Checks reachability via a quorum of independent DNS resolvers."""
 
     def __init__(

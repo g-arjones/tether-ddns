@@ -19,7 +19,7 @@ from tether_ddns.logging_setup import (
     install_stdout_handler,
 )
 from tether_ddns.providers.base import load_providers
-from tether_ddns.reachability import ReachabilityService
+from tether_ddns.reachability import ReachabilityProbe
 from tether_ddns.runtime import RuntimeState
 from tether_ddns.scheduler import Scheduler
 from tether_ddns.services.dispatch import DispatchService
@@ -50,7 +50,7 @@ def create_app(store: ConfigStore | None = None) -> FastAPI:
         ctx = AppContext(config, runtime, resolved_store, manager)
         dispatch = DispatchService(ctx)
         sync = SyncService(ctx, dispatch)
-        scheduler = Scheduler(ctx, sync, ReachabilityService())
+        scheduler = Scheduler(ctx, sync, ReachabilityProbe())
         scheduler.start()
         if config.settings.update_on_startup:
             scheduler.run_startup_check()

@@ -7,7 +7,7 @@ from apscheduler.schedulers.asyncio import (  # pyright: ignore[reportMissingTyp
 
 from tether_ddns.context import AppContext
 from tether_ddns.hooks.base import ReachabilityChangedEvent
-from tether_ddns.reachability import ReachabilityService
+from tether_ddns.reachability import ReachabilityProbe
 from tether_ddns.runtime import RuntimeState
 from tether_ddns.services.sync import SyncService
 
@@ -19,7 +19,7 @@ class Scheduler:
 
     def __init__(
         self, ctx: AppContext, sync: SyncService,
-        reachability: ReachabilityService,
+        reachability: ReachabilityProbe,
     ) -> None:
         """Create an unstarted scheduler bound to context, sync, reachability."""
         self._scheduler = AsyncIOScheduler()

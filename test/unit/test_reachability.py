@@ -6,13 +6,13 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from tether_ddns.reachability import (
-    ReachabilityResult, ReachabilityService, ResolverProbe)
+    ReachabilityProbe, ReachabilityResult, ResolverProbe)
 
 
 @pytest.mark.asyncio
 async def test_online_when_quorum_met() -> None:
     """Two of three successful resolvers report online."""
-    service = ReachabilityService(resolvers=['1.1.1.1', '8.8.8.8', '9.9.9.9'], quorum=2)
+    service = ReachabilityProbe(resolvers=['1.1.1.1', '8.8.8.8', '9.9.9.9'], quorum=2)
     with patch.object(
         service, '_query_one',
         new=AsyncMock(side_effect=[
@@ -29,7 +29,7 @@ async def test_online_when_quorum_met() -> None:
 @pytest.mark.asyncio
 async def test_offline_when_quorum_not_met() -> None:
     """Only one successful resolver reports offline."""
-    service = ReachabilityService(resolvers=['1.1.1.1', '8.8.8.8', '9.9.9.9'], quorum=2)
+    service = ReachabilityProbe(resolvers=['1.1.1.1', '8.8.8.8', '9.9.9.9'], quorum=2)
     with patch.object(
         service, '_query_one',
         new=AsyncMock(side_effect=[
@@ -46,7 +46,7 @@ async def test_offline_when_quorum_not_met() -> None:
 @pytest.mark.asyncio
 async def test_check_uses_query_dns(monkeypatch: pytest.MonkeyPatch) -> None:
     """check() resolves via the non-deprecated query_dns and reports online."""
-    service = ReachabilityService(resolvers=['1.1.1.1'], quorum=1)
+    service = ReachabilityProbe(resolvers=['1.1.1.1'], quorum=1)
 
     class _FakeResolver:
 
@@ -82,7 +82,7 @@ def test_query_one_success_has_latency(monkeypatch: pytest.MonkeyPatch) -> None:
         return None
 
     monkeypatch.setattr('tether_ddns.reachability.asyncio.wait_for', fake_wait_for)
-    svc = ReachabilityService(resolvers=['1.1.1.1'])
+    svc = ReachabilityProbe(resolvers=['1.1.1.1'])
     probe = asyncio.run(
         svc._query_one('1.1.1.1')  # noqa: SLF001  # pyright: ignore[reportPrivateUsage]
     )
@@ -100,7 +100,7 @@ def test_query_one_timeout_has_no_latency(monkeypatch: pytest.MonkeyPatch) -> No
         raise asyncio.TimeoutError
 
     monkeypatch.setattr('tether_ddns.reachability.asyncio.wait_for', fake_wait_for)
-    svc = ReachabilityService(resolvers=['1.1.1.1'])
+    svc = ReachabilityProbe(resolvers=['1.1.1.1'])
     probe = asyncio.run(
         svc._query_one('1.1.1.1')  # noqa: SLF001  # pyright: ignore[reportPrivateUsage]
     )
@@ -113,8 +113,8 @@ def test_check_assembles_probes(monkeypatch: pytest.MonkeyPatch) -> None:
     async def fake_query_one(self: Any, resolver_ip: str) -> ResolverProbe:  # noqa: ARG001
         return ResolverProbe(ip=resolver_ip, ok=True, latency_ms=5.0)
 
-    monkeypatch.setattr(ReachabilityService, '_query_one', fake_query_one)
-    svc = ReachabilityService(resolvers=['1.1.1.1', '8.8.8.8'])
+    monkeypatch.setattr(ReachabilityProbe, '_query_one', fake_query_one)
+    svc = ReachabilityProbe(resolvers=['1.1.1.1', '8.8.8.8'])
     result: ReachabilityResult = asyncio.run(svc.check())
     assert [p.ip for p in result.probes] == ['1.1.1.1', '8.8.8.8']
     assert result.successes == 2
@@ -124,7 +124,7 @@ def test_check_assembles_probes(monkeypatch: pytest.MonkeyPatch) -> None:
 @pytest.mark.asyncio
 async def test_offline_warning_throttled(monkeypatch: pytest.MonkeyPatch) -> None:
     """Repeated offline checks warn once on failure, then only after throttle."""
-    service = ReachabilityService(
+    service = ReachabilityProbe(
         resolvers=['1.1.1.1'], quorum=1, warn_throttle_seconds=300.0)
     monkeypatch.setattr(
         service, '_query_one',
@@ -149,7 +149,7 @@ async def test_recovery_logs_info_and_resets_throttle(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Going offline then online logs recovery and re-warns on next outage."""
-    service = ReachabilityService(
+    service = ReachabilityProbe(
         resolvers=['1.1.1.1'], quorum=1, warn_throttle_seconds=300.0)
     probe = {'ok': False}
 
