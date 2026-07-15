@@ -77,7 +77,7 @@ def test_event_specs_have_labels() -> None:
 
 @pytest.mark.asyncio
 async def test_dispatch_routes_to_method() -> None:
-    """_dispatch calls the on_* method matching the event key."""
+    """Handle calls the on_* method matching the event key."""
     seen: list[str] = []
 
     class _Spy(base.Hook):
@@ -88,8 +88,7 @@ async def test_dispatch_routes_to_method() -> None:
             seen.append(event.new_ip)
 
     event = base.IpChangedEvent(new_ip='9.9.9.9', family='ipv4')
-    await _Spy()._dispatch(  # type: ignore[reportPrivateUsage]
-        'ip_changed', event, base.EmptyConfig())
+    await _Spy().handle('ip_changed', event, base.EmptyConfig())
     assert seen == ['9.9.9.9']
 
 

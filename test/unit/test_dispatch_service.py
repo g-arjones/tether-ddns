@@ -21,7 +21,7 @@ async def test_dispatch_invokes_matching_enabled_hook() -> None:
     hook_cls = MagicMock()
     hook_cls.supported_events.return_value = ('reachability_changed',)
     instance = MagicMock()
-    instance._dispatch = AsyncMock()
+    instance.handle = AsyncMock()
     hook_cls.return_value = instance
     hook_cls.ConfigModel.model_validate.return_value = MagicMock()
     hc = HookConfig(hook='fake', enabled=True, events=['reachability_changed'])
@@ -32,7 +32,7 @@ async def test_dispatch_invokes_matching_enabled_hook() -> None:
         await svc.dispatch(
             'reachability_changed',
             ReachabilityChangedEvent(online=True, was_online=False))
-    instance._dispatch.assert_awaited_once()
+    instance.handle.assert_awaited_once()
 
 
 @pytest.mark.asyncio
@@ -41,7 +41,7 @@ async def test_dispatch_skips_disabled_hook() -> None:
     hook_cls = MagicMock()
     hook_cls.supported_events.return_value = ('reachability_changed',)
     instance = MagicMock()
-    instance._dispatch = AsyncMock()
+    instance.handle = AsyncMock()
     hook_cls.return_value = instance
     hc = HookConfig(hook='fake', enabled=False, events=['reachability_changed'])
     cfg = AppConfig(hooks=[hc])
@@ -51,7 +51,7 @@ async def test_dispatch_skips_disabled_hook() -> None:
         await svc.dispatch(
             'reachability_changed',
             ReachabilityChangedEvent(online=True))
-    instance._dispatch.assert_not_awaited()
+    instance.handle.assert_not_awaited()
 
 
 @pytest.mark.asyncio
@@ -69,7 +69,7 @@ async def test_dispatch_skips_unsupported_event() -> None:
     hook_cls = MagicMock()
     hook_cls.supported_events.return_value = ('ip_changed',)
     instance = MagicMock()
-    instance._dispatch = AsyncMock()
+    instance.handle = AsyncMock()
     hook_cls.return_value = instance
     hc = HookConfig(hook='fake', enabled=True, events=['reachability_changed'])
     cfg = AppConfig(hooks=[hc])
@@ -79,7 +79,7 @@ async def test_dispatch_skips_unsupported_event() -> None:
         await svc.dispatch(
             'reachability_changed',
             ReachabilityChangedEvent(online=True))
-    instance._dispatch.assert_not_awaited()
+    instance.handle.assert_not_awaited()
 
 
 @pytest.mark.asyncio
@@ -88,7 +88,7 @@ async def test_dispatch_isolates_hook_exception() -> None:
     hook_cls = MagicMock()
     hook_cls.supported_events.return_value = ('reachability_changed',)
     instance = MagicMock()
-    instance._dispatch = AsyncMock(side_effect=RuntimeError('boom'))
+    instance.handle = AsyncMock(side_effect=RuntimeError('boom'))
     hook_cls.return_value = instance
     hook_cls.ConfigModel.model_validate.return_value = MagicMock()
     hc = HookConfig(hook='fake', enabled=True, events=['reachability_changed'])
@@ -99,7 +99,7 @@ async def test_dispatch_isolates_hook_exception() -> None:
         await svc.dispatch(
             'reachability_changed',
             ReachabilityChangedEvent(online=True))
-    instance._dispatch.assert_awaited_once()
+    instance.handle.assert_awaited_once()
 
 
 @pytest.mark.asyncio
@@ -108,7 +108,7 @@ async def test_run_hook_now_skips_event_with_no_synthesized_events() -> None:
     hook_cls = MagicMock()
     hook_cls.supported_events.return_value = ('ip_changed',)
     instance = MagicMock()
-    instance._dispatch = AsyncMock()
+    instance.handle = AsyncMock()
     hook_cls.return_value = instance
     hook_cls.ConfigModel.model_validate.return_value = MagicMock()
     hc = HookConfig(hook='fake', enabled=True, events=['ip_changed'])

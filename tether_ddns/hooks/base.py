@@ -209,7 +209,7 @@ class Hook(ABC):
             if getattr(cls, spec.method) is not getattr(Hook, spec.method)
         )
 
-    async def _dispatch(
+    async def handle(
             self, event_key: str, event: HookEventBase,
             config: BaseModel) -> None:
         """Route an event to the matching on_* handler."""

@@ -28,8 +28,7 @@ class DispatchService:
                 continue
             try:
                 config = cls.ConfigModel.model_validate(hc.config)
-                await cls()._dispatch(  # pyright: ignore[reportPrivateUsage]  # noqa: SLF001
-                    event_key, event, config)
+                await cls().handle(event_key, event, config)
             except Exception:  # noqa: BLE001 - hook errors must be contained
                 _log.exception('Hook %s failed on %s', hc.hook, event_key)
 
@@ -52,8 +51,7 @@ class DispatchService:
             for event in events:
                 try:
                     config = cls.ConfigModel.model_validate(hook_cfg.config)
-                    await cls()._dispatch(  # pyright: ignore[reportPrivateUsage]  # noqa: SLF001
-                        event_key, event, config)
+                    await cls().handle(event_key, event, config)
                 except Exception:  # noqa: BLE001 - hook errors must be contained
                     _log.exception('Hook %s failed on %s', hook_cfg.hook, event_key)
                 ran += 1
