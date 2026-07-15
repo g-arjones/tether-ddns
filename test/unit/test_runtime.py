@@ -1,4 +1,5 @@
 """Tests for the runtime state container."""
+import time
 from collections import deque
 from typing import cast
 
@@ -138,6 +139,7 @@ def test_model_dump_excludes_ephemeral_and_reachability_series() -> None:
     assert 'reachability_checks' not in dumped
     assert 'reachability_online' not in dumped
     assert 'reachability_history' not in dumped
+    assert 'reachability_since' not in dumped
     # Still persisted.
     assert dumped['public_ipv4'] == '1.2.3.4'
     assert dumped['online'] is True
@@ -155,8 +157,34 @@ def test_snapshot_still_emits_full_reachability_block() -> None:
     assert isinstance(reach, dict)
     reach_dict = cast('dict[str, object]', reach)
     assert set(reach_dict) == {
-        'started_at', 'checks', 'online', 'history', 'latest'}
+        'started_at', 'since', 'checks', 'online', 'history', 'latest'}
     assert reach_dict['checks'] == 1
+
+
+def test_reachability_since_resets_on_transition() -> None:
+    """reachability_since is reset only when the online state transitions."""
+    state = RuntimeState()
+    boot_since = state.reachability_since
+    # Steady offline (starts offline): no transition, since unchanged.
+    state.record_reachability(
+        ReachabilityResult(online=False, successes=0, total=3, probes=[]))
+    assert state.reachability_since == boot_since
+    # offline -> online: transition, since advances to ~now.
+    before = time.time()
+    state.record_reachability(
+        ReachabilityResult(online=True, successes=3, total=3, probes=[]))
+    up_since = state.reachability_since
+    assert up_since >= before
+    assert up_since > boot_since
+    # Steady online: no transition, since unchanged.
+    state.record_reachability(
+        ReachabilityResult(online=True, successes=3, total=3, probes=[]))
+    assert state.reachability_since == up_since
+    # online -> offline: transition, since resets again to ~now.
+    before_down = time.time()
+    state.record_reachability(
+        ReachabilityResult(online=False, successes=0, total=3, probes=[]))
+    assert state.reachability_since >= before_down
 
 
 def test_round_trip_drops_series_keeps_status() -> None:

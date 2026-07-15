@@ -57,6 +57,9 @@ class RuntimeState(BaseModel):
     # across restarts. These stay in memory and in snapshot() for the live UI;
     # the sparkline and uptime% intentionally rebuild after a restart.
     reachability_started_at: float = Field(default_factory=time.time, exclude=True)
+    # Timestamp the current online/offline state began; reset on each
+    # transition so the UI can show "up/down for <duration>". Non-persisted.
+    reachability_since: float = Field(default_factory=time.time, exclude=True)
     reachability_checks: int = Field(default=0, exclude=True)
     reachability_online: int = Field(default=0, exclude=True)
     reachability_history: deque[CheckRecord] = Field(
@@ -172,6 +175,8 @@ class RuntimeState(BaseModel):
     def record_reachability(self, result: ReachabilityResult) -> bool:
         """Record a reachability check; return True on an online transition."""
         transitioned = result.online != self.online
+        if transitioned:
+            self.reachability_since = time.time()
         self.reachability_history.append(CheckRecord(
             ts=time.time(), successes=result.successes, total=result.total))
         self.reachability_checks += 1
@@ -230,6 +235,7 @@ class RuntimeState(BaseModel):
             'next_check_at': self.next_check_at,
             'reachability': {
                 'started_at': self.reachability_started_at,
+                'since': self.reachability_since,
                 'checks': self.reachability_checks,
                 'online': self.reachability_online,
                 'history': [r.model_dump() for r in self.reachability_history],
