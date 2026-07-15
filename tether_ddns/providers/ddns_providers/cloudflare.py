@@ -69,6 +69,18 @@ class CloudflareProvider(DDNSProvider):
     display_name = 'Cloudflare'
     ConfigModel = CloudflareConfig
 
+    async def _send(
+        self, session: aiohttp.ClientSession, method: str, url: str,
+        **kwargs: Any,
+    ) -> dict[str, Any]:
+        """Send a request, verify Cloudflare success, and return the payload."""
+        async with getattr(session, method)(url, **kwargs) as resp:
+            payload: object = await resp.json()
+        if not _is_success(payload):
+            raise TetherError(
+                _error_messages(payload) or 'Cloudflare request failed')
+        return cast('dict[str, Any]', payload)
+
     async def update(
         self, hostname: str, record_type: str, ip: str, config: BaseModel,
     ) -> str:
@@ -79,8 +91,7 @@ class CloudflareProvider(DDNSProvider):
             'Content-Type': 'application/json',
         }
         async with aiohttp.ClientSession(headers=headers) as session:
-            async with session.get(f'{_API}/zones') as resp:
-                zones = _result_list(await resp.json())
+            zones = _result_list(await self._send(session, 'get', f'{_API}/zones'))
             matches = [
                 z for z in zones if zone_matches(str(z.get('name', '')), hostname)]
             zone = max(matches, key=lambda z: len(str(z.get('name', ''))), default=None)
@@ -89,9 +100,9 @@ class CloudflareProvider(DDNSProvider):
             zone_id = str(zone.get('id', ''))
 
             params = {'type': record_type, 'name': hostname}
-            async with session.get(
-                    f'{_API}/zones/{zone_id}/dns_records', params=params) as resp:
-                records = _result_list(await resp.json())
+            records = _result_list(await self._send(
+                session, 'get', f'{_API}/zones/{zone_id}/dns_records',
+                params=params))
             if not records:
                 raise TetherError(f'record {hostname} ({record_type}) not found')
             record_id = str(records[0].get('id', ''))
@@ -103,11 +114,7 @@ class CloudflareProvider(DDNSProvider):
                 'proxied': config.proxied,
                 'ttl': config.ttl,
             }
-            async with session.put(
-                    f'{_API}/zones/{zone_id}/dns_records/{record_id}', json=body) as resp:
-                payload: object = await resp.json()
-
-        if _is_success(payload):
-            return ip
-        errors = _error_messages(payload)
-        raise TetherError(errors or 'Cloudflare update failed')
+            await self._send(
+                session, 'put',
+                f'{_API}/zones/{zone_id}/dns_records/{record_id}', json=body)
+        return ip

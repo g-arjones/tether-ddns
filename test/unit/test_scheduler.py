@@ -8,11 +8,34 @@ import pytest
 
 from tether_ddns import scheduler
 from tether_ddns.config import AppConfig, DomainConfig, HookConfig
+from tether_ddns.context import AppContext
 from tether_ddns.hooks.base import (
     IpChangedEvent, ReachabilityChangedEvent, load_hooks)
 from tether_ddns.providers.base import load_providers
-from tether_ddns.reachability import ReachabilityResult, ResolverProbe
+from tether_ddns.reachability import (
+    ReachabilityProbe, ReachabilityResult, ResolverProbe)
 from tether_ddns.runtime import RuntimeState
+from tether_ddns.services.dispatch import DispatchService
+from tether_ddns.services.sync import SyncService
+
+
+def _ctx(cfg: AppConfig, state: RuntimeState) -> AppContext:
+    """Build an AppContext for dispatch tests."""
+    return AppContext(cfg, state, MagicMock(), MagicMock())
+
+
+def _disp(cfg: AppConfig, state: RuntimeState) -> DispatchService:
+    """Build a DispatchService over cfg and state."""
+    return DispatchService(_ctx(cfg, state))
+
+
+def _sched(
+    cfg: AppConfig, state: RuntimeState, disp: AsyncMock | None = None,
+) -> scheduler.Scheduler:
+    """Build a Scheduler wired to a real SyncService over cfg/state."""
+    dispatch = disp if disp is not None else AsyncMock()
+    sync = SyncService(_ctx(cfg, state), dispatch)
+    return scheduler.Scheduler(_ctx(cfg, state), sync, dispatch, ReachabilityProbe())
 
 
 def _online(online: bool) -> ReachabilityResult:
@@ -37,7 +60,9 @@ async def test_sync_domain_provider_exception_sets_error() -> None:
         'tether_ddns.providers.ddns_providers.duckdns.DuckDNSProvider.update',
         new=AsyncMock(side_effect=RuntimeError('boom')),
     ):
-        await scheduler.sync_domain(domain, '1.2.3.4', state)
+        await SyncService(
+            _ctx(AppConfig(domains=[domain]), state),
+            AsyncMock()).sync_domain(domain, '1.2.3.4')
     assert state.domains['a'].status == 'error'
 
 
@@ -51,7 +76,7 @@ async def test_dispatch_hooks_isolates_exceptions() -> None:
         'tether_ddns.hooks.registered_hooks.log_hook.LogHook.on_ip_changed',
         new=AsyncMock(side_effect=RuntimeError('boom')),
     ):
-        await scheduler.dispatch_ip_changed(event, cfg)  # must not raise
+        await _disp(cfg, RuntimeState()).dispatch('ip_changed', event)  # must not raise
 
 
 @pytest.mark.asyncio
@@ -60,7 +85,9 @@ async def test_sync_domain_unknown_provider_sets_error() -> None:
     domain = DomainConfig(id='a', hostname='h', provider='nope')
     state = RuntimeState()
     state.rebuild(AppConfig(domains=[domain]))
-    await scheduler.sync_domain(domain, '1.2.3.4', state)
+    await SyncService(
+        _ctx(AppConfig(domains=[domain]), state),
+        AsyncMock()).sync_domain(domain, '1.2.3.4')
     assert state.domains['a'].status == 'error'
 
 
@@ -78,7 +105,9 @@ async def test_sync_domain_success_marks_synced() -> None:
         'tether_ddns.providers.ddns_providers.duckdns.DuckDNSProvider.update',
         new=AsyncMock(return_value='5.6.7.8'),
     ):
-        await scheduler.sync_domain(domain, '1.2.3.4', state)
+        await SyncService(
+            _ctx(AppConfig(domains=[domain]), state),
+            AsyncMock()).sync_domain(domain, '1.2.3.4')
     assert state.domains['a'].status == 'synced'
     assert state.domains['a'].ip == '5.6.7.8'
 
@@ -98,18 +127,18 @@ async def test_check_once_online_transition_and_ip_change() -> None:
     )
     state = RuntimeState()
     state.rebuild(cfg)
-    sched = scheduler.Scheduler()
+    sched = _sched(cfg, state)
     with patch(
-        'tether_ddns.scheduler.ReachabilityService.check',
+        'tether_ddns.reachability.ReachabilityProbe.check',
         new=AsyncMock(return_value=_online(True)),
     ), patch(
-        'tether_ddns.scheduler.detect_public_ip',
+        'tether_ddns.services.sync.detect_public_ip',
         new=AsyncMock(return_value='9.9.9.9'),
     ), patch(
         'tether_ddns.providers.ddns_providers.duckdns.DuckDNSProvider.update',
         new=AsyncMock(return_value='9.9.9.9'),
     ):
-        await sched.check_once(cfg, state)
+        await sched.check_once()
     assert state.online is True
     assert state.public_ipv4 == '9.9.9.9'
     assert state.domains['a'].status == 'synced'
@@ -120,13 +149,13 @@ async def test_check_once_offline_returns_early() -> None:
     """Staying offline does not attempt IP detection."""
     cfg = AppConfig()
     state = RuntimeState()
-    sched = scheduler.Scheduler()
+    sched = _sched(cfg, state)
     detect = AsyncMock(return_value='1.1.1.1')
     with patch(
-        'tether_ddns.scheduler.ReachabilityService.check',
+        'tether_ddns.reachability.ReachabilityProbe.check',
         new=AsyncMock(return_value=_online(False)),
-    ), patch('tether_ddns.scheduler.detect_public_ip', new=detect):
-        await sched.check_once(cfg, state)
+    ), patch('tether_ddns.services.sync.detect_public_ip', new=detect):
+        await sched.check_once()
     assert state.online is False
     detect.assert_not_called()
 
@@ -136,8 +165,8 @@ async def test_scheduler_start_and_shutdown() -> None:
     """Start schedules the job and shutdown stops cleanly."""
     cfg = AppConfig()
     state = RuntimeState()
-    sched = scheduler.Scheduler()
-    sched.start(cfg, state)
+    sched = _sched(cfg, state)
+    sched.start()
     sched.shutdown()
     sched.shutdown()  # idempotent when already stopped
 
@@ -146,13 +175,13 @@ def test_run_startup_check_registers_immediate_job() -> None:
     """run_startup_check adds a one-shot job with id 'startup'."""
     cfg = AppConfig()
     state = RuntimeState()
-    sched = scheduler.Scheduler()
+    sched = _sched(cfg, state)
     fake = MagicMock()
     with patch.object(sched, '_scheduler', fake):
-        sched.run_startup_check(cfg, state)
+        sched.run_startup_check()
     kwargs = fake.add_job.call_args.kwargs
     assert kwargs['id'] == 'startup'
-    assert kwargs['args'] == [cfg, state]
+    assert kwargs['args'] == []
     assert fake.add_job.call_args.args[1] == 'date'
 
 
@@ -171,18 +200,18 @@ async def test_check_once_retries_error_domain_without_ip_change() -> None:
     state.online = True
     state.set_public_ipv4('9.9.9.9')
     state.set_status('a', 'error', message='earlier failure')
-    sched = scheduler.Scheduler()
+    sched = _sched(cfg, state)
     with patch(
-        'tether_ddns.scheduler.ReachabilityService.check',
+        'tether_ddns.reachability.ReachabilityProbe.check',
         new=AsyncMock(return_value=_online(True)),
     ), patch(
-        'tether_ddns.scheduler.detect_public_ip',
+        'tether_ddns.services.sync.detect_public_ip',
         new=AsyncMock(return_value='9.9.9.9'),
     ), patch(
         'tether_ddns.providers.ddns_providers.duckdns.DuckDNSProvider.update',
         new=AsyncMock(return_value='9.9.9.9'),
     ):
-        await sched.check_once(cfg, state)
+        await sched.check_once()
     assert state.domains['a'].status == 'synced'
 
 
@@ -201,19 +230,19 @@ async def test_check_once_no_retry_when_disabled() -> None:
     state.online = True
     state.set_public_ipv4('9.9.9.9')
     state.set_status('a', 'error', message='earlier failure')
-    sched = scheduler.Scheduler()
+    sched = _sched(cfg, state)
     update = AsyncMock()
     with patch(
-        'tether_ddns.scheduler.ReachabilityService.check',
+        'tether_ddns.reachability.ReachabilityProbe.check',
         new=AsyncMock(return_value=_online(True)),
     ), patch(
-        'tether_ddns.scheduler.detect_public_ip',
+        'tether_ddns.services.sync.detect_public_ip',
         new=AsyncMock(return_value='9.9.9.9'),
     ), patch(
         'tether_ddns.providers.ddns_providers.duckdns.DuckDNSProvider.update',
         new=update,
     ):
-        await sched.check_once(cfg, state)
+        await sched.check_once()
     assert state.domains['a'].status == 'error'
     update.assert_not_called()
 
@@ -224,16 +253,17 @@ async def test_reachability_transition_fires_hook_only_on_change() -> None:
     load_hooks()
     cfg = AppConfig(hooks=[HookConfig(id='h', hook='log', events=['reachability_changed'])])
     state = RuntimeState()
-    sched = scheduler.Scheduler()
+    disp = AsyncMock()
+    sched = _sched(cfg, state, disp)
     with patch.object(sched, '_reachability') as reach:
         reach.check = AsyncMock(return_value=_online(True))
-        with patch('tether_ddns.scheduler.dispatch_reachability_changed', new=AsyncMock()) as dh:
-            await sched.check_reachability(cfg, state)
-            assert state.online is True
-            dh.assert_awaited_once()
-            dh.reset_mock()
-            await sched.check_reachability(cfg, state)  # no transition
-            dh.assert_not_awaited()
+        await sched.check_reachability()
+        assert state.online is True
+        disp.dispatch.assert_awaited_once()
+        assert disp.dispatch.await_args.args[0] == 'reachability_changed'
+        disp.dispatch.reset_mock()
+        await sched.check_reachability()  # no transition
+        disp.dispatch.assert_not_awaited()
 
 
 @pytest.mark.asyncio
@@ -249,14 +279,14 @@ async def test_sync_ips_updates_families_and_syncs_by_record_type() -> None:
     state = RuntimeState()
     state.rebuild(cfg)
     state.online = True
-    sched = scheduler.Scheduler()
+    sched = _sched(cfg, state)
 
     async def _detect(source: str, family: str) -> str:
         return '203.0.113.5' if family == 'ipv4' else '2001:db8::5'
 
-    with patch('tether_ddns.scheduler.detect_public_ip', new=AsyncMock(side_effect=_detect)), \
-         patch('tether_ddns.scheduler.sync_domain', new=AsyncMock()) as sd:
-        await sched.sync_ips(cfg, state)
+    with patch('tether_ddns.services.sync.detect_public_ip', new=AsyncMock(side_effect=_detect)), \
+         patch('tether_ddns.services.sync.SyncService.sync_domain', new=AsyncMock()) as sd:
+        await sched.sync_ips()
     assert state.public_ipv4 == '203.0.113.5'
     assert state.public_ipv6 == '2001:db8::5'
     calls = {c.args[0].id: c.args[1] for c in sd.await_args_list}
@@ -285,11 +315,13 @@ async def test_dispatch_skips_unsupported_event() -> None:
         cfg = AppConfig(hooks=[HookConfig(
             hook='_spy', enabled=True,
             events=['ip_changed', 'reachability_changed'], config={})])
-        await scheduler.dispatch_reachability_changed(
-            ReachabilityChangedEvent(online=True, was_online=False), cfg)
+        disp = _disp(cfg, RuntimeState())
+        await disp.dispatch(
+            'reachability_changed',
+            ReachabilityChangedEvent(online=True, was_online=False))
         assert calls == []
-        await scheduler.dispatch_ip_changed(
-            IpChangedEvent(old_ip='a', new_ip='b', family='ipv4'), cfg)
+        await disp.dispatch(
+            'ip_changed', IpChangedEvent(old_ip='a', new_ip='b', family='ipv4'))
         assert calls == ['ip_changed']
     finally:
         HOOK_REGISTRY.pop('_spy', None)
@@ -325,7 +357,7 @@ async def test_run_hook_now_fires_per_known_ip_family() -> None:
         cfg = AppConfig(hooks=[HookConfig(
             id='h', hook='_spyrun', enabled=True,
             events=['ip_changed', 'reachability_changed'], config={})])
-        result = await scheduler.run_hook_now(cfg.hooks[0], cfg, state)
+        result = await _disp(cfg, state).run_hook_now(cfg.hooks[0])
         assert result['ran'] == 3
         assert result['skipped'] == []
         assert ('ip_changed', '1.2.3.4', '1.2.3.4') in calls
@@ -356,7 +388,7 @@ async def test_run_hook_now_skips_ip_changed_when_no_ip() -> None:
         state = RuntimeState()
         cfg = AppConfig(hooks=[HookConfig(
             id='h', hook='_spynoip', enabled=True, events=['ip_changed'], config={})])
-        result = await scheduler.run_hook_now(cfg.hooks[0], cfg, state)
+        result = await _disp(cfg, state).run_hook_now(cfg.hooks[0])
         assert ran == []
         assert result['ran'] == 0
         assert result['skipped'] == ['ip_changed']
@@ -387,7 +419,7 @@ async def test_run_hook_now_ignores_unsupported_enabled_event() -> None:
         cfg = AppConfig(hooks=[HookConfig(
             id='h', hook='_spyunsup', enabled=True,
             events=['reachability_changed'], config={})])
-        result = await scheduler.run_hook_now(cfg.hooks[0], cfg, state)
+        result = await _disp(cfg, state).run_hook_now(cfg.hooks[0])
         assert ran == []
         assert result == {'ran': 0, 'skipped': []}
     finally:
@@ -406,19 +438,19 @@ async def test_sync_ips_marks_disabled_domain_pending_on_ip_change() -> None:
     state.rebuild(cfg)
     state.online = True
     state.set_status('a', 'synced', ip='1.1.1.1')
-    sched = scheduler.Scheduler()
+    sched = _sched(cfg, state)
     update = AsyncMock()
     with patch(
-        'tether_ddns.scheduler.ReachabilityService.check',
+        'tether_ddns.reachability.ReachabilityProbe.check',
         new=AsyncMock(return_value=_online(True)),
     ), patch(
-        'tether_ddns.scheduler.detect_public_ip',
+        'tether_ddns.services.sync.detect_public_ip',
         new=AsyncMock(return_value='2.2.2.2'),
     ), patch(
         'tether_ddns.providers.ddns_providers.duckdns.DuckDNSProvider.update',
         new=update,
     ):
-        await sched.check_once(cfg, state)
+        await sched.check_once()
     assert state.domains['a'].status == 'pending'
     update.assert_not_called()
 
@@ -435,19 +467,19 @@ async def test_sync_ips_keeps_disabled_domain_synced_when_matching() -> None:
     state.rebuild(cfg)
     state.online = True
     state.set_status('a', 'synced', ip='9.9.9.9')
-    sched = scheduler.Scheduler()
+    sched = _sched(cfg, state)
     update = AsyncMock()
     with patch(
-        'tether_ddns.scheduler.ReachabilityService.check',
+        'tether_ddns.reachability.ReachabilityProbe.check',
         new=AsyncMock(return_value=_online(True)),
     ), patch(
-        'tether_ddns.scheduler.detect_public_ip',
+        'tether_ddns.services.sync.detect_public_ip',
         new=AsyncMock(return_value='9.9.9.9'),
     ), patch(
         'tether_ddns.providers.ddns_providers.duckdns.DuckDNSProvider.update',
         new=update,
     ):
-        await sched.check_once(cfg, state)
+        await sched.check_once()
     assert state.domains['a'].status == 'synced'
     update.assert_not_called()
 
@@ -466,27 +498,24 @@ async def test_sync_ips_fires_success_on_transition() -> None:
     state = RuntimeState()
     state.rebuild(cfg)
     state.online = True
-    sched = scheduler.Scheduler()
-    seen: list[object] = []
-
-    async def _capture(event: object, _cfg: object) -> None:
-        seen.append(event)
+    disp = AsyncMock()
+    sched = _sched(cfg, state, disp)
 
     with patch(
-        'tether_ddns.scheduler.ReachabilityService.check',
+        'tether_ddns.reachability.ReachabilityProbe.check',
         new=AsyncMock(return_value=_online(True)),
     ), patch(
-        'tether_ddns.scheduler.detect_public_ip',
+        'tether_ddns.services.sync.detect_public_ip',
         new=AsyncMock(return_value='9.9.9.9'),
     ), patch(
         'tether_ddns.providers.ddns_providers.duckdns.DuckDNSProvider.update',
         new=AsyncMock(return_value=_ok_result('9.9.9.9')),
-    ), patch(
-        'tether_ddns.scheduler.dispatch_domain_update_success', new=_capture,
     ):
-        await sched.check_once(cfg, state)
-    assert len(seen) == 1
+        await sched.check_once()
     from tether_ddns.hooks.base import DomainUpdateSuccessEvent
+    seen = [c.args[1] for c in disp.dispatch.await_args_list
+            if c.args[0] == 'domain_update_success']
+    assert len(seen) == 1
     assert isinstance(seen[0], DomainUpdateSuccessEvent)
     assert seen[0].ip == '9.9.9.9'
 
@@ -502,27 +531,24 @@ async def test_sync_ips_fires_error_on_transition() -> None:
     state = RuntimeState()
     state.rebuild(cfg)
     state.online = True
-    sched = scheduler.Scheduler()
-    seen: list[object] = []
-
-    async def _capture(event: object, _cfg: object) -> None:
-        seen.append(event)
+    disp = AsyncMock()
+    sched = _sched(cfg, state, disp)
 
     with patch(
-        'tether_ddns.scheduler.ReachabilityService.check',
+        'tether_ddns.reachability.ReachabilityProbe.check',
         new=AsyncMock(return_value=_online(True)),
     ), patch(
-        'tether_ddns.scheduler.detect_public_ip',
+        'tether_ddns.services.sync.detect_public_ip',
         new=AsyncMock(return_value='9.9.9.9'),
     ), patch(
         'tether_ddns.providers.ddns_providers.duckdns.DuckDNSProvider.update',
         new=AsyncMock(side_effect=RuntimeError('boom')),
-    ), patch(
-        'tether_ddns.scheduler.dispatch_domain_update_error', new=_capture,
     ):
-        await sched.check_once(cfg, state)
-    assert len(seen) == 1
+        await sched.check_once()
     from tether_ddns.hooks.base import DomainUpdateErrorEvent
+    seen = [c.args[1] for c in disp.dispatch.await_args_list
+            if c.args[0] == 'domain_update_error']
+    assert len(seen) == 1
     assert isinstance(seen[0], DomainUpdateErrorEvent)
     assert 'boom' in seen[0].message
 
@@ -539,24 +565,21 @@ async def test_sync_ips_fires_pending_for_disabled_transition() -> None:
     state.rebuild(cfg)
     state.online = True
     state.set_status('a', 'synced', ip='1.1.1.1')
-    sched = scheduler.Scheduler()
-    seen: list[object] = []
-
-    async def _capture(event: object, _cfg: object) -> None:
-        seen.append(event)
+    disp = AsyncMock()
+    sched = _sched(cfg, state, disp)
 
     with patch(
-        'tether_ddns.scheduler.ReachabilityService.check',
+        'tether_ddns.reachability.ReachabilityProbe.check',
         new=AsyncMock(return_value=_online(True)),
     ), patch(
-        'tether_ddns.scheduler.detect_public_ip',
+        'tether_ddns.services.sync.detect_public_ip',
         new=AsyncMock(return_value='2.2.2.2'),
-    ), patch(
-        'tether_ddns.scheduler.dispatch_domain_update_pending', new=_capture,
     ):
-        await sched.check_once(cfg, state)
-    assert len(seen) == 1
+        await sched.check_once()
     from tether_ddns.hooks.base import DomainUpdatePendingEvent
+    seen = [c.args[1] for c in disp.dispatch.await_args_list
+            if c.args[0] == 'domain_update_pending']
+    assert len(seen) == 1
     assert isinstance(seen[0], DomainUpdatePendingEvent)
     assert seen[0].current_ip == '2.2.2.2'
 
@@ -574,25 +597,22 @@ async def test_sync_ips_no_event_without_transition() -> None:
     state.online = True
     state.set_public_ipv4('9.9.9.9')
     state.set_status('a', 'synced', ip='9.9.9.9')
-    sched = scheduler.Scheduler()
-    seen: list[object] = []
-
-    async def _capture(event: object, _cfg: object) -> None:
-        seen.append(event)
+    disp = AsyncMock()
+    sched = _sched(cfg, state, disp)
 
     with patch(
-        'tether_ddns.scheduler.ReachabilityService.check',
+        'tether_ddns.reachability.ReachabilityProbe.check',
         new=AsyncMock(return_value=_online(True)),
     ), patch(
-        'tether_ddns.scheduler.detect_public_ip',
+        'tether_ddns.services.sync.detect_public_ip',
         new=AsyncMock(return_value='9.9.9.9'),
     ), patch(
         'tether_ddns.providers.ddns_providers.duckdns.DuckDNSProvider.update',
         new=AsyncMock(return_value=_ok_result('9.9.9.9')),
-    ), patch(
-        'tether_ddns.scheduler.dispatch_domain_update_success', new=_capture,
     ):
-        await sched.check_once(cfg, state)
+        await sched.check_once()
+    seen = [c for c in disp.dispatch.await_args_list
+            if c.args[0] == 'domain_update_success']
     assert seen == []
 
 
@@ -625,7 +645,7 @@ async def test_run_hook_now_domain_update_error_matches_state() -> None:
         state.rebuild(cfg)
         state.set_status('a', 'error', ip='1.1.1.1', message='provider down')
         state.set_status('b', 'synced', ip='2.2.2.2')
-        result = await scheduler.run_hook_now(cfg.hooks[0], cfg, state)
+        result = await _disp(cfg, state).run_hook_now(cfg.hooks[0])
         assert result['ran'] == 1
         assert seen == [('a', 'provider down')]
     finally:
@@ -661,7 +681,7 @@ async def test_run_hook_now_domain_update_success_matches_state() -> None:
         state.rebuild(cfg)
         state.set_status('a', 'synced', ip='9.9.9.9')
         # 'b' stays pending -> should not fire success
-        result = await scheduler.run_hook_now(cfg.hooks[0], cfg, state)
+        result = await _disp(cfg, state).run_hook_now(cfg.hooks[0])
         assert result['ran'] == 1
         assert seen == ['9.9.9.9']
     finally:
@@ -697,7 +717,7 @@ async def test_run_hook_now_domain_update_pending_matches_state() -> None:
         state.rebuild(cfg)  # both start pending
         state.set_public_ipv4('5.5.5.5')
         state.set_status('b', 'synced', ip='5.5.5.5')  # 'b' no longer pending
-        result = await scheduler.run_hook_now(cfg.hooks[0], cfg, state)
+        result = await _disp(cfg, state).run_hook_now(cfg.hooks[0])
         assert result['ran'] == 1
         assert seen == [('a', '5.5.5.5')]
     finally:
@@ -731,7 +751,7 @@ async def test_run_hook_now_success_skips_synced_without_ip() -> None:
         state = RuntimeState()
         state.rebuild(cfg)
         state.set_status('a', 'synced')  # synced but ip stays None
-        result = await scheduler.run_hook_now(cfg.hooks[0], cfg, state)
+        result = await _disp(cfg, state).run_hook_now(cfg.hooks[0])
         assert result['ran'] == 0
         assert result['skipped'] == ['domain_update_success']
         assert seen == []
@@ -758,19 +778,19 @@ async def test_edited_domain_repushes_without_ip_change() -> None:
         provider_config={'token': 'x', 'domain': 'old'})
     state.rebuild(cfg)
     assert state.domains['a'].status == 'pending'
-    sched = scheduler.Scheduler()
+    sched = _sched(cfg, state)
     update = AsyncMock(return_value='9.9.9.9')
     with patch(
-        'tether_ddns.scheduler.ReachabilityService.check',
+        'tether_ddns.reachability.ReachabilityProbe.check',
         new=AsyncMock(return_value=_online(True)),
     ), patch(
-        'tether_ddns.scheduler.detect_public_ip',
+        'tether_ddns.services.sync.detect_public_ip',
         new=AsyncMock(return_value='9.9.9.9'),
     ), patch(
         'tether_ddns.providers.ddns_providers.duckdns.DuckDNSProvider.update',
         new=update,
     ):
-        await sched.sync_ips(cfg, state)
+        await sched.sync_ips()
     update.assert_called_once()
     assert state.domains['a'].status == 'synced'
 
@@ -783,53 +803,50 @@ def _reach(online: bool) -> ReachabilityResult:
 
 def test_check_reachability_records_every_run(monkeypatch: pytest.MonkeyPatch) -> None:
     """check_reachability increments check count on every run."""
-    sched = scheduler.Scheduler()
+    state = RuntimeState()
+    sched = _sched(AppConfig(), state)
 
     async def fake_check() -> ReachabilityResult:
         return _reach(True)
 
     with patch.object(sched, '_reachability') as reach:
         reach.check = AsyncMock(side_effect=fake_check)
-        cfg = AppConfig()
-        state = RuntimeState()
-        asyncio.run(sched.check_reachability(cfg, state))
-        asyncio.run(sched.check_reachability(cfg, state))
+        asyncio.run(sched.check_reachability())
+        asyncio.run(sched.check_reachability())
         assert state.reachability_checks == 2
         assert state.online is True
 
 
-def test_check_reachability_dispatches_only_on_transition(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_check_reachability_dispatches_only_on_transition() -> None:
     """check_reachability only dispatches hooks on online/offline transition."""
-    sched = scheduler.Scheduler()
+    dispatched: list[bool] = []
+
+    async def fake_dispatch(key: str, event: ReachabilityChangedEvent) -> None:
+        dispatched.append(event.online)
+
+    disp = AsyncMock()
+    disp.dispatch.side_effect = fake_dispatch
+    sched = _sched(AppConfig(), RuntimeState(), disp)
     online = [False]
 
     async def fake_check() -> ReachabilityResult:
         return _reach(online[0])
 
-    dispatched: list[bool] = []
-
-    async def fake_dispatch(event: ReachabilityChangedEvent, cfg: AppConfig) -> None:
-        dispatched.append(event.online)
-
     with patch.object(sched, '_reachability') as reach:
         reach.check = AsyncMock(side_effect=fake_check)
-        monkeypatch.setattr(
-            'tether_ddns.scheduler.dispatch_reachability_changed', fake_dispatch)
-        cfg = AppConfig()
-        state = RuntimeState()
         online[0] = True
-        asyncio.run(sched.check_reachability(cfg, state))   # transition -> dispatch
-        asyncio.run(sched.check_reachability(cfg, state))   # steady -> no dispatch
+        asyncio.run(sched.check_reachability())   # transition -> dispatch
+        asyncio.run(sched.check_reachability())   # steady -> no dispatch
         assert dispatched == [True]
 
 
 @pytest.mark.asyncio
 async def test_start_publishes_next_check_at() -> None:
     """start() sets next_check_at in the runtime state."""
-    sched = scheduler.Scheduler()
     cfg = AppConfig()
     state = RuntimeState()
-    sched.start(cfg, state)
+    sched = _sched(cfg, state)
+    sched.start()
     try:
         assert state.next_check_at is not None
         assert state.next_check_at > 0
@@ -840,15 +857,15 @@ async def test_start_publishes_next_check_at() -> None:
 @pytest.mark.asyncio
 async def test_reschedule_sync_applies_new_interval() -> None:
     """reschedule_sync re-adds the sync job and updates next_check_at."""
-    sched = scheduler.Scheduler()
     cfg = AppConfig()
     state = RuntimeState()
-    sched.start(cfg, state)
+    sched = _sched(cfg, state)
+    sched.start()
     try:
         first = state.next_check_at
         assert first is not None
         cfg.settings.check_interval = 60
-        sched.reschedule_sync(cfg, state)
+        sched.reschedule_sync()
         assert state.next_check_at is not None
     finally:
         sched.shutdown()
@@ -856,12 +873,12 @@ async def test_reschedule_sync_applies_new_interval() -> None:
 
 def test_reschedule_sync_republishes_next_check() -> None:
     """reschedule_sync re-adds the sync job and republishes next_check_at."""
-    sched = scheduler.Scheduler()
     cfg = AppConfig()
     state = RuntimeState()
+    sched = _sched(cfg, state)
     fake = MagicMock()
     with patch.object(sched, '_scheduler', fake):
-        sched.reschedule_sync(cfg, state)
+        sched.reschedule_sync()
     kwargs = fake.add_job.call_args.kwargs
     assert kwargs['id'] == 'sync'
     assert kwargs['seconds'] == cfg.settings.check_interval

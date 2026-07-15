@@ -4,16 +4,26 @@ from __future__ import annotations
 import importlib
 import pkgutil
 from abc import ABC
+from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Literal
+from typing import Literal, TYPE_CHECKING
 
 from pydantic import BaseModel
 
+from tether_ddns.ip_sources.base import IPFamily
 from tether_ddns.logging_setup import get_logger
+
+if TYPE_CHECKING:
+    from tether_ddns.context import AppContext
 
 _log = get_logger()
 
 HOOK_REGISTRY: dict[str, type['Hook']] = {}
+
+
+def family_for(record_type: str) -> IPFamily:
+    """Return the IP family a record type resolves against."""
+    return 'ipv6' if record_type == 'AAAA' else 'ipv4'
 
 
 class EmptyConfig(BaseModel):
@@ -23,6 +33,11 @@ class EmptyConfig(BaseModel):
 class HookEventBase(BaseModel):
     """Base for all hook event payloads."""
 
+    @classmethod
+    def from_context(cls, ctx: 'AppContext') -> Sequence['HookEventBase']:
+        """Build events of this type from the current context."""
+        return []
+
 
 class IpChangedEvent(HookEventBase):
     """The public IP for a family changed."""
@@ -31,12 +46,25 @@ class IpChangedEvent(HookEventBase):
     new_ip: str
     family: Literal['ipv4', 'ipv6']
 
+    @classmethod
+    def from_context(cls, ctx: 'AppContext') -> list['IpChangedEvent']:
+        """One event per family that currently has a known public IP."""
+        pairs: tuple[tuple[IPFamily, str | None], ...] = (
+            ('ipv4', ctx.runtime.public_ipv4), ('ipv6', ctx.runtime.public_ipv6))
+        return [cls(old_ip=ip, new_ip=ip, family=fam) for fam, ip in pairs if ip]
+
 
 class ReachabilityChangedEvent(HookEventBase):
     """The service transitioned between online and offline."""
 
     online: bool
     was_online: bool | None = None
+
+    @classmethod
+    def from_context(cls, ctx: 'AppContext') -> list['ReachabilityChangedEvent']:
+        """Snapshot current reachability with no transition."""
+        online = ctx.runtime.online
+        return [cls(online=online, was_online=online)]
 
 
 class DomainUpdatePendingEvent(HookEventBase):
@@ -48,6 +76,22 @@ class DomainUpdatePendingEvent(HookEventBase):
     family: Literal['ipv4', 'ipv6']
     current_ip: str | None = None
 
+    @classmethod
+    def from_context(cls, ctx: 'AppContext') -> list['DomainUpdatePendingEvent']:
+        """One event per domain currently in 'pending'."""
+        out: list['DomainUpdatePendingEvent'] = []
+        for d in ctx.config.domains:
+            rt = ctx.runtime.domains.get(d.id)
+            if rt is None or rt.status != 'pending':
+                continue
+            family = family_for(d.record_type)
+            current_ip = (ctx.runtime.public_ipv4 if family == 'ipv4'
+                          else ctx.runtime.public_ipv6)
+            out.append(cls(
+                domain_id=d.id, hostname=d.hostname, record_type=d.record_type,
+                family=family, current_ip=current_ip))
+        return out
+
 
 class DomainUpdateSuccessEvent(HookEventBase):
     """A domain's record was updated to the current public IP."""
@@ -57,6 +101,19 @@ class DomainUpdateSuccessEvent(HookEventBase):
     record_type: str
     family: Literal['ipv4', 'ipv6']
     ip: str
+
+    @classmethod
+    def from_context(cls, ctx: 'AppContext') -> list['DomainUpdateSuccessEvent']:
+        """One event per domain currently 'synced' with a known ip."""
+        out: list['DomainUpdateSuccessEvent'] = []
+        for d in ctx.config.domains:
+            rt = ctx.runtime.domains.get(d.id)
+            if rt is None or rt.status != 'synced' or rt.ip is None:
+                continue
+            out.append(cls(
+                domain_id=d.id, hostname=d.hostname, record_type=d.record_type,
+                family=family_for(d.record_type), ip=rt.ip))
+        return out
 
 
 class DomainUpdateErrorEvent(HookEventBase):
@@ -68,6 +125,19 @@ class DomainUpdateErrorEvent(HookEventBase):
     family: Literal['ipv4', 'ipv6']
     ip: str | None = None
     message: str
+
+    @classmethod
+    def from_context(cls, ctx: 'AppContext') -> list['DomainUpdateErrorEvent']:
+        """One event per domain currently in 'error'."""
+        out: list['DomainUpdateErrorEvent'] = []
+        for d in ctx.config.domains:
+            rt = ctx.runtime.domains.get(d.id)
+            if rt is None or rt.status != 'error':
+                continue
+            out.append(cls(
+                domain_id=d.id, hostname=d.hostname, record_type=d.record_type,
+                family=family_for(d.record_type), ip=rt.ip, message=rt.message))
+        return out
 
 
 @dataclass(frozen=True)
@@ -139,7 +209,7 @@ class Hook(ABC):
             if getattr(cls, spec.method) is not getattr(Hook, spec.method)
         )
 
-    async def _dispatch(
+    async def handle(
             self, event_key: str, event: HookEventBase,
             config: BaseModel) -> None:
         """Route an event to the matching on_* handler."""

@@ -10,6 +10,7 @@ from fastapi.staticfiles import StaticFiles
 
 from tether_ddns.api import register_routes
 from tether_ddns.config import ConfigStore
+from tether_ddns.context import AppContext
 from tether_ddns.hooks.base import load_hooks
 from tether_ddns.ip_sources.base import load_ip_sources
 from tether_ddns.logging_setup import (
@@ -18,8 +19,11 @@ from tether_ddns.logging_setup import (
     install_stdout_handler,
 )
 from tether_ddns.providers.base import load_providers
+from tether_ddns.reachability import ReachabilityProbe
 from tether_ddns.runtime import RuntimeState
 from tether_ddns.scheduler import Scheduler
+from tether_ddns.services.dispatch import DispatchService
+from tether_ddns.services.sync import SyncService
 from tether_ddns.ws import ConnectionManager
 
 _STATIC_DIR = Path(__file__).parent / 'static'
@@ -43,16 +47,22 @@ def create_app(store: ConfigStore | None = None) -> FastAPI:
         manager = ConnectionManager()
         handler.add_listener(lambda rec: manager.sync_broadcast('log', rec))
         runtime.add_listener(lambda snap: manager.sync_broadcast('state', snap))
-        scheduler = Scheduler()
-        scheduler.start(config, runtime)
+        ctx = AppContext(config, runtime, resolved_store, manager)
+        dispatch = DispatchService(ctx)
+        sync = SyncService(ctx, dispatch)
+        scheduler = Scheduler(ctx, sync, dispatch, ReachabilityProbe())
+        scheduler.start()
         if config.settings.update_on_startup:
-            scheduler.run_startup_check(config, runtime)
+            scheduler.run_startup_check()
         app.state.store = resolved_store
         app.state.config = config
         app.state.runtime = runtime
         app.state.manager = manager
         app.state.log_handler = handler
         app.state.scheduler = scheduler
+        app.state.ctx = ctx
+        app.state.dispatch = dispatch
+        app.state.sync = sync
         try:
             yield
         finally:

@@ -9,7 +9,7 @@ from tether_ddns.providers.ddns_providers.duckdns import DuckDNSProvider
 
 
 def _cfg() -> BaseModel:
-    return DuckDNSProvider.ConfigModel(token=SecretStr('secret'), domain='myhost')
+    return DuckDNSProvider.ConfigModel(token=SecretStr('secret'))
 
 
 @pytest.mark.asyncio
@@ -26,6 +26,8 @@ async def test_update_success() -> None:
         cs.return_value.__aexit__ = AsyncMock(return_value=False)
         result = await provider.update('myhost', 'A', '1.2.3.4', _cfg())
     assert result == '1.2.3.4'
+    _, kwargs = session.get.call_args
+    assert kwargs['params']['domains'] == 'myhost'
 
 
 @pytest.mark.asyncio

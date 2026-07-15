@@ -31,7 +31,8 @@ def _session(
     get_payloads: list[dict[str, Any]], put_payload: dict[str, Any],
 ) -> MagicMock:
     session = MagicMock()
-    session.get = MagicMock(side_effect=[_json_cm(p) for p in get_payloads])
+    session.get = MagicMock(
+        side_effect=[_json_cm({'success': True, **p}) for p in get_payloads])
     session.put = MagicMock(return_value=_json_cm(put_payload))
     return session
 
@@ -126,6 +127,27 @@ async def test_update_api_error() -> None:
                 'box.arjones.com', 'A', '1.2.3.4', _cfg())
     finally:
         cs.stop()
+
+
+@pytest.mark.asyncio
+async def test_update_auth_error_on_zone_fetch() -> None:
+    """An auth failure on the first request surfaces the Cloudflare error."""
+    from tether_ddns.errors import TetherError
+    session = _session(
+        get_payloads=[
+            {'success': False, 'result': [],
+             'errors': [{'message': 'Invalid API token'}]},
+        ],
+        put_payload={},
+    )
+    cs = _patch_session(session)
+    try:
+        with pytest.raises(TetherError, match='Invalid API token'):
+            await CloudflareProvider().update(
+                'box.arjones.com', 'A', '1.2.3.4', _cfg())
+    finally:
+        cs.stop()
+    session.put.assert_not_called()
 
 
 @pytest.mark.asyncio

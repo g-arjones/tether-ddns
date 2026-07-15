@@ -48,9 +48,8 @@ test('add a domain from the Domains view', async ({ page }) => {
   // Select the DuckDNS provider
   await modal.getByLabel('DNS Provider').selectOption({ label: 'DuckDNS' });
 
-  // DuckDNS schema fields rendered by SchemaForm: token (password) + domain (text)
+  // DuckDNS schema fields rendered by SchemaForm: token (password)
   await modal.getByLabel('Token', { exact: true }).fill('secret-token');
-  await modal.getByLabel('Domain', { exact: true }).fill('home');
 
   // Submit via the modal footer button
   await modal.locator('.modal-foot').getByRole('button', { name: 'Add Domain' }).click();

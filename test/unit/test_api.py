@@ -236,18 +236,14 @@ def test_manual_sync_fires_no_domain_update_events(tmp_path: Path) -> None:
         client.app.state.runtime.public_ipv4 = '203.0.113.1'
         captured: list[str] = []
 
-        async def _spy(event: object, _cfg: object) -> None:
+        async def _spy(event_key: str, event: object) -> None:
             captured.append(type(event).__name__)
 
         with patch(
             'tether_ddns.providers.ddns_providers.duckdns.DuckDNSProvider.update',
             new=AsyncMock(return_value='203.0.113.1'),
-        ), patch(
-            'tether_ddns.scheduler.dispatch_domain_update_success', new=_spy,
-        ), patch(
-            'tether_ddns.scheduler.dispatch_domain_update_error', new=_spy,
-        ), patch(
-            'tether_ddns.scheduler.dispatch_domain_update_pending', new=_spy,
+        ), patch.object(
+            client.app.state.dispatch, 'dispatch', new=_spy,
         ):
             resp: Any = client.post(f'/api/domains/{created["id"]}/sync')
         assert resp.status_code == 200
@@ -262,7 +258,7 @@ def test_sync_detects_ip_when_unknown(tmp_path: Path) -> None:
             'provider_config': {'token': 'x', 'domain': 'home'},
         }).json()
         with patch(
-            'tether_ddns.ip_sources.base.detect_public_ip',
+            'tether_ddns.services.sync.detect_public_ip',
             new=AsyncMock(return_value='203.0.113.9'),
         ), patch(
             'tether_ddns.providers.ddns_providers.duckdns.DuckDNSProvider.update',
@@ -282,7 +278,7 @@ def test_sync_aaaa_uses_ipv6(tmp_path: Path) -> None:
             'provider_config': {'token': 'x', 'domain': 'home'},
         }).json()
         with patch(
-            'tether_ddns.ip_sources.base.detect_public_ip',
+            'tether_ddns.services.sync.detect_public_ip',
             new=AsyncMock(return_value='2001:db8::9'),
         ), patch(
             'tether_ddns.providers.ddns_providers.duckdns.DuckDNSProvider.update',
@@ -302,7 +298,7 @@ def test_sync_returns_503_when_ip_undetectable(tmp_path: Path) -> None:
             'provider_config': {'token': 'x', 'domain': 'home'},
         }).json()
         with patch(
-            'tether_ddns.ip_sources.base.detect_public_ip',
+            'tether_ddns.services.sync.detect_public_ip',
             new=AsyncMock(return_value=None),
         ):
             resp: Any = client.post(f'/api/domains/{created["id"]}/sync')
@@ -333,7 +329,7 @@ def test_refresh_and_websocket(tmp_path: Path) -> None:
     """POST /api/refresh runs a check and /api/ws streams initial state."""
     reach = ReachabilityResult(online=False, successes=0, total=3)
     with patch(
-        'tether_ddns.scheduler.ReachabilityService.check',
+        'tether_ddns.reachability.ReachabilityProbe.check',
         new=AsyncMock(return_value=reach),
     ):
         with _client(tmp_path) as client:
