@@ -12,7 +12,7 @@ from tether_ddns.services.dispatch import DispatchService
 
 def _ctx(cfg: AppConfig) -> AppContext:
     """Build an AppContext with the given config and a fresh runtime."""
-    return AppContext(cfg, RuntimeState(), MagicMock(), MagicMock())
+    return AppContext(cfg, RuntimeState(), MagicMock(), MagicMock(), MagicMock())
 
 
 @pytest.mark.asyncio

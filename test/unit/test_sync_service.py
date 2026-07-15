@@ -13,7 +13,7 @@ from tether_ddns.services.sync import SyncService
 
 def _svc(cfg: AppConfig, state: RuntimeState) -> SyncService:
     """Build a SyncService with a mocked dispatcher."""
-    ctx = AppContext(cfg, state, MagicMock(), MagicMock())
+    ctx = AppContext(cfg, state, MagicMock(), MagicMock(), MagicMock())
     dispatch = MagicMock()
     dispatch.dispatch = AsyncMock()
     return SyncService(ctx, dispatch)
