@@ -50,11 +50,18 @@ class RuntimeState(BaseModel):
     public_ipv6: str | None = None
     online: bool = False
     domains: dict[str, DomainRuntime] = Field(default_factory=dict)
-    reachability_started_at: float = Field(default_factory=time.time)
-    reachability_checks: int = 0
-    reachability_online: int = 0
+    # Reachability telemetry is deliberately NOT persisted. It is a live,
+    # per-check time-series that turns over every ~30 min, so persisting it
+    # (a) rewrites the state file on every 30 s check and (b) would turn the
+    # since-boot uptime% (online / checks) into a meaningless all-time figure
+    # across restarts. These stay in memory and in snapshot() for the live UI;
+    # the sparkline and uptime% intentionally rebuild after a restart.
+    reachability_started_at: float = Field(default_factory=time.time, exclude=True)
+    reachability_checks: int = Field(default=0, exclude=True)
+    reachability_online: int = Field(default=0, exclude=True)
     reachability_history: deque[CheckRecord] = Field(
-        default_factory=lambda: deque(maxlen=REACHABILITY_HISTORY_SIZE))
+        default_factory=lambda: deque(maxlen=REACHABILITY_HISTORY_SIZE),
+        exclude=True)
     reachability_latest: list[ResolverProbe] = Field(
         default_factory=list[ResolverProbe], exclude=True)
     next_check_at: float | None = Field(default=None, exclude=True)
