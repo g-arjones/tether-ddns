@@ -1,14 +1,16 @@
 # tether-ddns
 
-A stateless, self-hosted **dynamic DNS updater**. A FastAPI + APScheduler
+A self-hosted **dynamic DNS updater**. A FastAPI + APScheduler
 backend periodically checks internet reachability (via a DNS-resolver quorum),
 detects the current public IP, and updates one or more DDNS records through an
 auto-loaded **provider** plugin system. A React + Vite single-page app (served
 by FastAPI in production) shows live status, streaming logs, and configuration —
 pushed over a single WebSocket.
 
-All configuration is pydantic-modelled and persisted as JSON; **all runtime
-state is rebuilt on start**, so the process holds no durable state of its own.
+Configuration and last-known runtime state are pydantic-modelled and persisted
+as JSON on disk, so a restart keeps your public IPs, per-domain status, and
+"IP stable since" timestamps. Ephemeral telemetry (the reachability history and
+since-boot uptime%) is intentionally rebuilt on start.
 
 ## Features
 
@@ -25,6 +27,9 @@ state is rebuilt on start**, so the process holds no durable state of its own.
   (`********`) on read, real values only on disk.
 - Live logs and state over a WebSocket to the SPA; application logs are also
   printed to stdout alongside uvicorn's own output.
+- **Runtime state persisted across restarts** — last-known public IPs,
+  per-domain status, and "IP stable since" timestamps survive a restart;
+  reachability history and uptime% rebuild on start.
 
 ## Requirements
 
@@ -77,6 +82,10 @@ python -m tether_ddns            # serves the built SPA + API on :8000
 - `TETHER_DDNS_CONFIG_PATH` — path to the JSON config file. If unset, the app
   uses `./tether-ddns.json` in the current working directory. The file is
   created/updated automatically as you change settings through the UI/API.
+- `TETHER_DDNS_STATE_PATH` — path to the JSON runtime-state file. If unset, the
+  app uses `./tether-ddns.state.json` in the current working directory. It is
+  written automatically and is safe to delete: it is disposable and fail-soft,
+  so a missing or corrupt file simply cold-starts with rebuilt state.
 - `TETHER_DDNS_HOST` / `TETHER_DDNS_PORT` — bind address for the server
   (defaults `0.0.0.0` / `8000`). CLI flags `--host` / `--port` override these:
   `python -m tether_ddns --port 9000`. Precedence is CLI flag > env var >
@@ -92,11 +101,12 @@ runtime) and a `docker-compose.yml` that auto-builds it are included:
 docker compose up -d          # builds the image and serves on :8000
 ```
 
-Config persists in the `tether-config` named volume (mounted at `/data`, via
-`TETHER_DDNS_CONFIG_PATH=/data/tether-ddns.json`). For better router/LAN
-reachability and public-IP detection you can switch the service to host
-networking — see the commented `network_mode: host` note in
-`docker-compose.yml`.
+Config and runtime state persist in the `tether-config` named volume (mounted at
+`/data`, via `TETHER_DDNS_CONFIG_PATH=/data/tether-ddns.json` and
+`TETHER_DDNS_STATE_PATH=/data/tether-ddns.state.json`), so restarts keep your
+last-known status. For better router/LAN reachability and public-IP detection
+you can switch the service to host networking — see the commented
+`network_mode: host` note in `docker-compose.yml`.
 
 ## Tests
 
