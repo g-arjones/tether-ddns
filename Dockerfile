@@ -29,6 +29,7 @@ RUN apk add --no-cache libstdc++ \
 COPY --from=builder /app /app
 ENV PATH=/app/.venv/bin:$PATH \
     TETHER_DDNS_CONFIG_PATH=/data/tether-ddns.json \
+    TETHER_DDNS_STATE_PATH=/data/tether-ddns.state.json \
     PYTHONUNBUFFERED=1
 WORKDIR /app
 EXPOSE 8000
