@@ -214,11 +214,9 @@ def register_routes(app: FastAPI) -> None:
 
     @router.post('/domains/{domain_id}/sync')
     async def sync_now(domain_id: str) -> dict[str, bool]:
-        for d in app.state.config.domains:
-            if d.id == domain_id:
-                await app.state.sync.sync_one_now(d)
-                return {'ok': True}
-        raise HTTPException(status_code=404, detail='domain not found')
+        _, d = find_or_404(app.state.config.domains, domain_id, 'domain not found')
+        await app.state.sync.sync_one_now(d)
+        return {'ok': True}
 
     @router.get('/hooks-config')
     def list_hook_config() -> list[dict[str, object]]:
