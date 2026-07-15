@@ -76,3 +76,40 @@ async def test_refresh_public_ips_dispatches_on_change() -> None:
     assert state.public_ipv4 == '1.2.3.4'
     disp = svc._dispatch.dispatch  # noqa: SLF001  # pyright: ignore[reportPrivateUsage]
     cast(AsyncMock, disp).assert_awaited()
+
+
+@pytest.mark.asyncio
+async def test_sync_one_now_raises_when_no_ip() -> None:
+    """sync_one_now raises 503 when no public IP can be determined."""
+    from fastapi import HTTPException
+    domain = DomainConfig(id='d1', hostname='h', provider='duckdns')
+    state = RuntimeState()
+    state.rebuild(AppConfig(domains=[domain]))
+    svc = _svc(AppConfig(domains=[domain]), state)
+    with pytest.MonkeyPatch.context() as mp:
+        async def _none(source: str, family: str) -> str | None:
+            """Return no IP."""
+            return None
+        mp.setattr('tether_ddns.services.sync.detect_public_ip', _none)
+        with pytest.raises(HTTPException) as exc:
+            await svc.sync_one_now(domain)
+    assert exc.value.status_code == 503
+
+
+@pytest.mark.asyncio
+async def test_sync_one_now_uses_runtime_ip() -> None:
+    """sync_one_now uses the runtime IP without detecting when present."""
+    load_providers()
+    domain = DomainConfig(
+        id='d1', hostname='h.duckdns.org', provider='duckdns',
+        provider_config={'token': 't', 'domain': 'h'})
+    state = RuntimeState()
+    state.rebuild(AppConfig(domains=[domain]))
+    state.public_ipv4 = '5.5.5.5'
+    svc = _svc(AppConfig(domains=[domain]), state)
+    with pytest.MonkeyPatch.context() as mp:
+        from tether_ddns.providers.base import PROVIDER_REGISTRY
+        mp.setattr(
+            PROVIDER_REGISTRY['duckdns'], 'update', AsyncMock(return_value='5.5.5.5'))
+        await svc.sync_one_now(domain)
+    assert state.domains['d1'].status == 'synced'

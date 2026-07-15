@@ -1,6 +1,8 @@
 """IP detection and domain-sync orchestration as a context-owning service."""
 from __future__ import annotations
 
+from fastapi import HTTPException
+
 from tether_ddns.config import DomainConfig
 from tether_ddns.context import AppContext
 from tether_ddns.hooks.base import (
@@ -115,3 +117,18 @@ class SyncService:
         changed = await self.refresh_public_ips()
         for domain in self._ctx.config.domains:
             await self._sync_one(domain, changed)
+
+    async def sync_one_now(self, domain: DomainConfig) -> None:
+        """Ensure a public IP for the domain's family, then sync it once."""
+        state = self._state
+        family = family_for(domain.record_type)
+        ip = state.public_ipv4 if family == 'ipv4' else state.public_ipv6
+        if not ip:
+            ip = await detect_public_ip(self._ctx.config.settings.ip_source, family)
+            if not ip:
+                raise HTTPException(status_code=503, detail='public IP unknown')
+            if family == 'ipv4':
+                state.set_public_ipv4(ip)
+            else:
+                state.set_public_ipv6(ip)
+        await self.sync_domain(domain, ip)
