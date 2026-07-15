@@ -16,7 +16,6 @@ class DuckDNSConfig(BaseModel):
     """Configuration for the DuckDNS provider."""
 
     token: SecretStr
-    domain: str
 
 
 @register_provider
@@ -30,11 +29,11 @@ class DuckDNSProvider(DDNSProvider):
     async def update(
         self, hostname: str, record_type: str, ip: str, config: BaseModel,
     ) -> str:
-        """Update the DuckDNS record for the configured domain."""
+        """Update the DuckDNS record for the given hostname."""
         assert isinstance(config, DuckDNSConfig)
         url = 'https://www.duckdns.org/update'
         params = {
-            'domains': config.domain,
+            'domains': hostname,
             'token': config.token.get_secret_value(),
             'ip': ip,
         }
