@@ -10,6 +10,7 @@ from tether_ddns.hooks.base import (
     DomainUpdateErrorEvent,
     DomainUpdatePendingEvent,
     DomainUpdateSuccessEvent,
+    ReachabilityChangedEvent,
 )
 from tether_ddns.hooks.registered_hooks.pushover import (
     PushoverConfig,
@@ -44,7 +45,7 @@ def test_supported_events() -> None:
     """The hook supports exactly the three domain-update events."""
     assert set(PushoverHook.supported_events()) == {
         'domain_update_pending', 'domain_update_success',
-        'domain_update_error'}
+        'domain_update_error', 'reachability_changed'}
 
 
 @pytest.mark.asyncio
@@ -87,6 +88,20 @@ async def test_pending_posts_message() -> None:
     assert data['message'] == (
         'home.example.com AAAA is stale (current IP 2001:db8::9)')
     assert data['priority'] == 0
+
+
+@pytest.mark.asyncio
+async def test_reachability_changed_posts_message() -> None:
+    """A reachability-changed event posts a high-priority message."""
+    session = _session_returning(200, {'status': 1})
+    cs = _patch_session(session)
+    try:
+        await PushoverHook().on_reachability_changed(ReachabilityChangedEvent(online=True), _cfg())
+    finally:
+        cs.stop()
+    data = session.post.call_args.kwargs['data']
+    assert data['message'] == 'Reachability changed to online'
+    assert data['priority'] == 1
 
 
 @pytest.mark.asyncio

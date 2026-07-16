@@ -12,6 +12,7 @@ from tether_ddns.hooks.base import (
     DomainUpdatePendingEvent,
     DomainUpdateSuccessEvent,
     Hook,
+    ReachabilityChangedEvent,
     register_hook,
 )
 from tether_ddns.schema_fields import labeled_field
@@ -59,6 +60,14 @@ class PushoverHook(Hook):
             config, event.hostname,
             f'Failed to update {event.hostname} {event.record_type}: '
             f'{event.message}', 1)
+
+    async def on_reachability_changed(
+            self, event: ReachabilityChangedEvent, config: BaseModel) -> None:
+        """Send a reachability change notification."""
+        assert isinstance(config, PushoverConfig)
+        await self._send(
+            config, 'Reachability changed',
+            f'Reachability changed to {"online" if event.online else "offline"}', 1)
 
     async def _send(
             self, config: PushoverConfig, title: str, message: str,
