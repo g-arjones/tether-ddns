@@ -12,6 +12,7 @@
 
 - Target Python `>=3.12`; every module keeps `from __future__ import annotations`.
 - Use PEP 695 native generics (`class Foo[ConfigT: BaseModel]`), not `typing.Generic`/`TypeVar`.
+- The two type-parameter-defining base classes (`DDNSProvider`, `Hook`) MUST carry a `# noqa: D101` on the `class ...[ConfigT: BaseModel](...)` line: pinned flake8-docstrings (pydocstyle 6.3.0) false-positives D101 on PEP 695 generic classes despite their docstrings. Specialized subclasses do NOT need it.
 - Remove all `assert isinstance(config, X)` guards from provider/hook handlers.
 - Do NOT change `ConfigModel` class attributes, registries, callers, or event-routing logic.
 - Handlers that ignore config are typed to their concrete config type (`EmptyConfig`), not `BaseModel`.
@@ -115,7 +116,7 @@ class DDNSProvider(ABC):
 to:
 
 ```python
-class DDNSProvider[ConfigT: BaseModel](ABC):
+class DDNSProvider[ConfigT: BaseModel](ABC):  # noqa: D101 - pydocstyle misses PEP 695 class docstrings
     """Base class for DDNS provider plugins."""
 
     key: str = ''
@@ -166,7 +167,7 @@ git commit -m "refactor: make DDNSProvider generic over ConfigT"
 In `tether_ddns/hooks/base.py`, change `class Hook(ABC):` to:
 
 ```python
-class Hook[ConfigT: BaseModel](ABC):
+class Hook[ConfigT: BaseModel](ABC):  # noqa: D101 - pydocstyle misses PEP 695 class docstrings
 ```
 
 - [ ] **Step 2: Retype every handler's `config` param**

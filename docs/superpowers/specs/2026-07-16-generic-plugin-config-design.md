@@ -91,13 +91,20 @@ README plugin-author examples (~L155, ~L181) show the generic base and omit the
 No behavioral change. Removing the asserts removes an `AssertionError` path that
 was unreachable in practice; wrong-config bugs are now caught statically.
 
+## Tooling note (flake8-docstrings / D101)
+
+The pinned `flake8-docstrings` (pydocstyle 6.3.0) has a false positive: it fails
+to associate a class docstring with a **type-parameter-defining** PEP 695 class
+(`class Hook[ConfigT: BaseModel]:`) and reports `D101 Missing docstring in public
+class`, even though the docstring is present. Specialized subclasses
+(`CloudflareProvider(DDNSProvider[CloudflareConfig])`) are unaffected. The two
+generic base-class declarations therefore carry a `# noqa: D101` comment; nothing
+else needs it. mypy, pyright, and ruff accept the native syntax without issue.
+
 ## Testing / verification
 
-1. **Tooling probe first:** confirm PEP 695 syntax is accepted by the pinned
-   mypy, pyright, ruff, and flake8 before broad edits. (User chose native; if any
-   tool rejects it we revisit, otherwise proceed.)
-2. `pytest test/test_mypy.py test/test_pyright.py test/test_ruff.py test/test_flake8.py`
-3. Full `pytest` suite (existing provider/hook/dispatch/scheduler tests).
+1. `pytest test/test_mypy.py test/test_pyright.py test/test_ruff.py test/test_flake8.py`
+2. Full `pytest` suite (existing provider/hook/dispatch/scheduler tests).
 
 ## Out of scope
 
