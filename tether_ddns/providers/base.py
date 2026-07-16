@@ -19,7 +19,7 @@ class EmptyConfig(BaseModel):
     """Default provider config model for providers without configuration."""
 
 
-class DDNSProvider[ConfigT: BaseModel](ABC):  # noqa: D101 (PEP 695 class docstring)
+class DDNSProvider[ConfigT: BaseModel](ABC):  # noqa: D101
     """Base class for DDNS provider plugins."""
 
     key: str = ''
