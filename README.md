@@ -155,7 +155,6 @@ class MyConfig(BaseModel):
 class MyProvider(DDNSProvider[MyConfig]):
     key = 'myprovider'
     display_name = 'My Provider'
-    ConfigModel = MyConfig
 
     async def update(
         self, hostname: str, record_type: str, ip: str, config: MyConfig,
@@ -165,6 +164,9 @@ class MyProvider(DDNSProvider[MyConfig]):
             raise TetherError('Update failed: provider returned error')
         return ip
 ```
+
+The config type is taken from the `DDNSProvider[...]` generic argument — no
+separate `ConfigModel` attribute is needed.
 
 ### Add a hook
 
@@ -184,7 +186,6 @@ class MyHookConfig(BaseModel):
 class MyHook(Hook[MyHookConfig]):
     key = 'myhook'
     display_name = 'My Hook'
-    ConfigModel = MyHookConfig
 
     # Override only the event methods you care about. The events a hook
     # supports are inferred from which on_* methods it overrides; the UI only
@@ -200,6 +201,9 @@ class MyHook(Hook[MyHookConfig]):
         # react to an online/offline transition (event.online)
         ...
 ```
+
+As with providers, the config type comes from the `Hook[...]` generic argument;
+there is no separate `ConfigModel` attribute to declare.
 
 Hooks may also override `on_domain_update_pending`, `on_domain_update_success`,
 and `on_domain_update_error` to react to a specific domain's update outcome.
