@@ -12,8 +12,8 @@ services:
     # (and optionally TETHER_DDNS_HOST).
     volumes:
       - /etc/localtime:/etc/localtime:ro
-      - tether-config:/data
+      - tether-data:/data
     restart: unless-stopped
 
 volumes:
-  tether-config:
+  tether-data:
