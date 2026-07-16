@@ -62,7 +62,7 @@ def _error_messages(payload: object) -> str:
 
 
 @register_provider
-class CloudflareProvider(DDNSProvider):
+class CloudflareProvider(DDNSProvider[CloudflareConfig]):
     """Updates a Cloudflare DNS record, resolving zone and record by name."""
 
     key = 'cloudflare'
@@ -82,10 +82,9 @@ class CloudflareProvider(DDNSProvider):
         return cast('dict[str, Any]', payload)
 
     async def update(
-        self, hostname: str, record_type: str, ip: str, config: BaseModel,
+        self, hostname: str, record_type: str, ip: str, config: CloudflareConfig,
     ) -> str:
         """Resolve the zone and record for hostname and update it to ip."""
-        assert isinstance(config, CloudflareConfig)
         headers = {
             'Authorization': f'Bearer {config.api_token.get_secret_value()}',
             'Content-Type': 'application/json',
