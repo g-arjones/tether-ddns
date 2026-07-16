@@ -12,6 +12,7 @@ from pydantic import BaseModel
 
 from tether_ddns.ip_sources.base import IPFamily
 from tether_ddns.logging_setup import get_logger
+from tether_ddns.plugin_config import ConfigModelMixin, EmptyConfig as EmptyConfig  # noqa: F401
 
 if TYPE_CHECKING:
     from tether_ddns.context import AppContext
@@ -24,10 +25,6 @@ HOOK_REGISTRY: dict[str, type['Hook[Any]']] = {}
 def family_for(record_type: str) -> IPFamily:
     """Return the IP family a record type resolves against."""
     return 'ipv6' if record_type == 'AAAA' else 'ipv4'
-
-
-class EmptyConfig(BaseModel):
-    """Default configuration for hooks that need no settings."""
 
 
 class HookEventBase(BaseModel):
@@ -166,12 +163,11 @@ EVENT_SPECS: dict[str, EventSpec] = {
 }
 
 
-class Hook[ConfigT: BaseModel](ABC):  # noqa: D101
+class Hook[ConfigT: BaseModel](ConfigModelMixin, ABC):  # noqa: D101
     """Base class for hook plugins."""
 
     key: str = ''
     display_name: str = ''
-    ConfigModel: type[BaseModel] = EmptyConfig
 
     @classmethod
     def config_schema(cls) -> dict[str, object]:

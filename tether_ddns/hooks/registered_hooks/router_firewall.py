@@ -250,7 +250,6 @@ class RouterFirewallHook(Hook[RouterFirewallConfig]):
 
     key = 'router_firewall'
     display_name = 'Router Firewall (ZTE)'
-    ConfigModel = RouterFirewallConfig
 
     _XHR_HEADERS = {'X-Requested-With': 'XMLHttpRequest'}
     _DATA_TAG = 'firewall_ipfilter_lua.lua'

@@ -33,7 +33,6 @@ class PushoverHook(Hook[PushoverConfig]):
 
     key = 'pushover'
     display_name = 'Pushover'
-    ConfigModel = PushoverConfig
 
     async def on_domain_update_success(
             self, event: DomainUpdateSuccessEvent, config: PushoverConfig) -> None:
