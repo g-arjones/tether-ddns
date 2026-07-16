@@ -143,10 +143,9 @@ def _cfg(**over: Any) -> RouterFirewallConfig:
 
 def test_build_apply_payload_maps_toggle_and_views() -> None:
     """allow_traffic and friendly views map to router codes."""
-    cfg = RouterFirewallHook.ConfigModel(
+    cfg = RouterFirewallConfig(
         username='u', password=SecretStr('p'), ip_version='ipv6',
         allow_traffic=False, ingress='dslite', egress='internet')
-    assert isinstance(cfg, RouterFirewallConfig)
     payload = build_apply_payload(cfg, '1', '2001:db8::9')
     assert payload['FilterTarget'] == '0'
     assert payload['INCViewName'] == 'DEV.IP.IF8'
@@ -155,9 +154,8 @@ def test_build_apply_payload_maps_toggle_and_views() -> None:
 
 def test_encode_apply_body_orders_and_encodes_fields() -> None:
     """The body is URL-encoded in the router's field order, ending with token."""
-    cfg = RouterFirewallHook.ConfigModel(
+    cfg = RouterFirewallConfig(
         username='u', password=SecretStr('p'), ip_version='ipv6')
-    assert isinstance(cfg, RouterFirewallConfig)
     payload = build_apply_payload(cfg, '1', '2001:db8::9')
     body = encode_apply_body(payload, 'TOKEN9')
     assert body.startswith('IF_ACTION=Apply&Enable=1&')

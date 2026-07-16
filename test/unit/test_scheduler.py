@@ -622,7 +622,8 @@ async def test_sync_ips_no_event_without_transition() -> None:
 @pytest.mark.asyncio
 async def test_run_hook_now_domain_update_error_matches_state() -> None:
     """Run-now for domain_update_error fires only for error domains, with message."""
-    from tether_ddns.hooks.base import HOOK_REGISTRY, EmptyConfig, Hook, register_hook
+    from tether_ddns.hooks.base import (
+        HOOK_REGISTRY, DomainUpdateErrorEvent, EmptyConfig, Hook, register_hook)
 
     seen: list[tuple[str, str]] = []
 
@@ -632,8 +633,9 @@ async def test_run_hook_now_domain_update_error_matches_state() -> None:
         display_name = 'SpyErr'
 
         async def on_domain_update_error(
-                self, event: object, config: object) -> None:
-            seen.append((event.domain_id, event.message))  # type: ignore[attr-defined]
+                self, event: DomainUpdateErrorEvent,
+                config: EmptyConfig) -> None:
+            seen.append((event.domain_id, event.message))
 
     try:
         cfg = AppConfig(
@@ -658,7 +660,9 @@ async def test_run_hook_now_domain_update_error_matches_state() -> None:
 @pytest.mark.asyncio
 async def test_run_hook_now_domain_update_success_matches_state() -> None:
     """Run-now for domain_update_success fires only for synced domains with ip."""
-    from tether_ddns.hooks.base import HOOK_REGISTRY, EmptyConfig, Hook, register_hook
+    from tether_ddns.hooks.base import (
+        HOOK_REGISTRY, DomainUpdateSuccessEvent, EmptyConfig, Hook,
+        register_hook)
 
     seen: list[str] = []
 
@@ -668,8 +672,9 @@ async def test_run_hook_now_domain_update_success_matches_state() -> None:
         display_name = 'SpyOk'
 
         async def on_domain_update_success(
-                self, event: object, config: object) -> None:
-            seen.append(event.ip)  # type: ignore[attr-defined]
+                self, event: DomainUpdateSuccessEvent,
+                config: EmptyConfig) -> None:
+            seen.append(event.ip)
 
     try:
         cfg = AppConfig(
@@ -694,7 +699,9 @@ async def test_run_hook_now_domain_update_success_matches_state() -> None:
 @pytest.mark.asyncio
 async def test_run_hook_now_domain_update_pending_matches_state() -> None:
     """Run-now for domain_update_pending fires for pending domains with current_ip."""
-    from tether_ddns.hooks.base import HOOK_REGISTRY, EmptyConfig, Hook, register_hook
+    from tether_ddns.hooks.base import (
+        HOOK_REGISTRY, DomainUpdatePendingEvent, EmptyConfig, Hook,
+        register_hook)
 
     seen: list[tuple[str, str | None]] = []
 
@@ -704,8 +711,9 @@ async def test_run_hook_now_domain_update_pending_matches_state() -> None:
         display_name = 'SpyPend'
 
         async def on_domain_update_pending(
-                self, event: object, config: object) -> None:
-            seen.append((event.domain_id, event.current_ip))  # type: ignore[attr-defined]
+                self, event: DomainUpdatePendingEvent,
+                config: EmptyConfig) -> None:
+            seen.append((event.domain_id, event.current_ip))
 
     try:
         cfg = AppConfig(
@@ -730,7 +738,9 @@ async def test_run_hook_now_domain_update_pending_matches_state() -> None:
 @pytest.mark.asyncio
 async def test_run_hook_now_success_skips_synced_without_ip() -> None:
     """A synced domain with no known ip is skipped for domain_update_success."""
-    from tether_ddns.hooks.base import HOOK_REGISTRY, EmptyConfig, Hook, register_hook
+    from tether_ddns.hooks.base import (
+        HOOK_REGISTRY, DomainUpdateSuccessEvent, EmptyConfig, Hook,
+        register_hook)
 
     seen: list[str] = []
 
@@ -740,8 +750,9 @@ async def test_run_hook_now_success_skips_synced_without_ip() -> None:
         display_name = 'SpyNoIpOk'
 
         async def on_domain_update_success(
-                self, event: object, config: object) -> None:
-            seen.append(event.ip)  # type: ignore[attr-defined]
+                self, event: DomainUpdateSuccessEvent,
+                config: EmptyConfig) -> None:
+            seen.append(event.ip)
 
     try:
         cfg = AppConfig(
