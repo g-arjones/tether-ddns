@@ -1,6 +1,4 @@
 """Tests for the hook registry and the built-in log hook."""
-from pydantic import BaseModel
-
 import pytest
 
 from tether_ddns.hooks import base
@@ -9,12 +7,13 @@ from tether_ddns.hooks import base
 def test_register_hook_adds_to_registry() -> None:
     """The decorator registers a hook by its key."""
     @base.register_hook
-    class _Dummy(base.Hook):
+    class _Dummy(base.Hook[base.EmptyConfig]):
         key = 'dummy-hook'
         display_name = 'Dummy'
 
         async def on_ip_changed(
-                self, event: base.IpChangedEvent, config: BaseModel) -> None:
+                self, event: base.IpChangedEvent,
+                config: base.EmptyConfig) -> None:
             return None
 
     assert base.HOOK_REGISTRY['dummy-hook'] is _Dummy
@@ -37,11 +36,12 @@ async def test_log_hook_handles_ip_event() -> None:
 
 def test_supported_events_inferred_from_overrides() -> None:
     """A hook overriding one method supports only that event."""
-    class _OnlyIp(base.Hook):
+    class _OnlyIp(base.Hook[base.EmptyConfig]):
         key = '_onlyip'
 
         async def on_ip_changed(
-                self, event: base.IpChangedEvent, config: BaseModel) -> None:
+                self, event: base.IpChangedEvent,
+                config: base.EmptyConfig) -> None:
             return None
 
     assert _OnlyIp.supported_events() == ('ip_changed',)
@@ -49,7 +49,7 @@ def test_supported_events_inferred_from_overrides() -> None:
 
 def test_base_hook_supports_nothing() -> None:
     """A hook overriding no methods supports no events."""
-    class _Empty(base.Hook):
+    class _Empty(base.Hook[base.EmptyConfig]):
         key = '_empty'
 
     assert _Empty.supported_events() == ()
@@ -80,11 +80,12 @@ async def test_dispatch_routes_to_method() -> None:
     """Handle calls the on_* method matching the event key."""
     seen: list[str] = []
 
-    class _Spy(base.Hook):
+    class _Spy(base.Hook[base.EmptyConfig]):
         key = '_spy'
 
         async def on_ip_changed(
-                self, event: base.IpChangedEvent, config: BaseModel) -> None:
+                self, event: base.IpChangedEvent,
+                config: base.EmptyConfig) -> None:
             seen.append(event.new_ip)
 
     event = base.IpChangedEvent(new_ip='9.9.9.9', family='ipv4')
@@ -101,12 +102,12 @@ def test_domain_update_events_registered() -> None:
 
 def test_supported_events_infers_domain_update() -> None:
     """A hook overriding one domain-update method supports only that event."""
-    class _OnlyErr(base.Hook):
+    class _OnlyErr(base.Hook[base.EmptyConfig]):
         key = '_onlyerr'
 
         async def on_domain_update_error(
                 self, event: base.DomainUpdateErrorEvent,
-                config: BaseModel) -> None:
+                config: base.EmptyConfig) -> None:
             return None
 
     assert _OnlyErr.supported_events() == ('domain_update_error',)

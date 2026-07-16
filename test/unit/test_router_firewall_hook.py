@@ -4,7 +4,7 @@ from base64 import b64decode
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from pydantic import BaseModel, SecretStr
+from pydantic import SecretStr
 
 import pytest
 
@@ -134,11 +134,11 @@ def test_config_schema_has_friendly_labels_and_titles() -> None:
     assert props['router_url']['title'] == 'Router URL'
 
 
-def _cfg(**over: Any) -> BaseModel:
+def _cfg(**over: Any) -> RouterFirewallConfig:
     base: dict[str, Any] = {
         'username': 'admin', 'password': SecretStr('secret'), 'ip_version': 'ipv6'}
     base.update(over)
-    return RouterFirewallHook.ConfigModel(**base)
+    return RouterFirewallConfig(**base)
 
 
 def test_build_apply_payload_maps_toggle_and_views() -> None:
