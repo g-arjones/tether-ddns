@@ -389,11 +389,14 @@ git commit -m "refactor: specialize hook subclasses on config type"
 
 ---
 
-### Task 6: Update test spy hooks
+### Task 6: Update test spy hooks & direct base-class usages in tests
 
 **Files:**
 - Modify: `test/unit/test_scheduler.py`
-- Test: `test/unit/test_scheduler.py`, type checkers.
+- Modify: `test/unit/test_hook_registry.py` (5 inline `base.Hook` subclasses)
+- Modify: `test/unit/test_provider_registry.py` (2 inline `base.DDNSProvider` subclasses)
+- Modify: `test/unit/test_router_firewall_hook.py` (`_cfg()` return type)
+- Test: those files, type checkers.
 
 **Interfaces:**
 - Consumes: `Hook[ConfigT]`, `EmptyConfig` from `tether_ddns.hooks.base`.
