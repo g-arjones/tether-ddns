@@ -12,7 +12,10 @@
 
 - Target Python `>=3.12`; every module keeps `from __future__ import annotations`.
 - Use PEP 695 native generics (`class Foo[ConfigT: BaseModel]`), not `typing.Generic`/`TypeVar`.
-- The two type-parameter-defining base classes (`DDNSProvider`, `Hook`) MUST carry a `# noqa: D101` on the `class ...[ConfigT: BaseModel](...)` line: pinned flake8-docstrings (pydocstyle 6.3.0) false-positives D101 on PEP 695 generic classes despite their docstrings. Specialized subclasses do NOT need it.
+- The two type-parameter-defining base classes (`DDNSProvider`, `Hook`) MUST carry a short `# noqa: D101` on the `class ...[ConfigT: BaseModel](...)` line: pinned flake8-docstrings (pydocstyle 6.3.0) false-positives D101 on PEP 695 generic classes despite their docstrings. Specialized subclasses do NOT need it.
+- The same pydocstyle quirk hits PEP 695 generic **functions** with D103. Because the class-registry entries now reference a generic type, the registry decorators are made generic (`def register_provider[C: DDNSProvider[Any]](cls: type[C]) -> type[C]:  # noqa: D103`) and need a short `# noqa: D103`.
+- Keep noqa comments short (bare `# noqa: D101` / `# noqa: D103`, no long trailing prose) so lines stay within `max-line-length = 99`.
+- Because the base classes become generic and pyright runs `reportMissingTypeArgument` in strict mode, every bare use of the base in a type expression needs an explicit argument. The registries become `dict[str, type[DDNSProvider[Any]]]` / `dict[str, type[Hook[Any]]]` (add `from typing import Any`), and the `register_*` decorators are generic over `[C: <Base>[Any]]` to preserve the decorated class's concrete type. Do NOT use blanket `# type: ignore` (pyright's `reportUnnecessaryTypeIgnoreComment` is an error).
 - Remove all `assert isinstance(config, X)` guards from provider/hook handlers.
 - Do NOT change `ConfigModel` class attributes, registries, callers, or event-routing logic.
 - Handlers that ignore config are typed to their concrete config type (`EmptyConfig`), not `BaseModel`.
@@ -167,7 +170,19 @@ git commit -m "refactor: make DDNSProvider generic over ConfigT"
 In `tether_ddns/hooks/base.py`, change `class Hook(ABC):` to:
 
 ```python
-class Hook[ConfigT: BaseModel](ABC):  # noqa: D101 - pydocstyle misses PEP 695 class docstrings
+class Hook[ConfigT: BaseModel](ABC):  # noqa: D101
+```
+
+Also add `from typing import Any`, change the registry to
+`HOOK_REGISTRY: dict[str, type['Hook[Any]']] = {}`, and make the decorator
+generic to preserve the concrete class type (mirroring `register_provider` from
+Task 2):
+
+```python
+def register_hook[C: Hook[Any]](cls: type[C]) -> type[C]:  # noqa: D103
+    """Register a hook class in the global registry."""
+    HOOK_REGISTRY[cls.key] = cls
+    return cls
 ```
 
 - [ ] **Step 2: Retype every handler's `config` param**
@@ -209,7 +224,7 @@ And in `handle`:
         await getattr(self, EVENT_SPECS[event_key].method)(event, config)
 ```
 
-Leave `HOOK_REGISTRY`, `register_hook`, `supported_events`, and `EVENT_SPECS` unchanged.
+Leave `supported_events` and `EVENT_SPECS` unchanged.
 
 - [ ] **Step 3: Run type checkers and registry tests**
 

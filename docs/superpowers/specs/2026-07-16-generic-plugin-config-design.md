@@ -70,8 +70,11 @@ README plugin-author examples (~L155, ~L181) show the generic base and omit the
 
 ## Unchanged by design
 
-- **Registries** stay `dict[str, type[DDNSProvider]]` / `type[Hook]`
-  (unparameterized → implicit `Any` type argument). No edits.
+- **Registries** stay conceptually the same but must name an explicit type
+  argument (`dict[str, type[DDNSProvider[Any]]]` / `type[Hook[Any]]`) because
+  pyright strict runs `reportMissingTypeArgument`; the `register_*` decorators
+  become generic (`[C: <Base>[Any]]`) to preserve each decorated class's concrete
+  type. No behavioral change.
 - **Callers** (`services/sync.py`, `services/dispatch.py`) hold a `type[...]`,
   build `config` via `ConfigModel.model_validate(...)`, and call
   `.update()`/`.handle()`. The validated instance satisfies the `Any`-arg
