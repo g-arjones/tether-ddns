@@ -14,7 +14,7 @@
 - PEP 695 native generics (no `typing.Generic`/`TypeVar`).
 - The type-parameter-defining base classes keep their short `# noqa: D101`; generic decorators keep `# noqa: D103`. Bare noqa form only (max-line-length = 99).
 - No blanket `# type: ignore` (pyright strict `reportUnnecessaryTypeIgnoreComment = error`). Use specific codes only where genuinely needed.
-- `EmptyConfig` must remain importable from BOTH `tether_ddns.providers.base` and `tether_ddns.hooks.base` (existing importers + tests). Re-export it with the redundant-alias form `from tether_ddns.plugin_config import EmptyConfig as EmptyConfig` so ruff (F401) and pyright (reportUnusedImport) accept the intentional re-export.
+- `EmptyConfig` must remain importable from BOTH `tether_ddns.providers.base` and `tether_ddns.hooks.base` (existing importers + tests). Re-export it as `from tether_ddns.plugin_config import ConfigModelMixin, EmptyConfig as EmptyConfig  # noqa: F401`. The redundant-alias form satisfies pyright (reportUnusedImport) and ruff, but the pinned pyflakes/flake8 still reports F401 on it, so the `# noqa: F401` is required (verified). The line stays within max-line-length = 99.
 - The consolidated `EmptyConfig` is a SINGLE class; `X.ConfigModel is EmptyConfig` identity must hold for `test_provider_registry`.
 - Do NOT change `IPSource`, registries, decorators, callers (`sync.py`/`dispatch.py`), or event routing.
 
@@ -253,10 +253,11 @@ git commit -m "refactor: derive provider ConfigModel from generic arg"
 
 - [ ] **Step 1: Rewire `hooks/base.py`**
 
-Remove the local `class EmptyConfig(BaseModel): ...`. Add near the imports:
+Remove the local `class EmptyConfig(BaseModel): ...`. Add near the imports
+(respect alphabetical order: after `tether_ddns.logging_setup`):
 
 ```python
-from tether_ddns.plugin_config import ConfigModelMixin, EmptyConfig as EmptyConfig
+from tether_ddns.plugin_config import ConfigModelMixin, EmptyConfig as EmptyConfig  # noqa: F401
 ```
 
 Change the class declaration and delete the `ConfigModel: type[BaseModel] = EmptyConfig` line:
