@@ -24,7 +24,6 @@ class DuckDNSProvider(DDNSProvider[DuckDNSConfig]):
 
     key = 'duckdns'
     display_name = 'DuckDNS'
-    ConfigModel = DuckDNSConfig
 
     async def update(
         self, hostname: str, record_type: str, ip: str, config: DuckDNSConfig,

@@ -9,22 +9,18 @@ from typing import Any
 from pydantic import BaseModel
 
 from tether_ddns.logging_setup import get_logger
+from tether_ddns.plugin_config import ConfigModelMixin, EmptyConfig as EmptyConfig  # noqa: F401
 
 _log = get_logger()
 
 PROVIDER_REGISTRY: dict[str, type['DDNSProvider[Any]']] = {}
 
 
-class EmptyConfig(BaseModel):
-    """Default provider config model for providers without configuration."""
-
-
-class DDNSProvider[ConfigT: BaseModel](ABC):  # noqa: D101
+class DDNSProvider[ConfigT: BaseModel](ConfigModelMixin, ABC):  # noqa: D101
     """Base class for DDNS provider plugins."""
 
     key: str = ''
     display_name: str = ''
-    ConfigModel: type[BaseModel] = EmptyConfig
 
     @classmethod
     def config_schema(cls) -> dict[str, object]:

@@ -67,7 +67,6 @@ class CloudflareProvider(DDNSProvider[CloudflareConfig]):
 
     key = 'cloudflare'
     display_name = 'Cloudflare'
-    ConfigModel = CloudflareConfig
 
     async def _send(
         self, session: aiohttp.ClientSession, method: str, url: str,
