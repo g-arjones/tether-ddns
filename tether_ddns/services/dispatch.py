@@ -1,7 +1,7 @@
 """Hook event dispatch as a context-owning service."""
 from __future__ import annotations
 
-from tether_ddns.config import HookConfig
+from tether_ddns.config_store import HookConfig
 from tether_ddns.context import AppContext
 from tether_ddns.hooks.base import EVENT_SPECS, HOOK_REGISTRY, HookEventBase
 from tether_ddns.logging_setup import get_logger

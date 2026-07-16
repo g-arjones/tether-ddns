@@ -9,7 +9,7 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
 from tether_ddns.api import register_routes
-from tether_ddns.config import ConfigStore
+from tether_ddns.config_store import ConfigStore
 from tether_ddns.context import AppContext
 from tether_ddns.hooks.base import load_hooks
 from tether_ddns.ip_sources.base import load_ip_sources
@@ -31,13 +31,12 @@ _STATIC_DIR = Path(__file__).parent / 'static'
 
 
 def create_app(
-    store: ConfigStore | None = None,
+    config_store: ConfigStore | None = None,
     state_store: StateStore | None = None,
 ) -> FastAPI:
     """Create the configured FastAPI application."""
-    resolved_store = store if store is not None else ConfigStore()
-    resolved_state_store = (
-        state_store if state_store is not None else StateStore())
+    resolved_config_store = config_store if config_store is not None else ConfigStore()
+    resolved_state_store = (state_store if state_store is not None else StateStore())
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
@@ -47,7 +46,7 @@ def create_app(
         load_providers()
         load_hooks()
         load_ip_sources()
-        config = resolved_store.load()
+        config = resolved_config_store.load()
         runtime = RuntimeState()
         persisted = resolved_state_store.load()
         if persisted is not None:
@@ -56,14 +55,14 @@ def create_app(
         manager = ConnectionManager()
         handler.add_listener(lambda rec: manager.sync_broadcast('log', rec))
         runtime.add_listener(lambda snap: manager.sync_broadcast('state', snap))
-        ctx = AppContext(config, runtime, resolved_store, resolved_state_store, manager)
+        ctx = AppContext(config, runtime, resolved_config_store, resolved_state_store, manager)
         dispatch = DispatchService(ctx)
         sync = SyncService(ctx, dispatch)
         scheduler = Scheduler(ctx, sync, dispatch, ReachabilityProbe())
         scheduler.start()
         if config.settings.update_on_startup:
             scheduler.run_startup_check()
-        app.state.store = resolved_store
+        app.state.store = resolved_config_store
         app.state.state_store = resolved_state_store
         app.state.config = config
         app.state.runtime = runtime

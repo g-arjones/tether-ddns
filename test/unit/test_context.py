@@ -2,7 +2,7 @@
 from pathlib import Path
 from unittest.mock import MagicMock
 
-from tether_ddns.config import AppConfig, ConfigStore
+from tether_ddns.config_store import AppConfig, ConfigStore
 from tether_ddns.context import AppContext
 from tether_ddns.runtime import RuntimeState
 from tether_ddns.state_store import StateStore
@@ -43,7 +43,7 @@ def test_persist_state_writes_runtime(tmp_path: Path) -> None:
     ctx = AppContext(
         config=AppConfig(),
         runtime=runtime,
-        store=ConfigStore(tmp_path / 'cfg.json'),
+        config_store=ConfigStore(tmp_path / 'cfg.json'),
         state_store=state_store,
         manager=ConnectionManager(),
     )

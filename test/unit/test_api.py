@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, patch
 from fastapi.testclient import TestClient
 
 from tether_ddns.app import create_app
-from tether_ddns.config import AppConfig, ConfigStore, DomainConfig
+from tether_ddns.config_store import AppConfig, ConfigStore, DomainConfig
 from tether_ddns.reachability import ReachabilityResult
 from tether_ddns.runtime import RuntimeState
 from tether_ddns.state_store import StateStore
@@ -36,7 +36,7 @@ def test_restores_domain_status_on_startup(tmp_path: Path) -> None:
     state_store = StateStore(tmp_path / 'state.json')
     state_store.save(seeded)
 
-    app = create_app(store=store, state_store=state_store)
+    app = create_app(config_store=store, state_store=state_store)
     with TestClient(app):
         runtime: RuntimeState = app.state.runtime
         assert runtime.domains['a'].status == 'synced'

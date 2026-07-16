@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from fastapi import HTTPException
 
-from tether_ddns.config import DomainConfig
+from tether_ddns.config_store import DomainConfig
 from tether_ddns.context import AppContext
 from tether_ddns.hooks.base import (
     DomainUpdateErrorEvent, DomainUpdatePendingEvent,

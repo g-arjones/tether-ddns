@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from tether_ddns.config import AppConfig, ConfigStore, DomainConfig
+from tether_ddns.config_store import AppConfig, ConfigStore, DomainConfig
 
 
 def test_resolve_path_uses_env(

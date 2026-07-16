@@ -3,7 +3,7 @@ import time
 from collections import deque
 from typing import cast
 
-from tether_ddns.config import AppConfig, DomainConfig
+from tether_ddns.config_store import AppConfig, DomainConfig
 from tether_ddns.reachability import ReachabilityResult, ResolverProbe
 from tether_ddns.runtime import (
     CheckRecord,

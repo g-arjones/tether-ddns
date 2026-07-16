@@ -7,7 +7,7 @@ from typing import Callable, Literal, cast
 
 from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, field_validator
 
-from tether_ddns.config import AppConfig, DomainConfig
+from tether_ddns.config_store import AppConfig, DomainConfig
 from tether_ddns.reachability import ReachabilityResult, ResolverProbe
 
 Status = Literal['synced', 'pending', 'error', 'updating']

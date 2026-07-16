@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from tether_ddns.config import AppConfig, DomainConfig
+from tether_ddns.config_store import AppConfig, DomainConfig
 from tether_ddns.context import AppContext
 from tether_ddns.providers.base import load_providers
 from tether_ddns.runtime import RuntimeState

@@ -3,7 +3,7 @@ from fastapi import HTTPException
 
 import pytest
 
-from tether_ddns.config import DomainConfig
+from tether_ddns.config_store import DomainConfig
 from tether_ddns.services.collection import find_or_404
 
 

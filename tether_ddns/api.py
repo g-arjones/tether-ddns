@@ -9,7 +9,7 @@ from fastapi import APIRouter, FastAPI, HTTPException, WebSocket, WebSocketDisco
 
 from pydantic import BaseModel, ConfigDict
 
-from tether_ddns.config import (
+from tether_ddns.config_store import (
     AppSettings,
     DomainConfig,
     HookConfig,

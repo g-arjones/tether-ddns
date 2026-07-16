@@ -8,7 +8,7 @@ from pydantic import BaseModel
 import pytest
 
 from tether_ddns import scheduler
-from tether_ddns.config import AppConfig, DomainConfig, HookConfig
+from tether_ddns.config_store import AppConfig, DomainConfig, HookConfig
 from tether_ddns.context import AppContext
 from tether_ddns.hooks.base import (
     IpChangedEvent, ReachabilityChangedEvent, load_hooks)

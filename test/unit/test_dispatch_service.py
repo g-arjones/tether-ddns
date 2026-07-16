@@ -3,7 +3,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from tether_ddns.config import AppConfig, HookConfig
+from tether_ddns.config_store import AppConfig, HookConfig
 from tether_ddns.context import AppContext
 from tether_ddns.hooks.base import HOOK_REGISTRY, ReachabilityChangedEvent
 from tether_ddns.runtime import RuntimeState

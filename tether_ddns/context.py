@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from tether_ddns.config import AppConfig, ConfigStore
+from tether_ddns.config_store import AppConfig, ConfigStore
 from tether_ddns.runtime import RuntimeState
 from tether_ddns.state_store import StateStore
 from tether_ddns.ws import ConnectionManager
@@ -15,13 +15,13 @@ class AppContext:
 
     config: AppConfig
     runtime: RuntimeState
-    store: ConfigStore
+    config_store: ConfigStore
     state_store: StateStore
     manager: ConnectionManager
 
     def persist(self) -> None:
         """Save the current configuration to disk."""
-        self.store.save(self.config)
+        self.config_store.save(self.config)
 
     def persist_state(self) -> None:
         """Save the current runtime state to disk."""
