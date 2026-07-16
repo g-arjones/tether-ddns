@@ -2,18 +2,19 @@
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from pydantic import BaseModel, SecretStr
+from pydantic import SecretStr
 
 import pytest
 
 from tether_ddns.providers.ddns_providers.cloudflare import (
+    CloudflareConfig,
     CloudflareProvider,
     zone_matches,
 )
 
 
-def _cfg(proxied: bool = False, ttl: int = 1) -> BaseModel:
-    return CloudflareProvider.ConfigModel(
+def _cfg(proxied: bool = False, ttl: int = 1) -> CloudflareConfig:
+    return CloudflareConfig(
         api_token=SecretStr('tok'), proxied=proxied, ttl=ttl)
 
 
