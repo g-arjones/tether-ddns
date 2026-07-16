@@ -1,12 +1,11 @@
 """A hook that logs each event it receives."""
 from __future__ import annotations
 
-from pydantic import BaseModel
-
 from tether_ddns.hooks.base import (
     DomainUpdateErrorEvent,
     DomainUpdatePendingEvent,
     DomainUpdateSuccessEvent,
+    EmptyConfig,
     Hook,
     IpChangedEvent,
     ReachabilityChangedEvent,
@@ -18,21 +17,21 @@ _log = get_logger()
 
 
 @register_hook
-class LogHook(Hook):
+class LogHook(Hook[EmptyConfig]):
     """Logs event details at INFO level."""
 
     key = 'log'
     display_name = 'Log Event'
 
     async def on_ip_changed(
-            self, event: IpChangedEvent, config: BaseModel) -> None:
+            self, event: IpChangedEvent, config: EmptyConfig) -> None:
         """Log the IP transition."""
         _log.info(
             'Hook event ip_changed (%s): %s -> %s',
             event.family, event.old_ip, event.new_ip)
 
     async def on_reachability_changed(
-            self, event: ReachabilityChangedEvent, config: BaseModel) -> None:
+            self, event: ReachabilityChangedEvent, config: EmptyConfig) -> None:
         """Log the reachability transition."""
         _log.info(
             'Hook event reachability_changed: %s -> %s',
@@ -40,7 +39,7 @@ class LogHook(Hook):
 
     async def on_domain_update_pending(
             self, event: DomainUpdatePendingEvent,
-            config: BaseModel) -> None:
+            config: EmptyConfig) -> None:
         """Log a domain update pending."""
         _log.info(
             'Hook event domain_update_pending: %s %s/%s (%s) current_ip=%s',
@@ -49,7 +48,7 @@ class LogHook(Hook):
 
     async def on_domain_update_success(
             self, event: DomainUpdateSuccessEvent,
-            config: BaseModel) -> None:
+            config: EmptyConfig) -> None:
         """Log a successful domain update."""
         _log.info(
             'Hook event domain_update_success: %s %s/%s (%s) -> %s',
@@ -58,7 +57,7 @@ class LogHook(Hook):
 
     async def on_domain_update_error(
             self, event: DomainUpdateErrorEvent,
-            config: BaseModel) -> None:
+            config: EmptyConfig) -> None:
         """Log a failed domain update."""
         _log.info(
             'Hook event domain_update_error: %s %s/%s (%s) ip=%s message=%s',
