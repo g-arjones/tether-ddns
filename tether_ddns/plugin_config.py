@@ -35,4 +35,7 @@ class ConfigModelMixin:
     def __init_subclass__(cls, **kwargs: object) -> None:
         """Derive ConfigModel from the specialized generic base, if any."""
         super().__init_subclass__(**kwargs)
+        # A non-specializing subclass re-derives its parent's model via the
+        # inherited __orig_bases__, so cls.ConfigModel is only the fallback for
+        # a class with no ConfigModelMixin-typed generic base at all.
         cls.ConfigModel = derive_config_model(cls, cls.ConfigModel)
