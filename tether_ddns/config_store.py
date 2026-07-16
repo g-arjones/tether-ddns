@@ -10,7 +10,7 @@ from uuid import uuid4
 from pydantic import BaseModel, Field
 
 ENV_VAR = 'TETHER_DDNS_CONFIG_PATH'
-DEFAULT_FILENAME = 'tether-ddns.json'
+DEFAULT_FILENAME = 'tether-ddns.config.json'
 
 
 class AppSettings(BaseModel):

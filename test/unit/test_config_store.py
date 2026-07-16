@@ -21,7 +21,7 @@ def test_resolve_path_falls_back_to_cwd(
     """Without the env var, the default file in cwd is used."""
     monkeypatch.delenv('TETHER_DDNS_CONFIG_PATH', raising=False)
     monkeypatch.chdir(tmp_path)
-    assert ConfigStore.resolve_path() == tmp_path / 'tether-ddns.json'
+    assert ConfigStore.resolve_path() == tmp_path / 'tether-ddns.config.json'
 
 
 def test_load_missing_returns_defaults(tmp_path: Path) -> None:
