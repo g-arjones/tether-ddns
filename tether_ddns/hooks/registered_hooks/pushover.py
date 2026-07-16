@@ -28,43 +28,38 @@ class PushoverConfig(BaseModel):
 
 
 @register_hook
-class PushoverHook(Hook):
+class PushoverHook(Hook[PushoverConfig]):
     """Sends Pushover notifications for domain-update events."""
 
     key = 'pushover'
     display_name = 'Pushover'
-    ConfigModel = PushoverConfig
 
     async def on_domain_update_success(
-            self, event: DomainUpdateSuccessEvent, config: BaseModel) -> None:
+            self, event: DomainUpdateSuccessEvent, config: PushoverConfig) -> None:
         """Send a success notification."""
-        assert isinstance(config, PushoverConfig)
         await self._send(
             config, event.hostname,
             f'Updated {event.hostname} {event.record_type} -> {event.ip}', 0)
 
     async def on_domain_update_pending(
-            self, event: DomainUpdatePendingEvent, config: BaseModel) -> None:
+            self, event: DomainUpdatePendingEvent, config: PushoverConfig) -> None:
         """Send a staleness notification."""
-        assert isinstance(config, PushoverConfig)
         await self._send(
             config, event.hostname,
             f'{event.hostname} {event.record_type} is stale '
             f'(current IP {event.current_ip})', 0)
 
     async def on_domain_update_error(
-            self, event: DomainUpdateErrorEvent, config: BaseModel) -> None:
+            self, event: DomainUpdateErrorEvent, config: PushoverConfig) -> None:
         """Send a high-priority failure notification."""
-        assert isinstance(config, PushoverConfig)
         await self._send(
             config, event.hostname,
             f'Failed to update {event.hostname} {event.record_type}: '
             f'{event.message}', 1)
 
     async def on_reachability_changed(
-            self, event: ReachabilityChangedEvent, config: BaseModel) -> None:
+            self, event: ReachabilityChangedEvent, config: PushoverConfig) -> None:
         """Send a reachability change notification."""
-        assert isinstance(config, PushoverConfig)
         await self._send(
             config, 'Reachability changed',
             f'Reachability changed to {"online" if event.online else "offline"}', 1)

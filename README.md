@@ -152,20 +152,21 @@ class MyConfig(BaseModel):
 
 
 @register_provider
-class MyProvider(DDNSProvider):
+class MyProvider(DDNSProvider[MyConfig]):
     key = 'myprovider'
     display_name = 'My Provider'
-    ConfigModel = MyConfig
 
     async def update(
-        self, hostname: str, record_type: str, ip: str, config: BaseModel,
+        self, hostname: str, record_type: str, ip: str, config: MyConfig,
     ) -> str:
-        assert isinstance(config, MyConfig)
         # ...perform the update...
         if not success:
             raise TetherError('Update failed: provider returned error')
         return ip
 ```
+
+The config type is taken from the `DDNSProvider[...]` generic argument — no
+separate `ConfigModel` attribute is needed.
 
 ### Add a hook
 
@@ -177,8 +178,12 @@ from tether_ddns.hooks.base import (
     Hook, IpChangedEvent, ReachabilityChangedEvent, register_hook)
 
 
+class MyHookConfig(BaseModel):
+    ...
+
+
 @register_hook
-class MyHook(Hook):
+class MyHook(Hook[MyHookConfig]):
     key = 'myhook'
     display_name = 'My Hook'
 
@@ -186,15 +191,19 @@ class MyHook(Hook):
     # supports are inferred from which on_* methods it overrides; the UI only
     # offers those, and the scheduler never dispatches an unsupported event.
     async def on_ip_changed(
-            self, event: IpChangedEvent, config: BaseModel) -> None:
+            self, event: IpChangedEvent, config: MyHookConfig) -> None:
         # react to a public IP change (event.new_ip, event.family)
         ...
 
     async def on_reachability_changed(
-            self, event: ReachabilityChangedEvent, config: BaseModel) -> None:
+            self, event: ReachabilityChangedEvent,
+            config: MyHookConfig) -> None:
         # react to an online/offline transition (event.online)
         ...
 ```
+
+As with providers, the config type comes from the `Hook[...]` generic argument;
+there is no separate `ConfigModel` attribute to declare.
 
 Hooks may also override `on_domain_update_pending`, `on_domain_update_success`,
 and `on_domain_update_error` to react to a specific domain's update outcome.

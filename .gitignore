@@ -9,5 +9,5 @@ tether_ddns/static/
 frontend/coverage/
 frontend/playwright-report/
 frontend/test-results/
-tether-ddns.json
+tether-ddns.config.json
 tether-ddns.state.json

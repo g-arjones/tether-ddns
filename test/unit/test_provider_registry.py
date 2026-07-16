@@ -1,6 +1,4 @@
 """Tests for the DDNS provider registry and auto-loader."""
-from pydantic import BaseModel
-
 import pytest
 
 from tether_ddns.providers import base
@@ -9,12 +7,13 @@ from tether_ddns.providers import base
 def test_register_provider_adds_to_registry() -> None:
     """The decorator registers a provider by its key."""
     @base.register_provider
-    class _Dummy(base.DDNSProvider):
+    class _Dummy(base.DDNSProvider[base.EmptyConfig]):
         key = 'dummy'
         display_name = 'Dummy'
 
         async def update(
-            self, hostname: str, record_type: str, ip: str, config: BaseModel,
+            self, hostname: str, record_type: str, ip: str,
+            config: base.EmptyConfig,
         ) -> str:
             return ip
 
@@ -39,12 +38,13 @@ async def test_config_schema_returns_json_schema() -> None:
 def test_default_config_model_is_empty_config() -> None:
     """Providers that omit ConfigModel default to EmptyConfig, not bare BaseModel."""
     @base.register_provider
-    class _NoConfig(base.DDNSProvider):
+    class _NoConfig(base.DDNSProvider[base.EmptyConfig]):
         key = 'noconfig'
         display_name = 'NoConfig'
 
         async def update(
-            self, hostname: str, record_type: str, ip: str, config: BaseModel,
+            self, hostname: str, record_type: str, ip: str,
+            config: base.EmptyConfig,
         ) -> str:
             return ip
 

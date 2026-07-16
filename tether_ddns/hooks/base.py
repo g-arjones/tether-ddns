@@ -6,28 +6,25 @@ import pkgutil
 from abc import ABC
 from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Literal, TYPE_CHECKING
+from typing import Any, Literal, TYPE_CHECKING
 
 from pydantic import BaseModel
 
 from tether_ddns.ip_sources.base import IPFamily
 from tether_ddns.logging_setup import get_logger
+from tether_ddns.plugin_config import ConfigModelMixin, EmptyConfig as EmptyConfig  # noqa: F401
 
 if TYPE_CHECKING:
     from tether_ddns.context import AppContext
 
 _log = get_logger()
 
-HOOK_REGISTRY: dict[str, type['Hook']] = {}
+HOOK_REGISTRY: dict[str, type['Hook[Any]']] = {}
 
 
 def family_for(record_type: str) -> IPFamily:
     """Return the IP family a record type resolves against."""
     return 'ipv6' if record_type == 'AAAA' else 'ipv4'
-
-
-class EmptyConfig(BaseModel):
-    """Default configuration for hooks that need no settings."""
 
 
 class HookEventBase(BaseModel):
@@ -166,12 +163,11 @@ EVENT_SPECS: dict[str, EventSpec] = {
 }
 
 
-class Hook(ABC):
+class Hook[ConfigT: BaseModel](ConfigModelMixin, ABC):  # noqa: D101
     """Base class for hook plugins."""
 
     key: str = ''
     display_name: str = ''
-    ConfigModel: type[BaseModel] = EmptyConfig
 
     @classmethod
     def config_schema(cls) -> dict[str, object]:
@@ -179,26 +175,26 @@ class Hook(ABC):
         return cls.ConfigModel.model_json_schema()
 
     async def on_ip_changed(
-            self, event: IpChangedEvent, config: BaseModel) -> None:
+            self, event: IpChangedEvent, config: ConfigT) -> None:
         """Handle an IP change. Override to react; default is a no-op."""
 
     async def on_reachability_changed(
-            self, event: ReachabilityChangedEvent, config: BaseModel) -> None:
+            self, event: ReachabilityChangedEvent, config: ConfigT) -> None:
         """Handle a reachability change. Override to react; default no-op."""
 
     async def on_domain_update_pending(
             self, event: DomainUpdatePendingEvent,
-            config: BaseModel) -> None:
+            config: ConfigT) -> None:
         """Handle a domain becoming stale. Override to react; default no-op."""
 
     async def on_domain_update_success(
             self, event: DomainUpdateSuccessEvent,
-            config: BaseModel) -> None:
+            config: ConfigT) -> None:
         """Handle a successful domain update. Default no-op."""
 
     async def on_domain_update_error(
             self, event: DomainUpdateErrorEvent,
-            config: BaseModel) -> None:
+            config: ConfigT) -> None:
         """Handle a failed domain update. Default no-op."""
 
     @classmethod
@@ -211,12 +207,12 @@ class Hook(ABC):
 
     async def handle(
             self, event_key: str, event: HookEventBase,
-            config: BaseModel) -> None:
+            config: ConfigT) -> None:
         """Route an event to the matching on_* handler."""
         await getattr(self, EVENT_SPECS[event_key].method)(event, config)
 
 
-def register_hook(cls: type[Hook]) -> type[Hook]:
+def register_hook[C: Hook[Any]](cls: type[C]) -> type[C]:  # noqa: D103
     """Register a hook class in the global registry."""
     HOOK_REGISTRY[cls.key] = cls
     return cls

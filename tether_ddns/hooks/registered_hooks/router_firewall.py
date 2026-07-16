@@ -245,20 +245,18 @@ def encode_apply_body(payload: dict[str, str], token: str) -> str:
 
 
 @register_hook
-class RouterFirewallHook(Hook):
+class RouterFirewallHook(Hook[RouterFirewallConfig]):
     """Updates a ZTE F6600P firewall IP-filter rule on public IP change."""
 
     key = 'router_firewall'
     display_name = 'Router Firewall (ZTE)'
-    ConfigModel = RouterFirewallConfig
 
     _XHR_HEADERS = {'X-Requested-With': 'XMLHttpRequest'}
     _DATA_TAG = 'firewall_ipfilter_lua.lua'
 
     async def on_ip_changed(
-            self, event: IpChangedEvent, config: BaseModel) -> None:
+            self, event: IpChangedEvent, config: RouterFirewallConfig) -> None:
         """Update the configured firewall rule to the new public IP."""
-        assert isinstance(config, RouterFirewallConfig)
         ip = event.new_ip
         if event.family != config.ip_version:
             return

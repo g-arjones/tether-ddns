@@ -4,26 +4,23 @@ from __future__ import annotations
 import importlib
 import pkgutil
 from abc import ABC, abstractmethod
+from typing import Any
 
 from pydantic import BaseModel
 
 from tether_ddns.logging_setup import get_logger
+from tether_ddns.plugin_config import ConfigModelMixin, EmptyConfig as EmptyConfig  # noqa: F401
 
 _log = get_logger()
 
-PROVIDER_REGISTRY: dict[str, type['DDNSProvider']] = {}
+PROVIDER_REGISTRY: dict[str, type['DDNSProvider[Any]']] = {}
 
 
-class EmptyConfig(BaseModel):
-    """Default provider config model for providers without configuration."""
-
-
-class DDNSProvider(ABC):
+class DDNSProvider[ConfigT: BaseModel](ConfigModelMixin, ABC):  # noqa: D101
     """Base class for DDNS provider plugins."""
 
     key: str = ''
     display_name: str = ''
-    ConfigModel: type[BaseModel] = EmptyConfig
 
     @classmethod
     def config_schema(cls) -> dict[str, object]:
@@ -32,13 +29,13 @@ class DDNSProvider(ABC):
 
     @abstractmethod
     async def update(
-        self, hostname: str, record_type: str, ip: str, config: BaseModel,
+        self, hostname: str, record_type: str, ip: str, config: ConfigT,
     ) -> str:
         """Update the DNS record and return the assigned IP; raise on failure."""
         raise NotImplementedError
 
 
-def register_provider(cls: type[DDNSProvider]) -> type[DDNSProvider]:
+def register_provider[C: DDNSProvider[Any]](cls: type[C]) -> type[C]:  # noqa: D103
     """Register a provider class in the global registry."""
     PROVIDER_REGISTRY[cls.key] = cls
     return cls

@@ -19,18 +19,16 @@ class DuckDNSConfig(BaseModel):
 
 
 @register_provider
-class DuckDNSProvider(DDNSProvider):
+class DuckDNSProvider(DDNSProvider[DuckDNSConfig]):
     """Updates DuckDNS records via its HTTP API."""
 
     key = 'duckdns'
     display_name = 'DuckDNS'
-    ConfigModel = DuckDNSConfig
 
     async def update(
-        self, hostname: str, record_type: str, ip: str, config: BaseModel,
+        self, hostname: str, record_type: str, ip: str, config: DuckDNSConfig,
     ) -> str:
         """Update the DuckDNS record for the given hostname."""
-        assert isinstance(config, DuckDNSConfig)
         url = 'https://www.duckdns.org/update'
         params = {
             'domains': hostname,

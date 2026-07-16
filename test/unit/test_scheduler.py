@@ -3,8 +3,6 @@ import asyncio
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from pydantic import BaseModel
-
 import pytest
 
 from tether_ddns import scheduler
@@ -302,17 +300,17 @@ async def test_sync_ips_updates_families_and_syncs_by_record_type() -> None:
 @pytest.mark.asyncio
 async def test_dispatch_skips_unsupported_event() -> None:
     """A hook is not invoked for an event it does not support, even if enabled."""
-    from tether_ddns.hooks.base import HOOK_REGISTRY, Hook, register_hook
+    from tether_ddns.hooks.base import HOOK_REGISTRY, EmptyConfig, Hook, register_hook
 
     calls: list[str] = []
 
     @register_hook
-    class _SpyHook(Hook):
+    class _SpyHook(Hook[EmptyConfig]):
         key = '_spy'
         display_name = 'Spy'
 
         async def on_ip_changed(
-                self, event: IpChangedEvent, config: BaseModel) -> None:
+                self, event: IpChangedEvent, config: EmptyConfig) -> None:
             calls.append('ip_changed')
 
     try:
@@ -335,22 +333,22 @@ async def test_dispatch_skips_unsupported_event() -> None:
 @pytest.mark.asyncio
 async def test_run_hook_now_fires_per_known_ip_family() -> None:
     """ip_changed fires once per known IP family with current values."""
-    from tether_ddns.hooks.base import HOOK_REGISTRY, Hook, register_hook
+    from tether_ddns.hooks.base import HOOK_REGISTRY, EmptyConfig, Hook, register_hook
 
     calls: list[tuple[str, object, object]] = []
 
     @register_hook
-    class _SpyRun(Hook):
+    class _SpyRun(Hook[EmptyConfig]):
         key = '_spyrun'
         display_name = 'SpyRun'
 
         async def on_ip_changed(
-                self, event: IpChangedEvent, config: BaseModel) -> None:
+                self, event: IpChangedEvent, config: EmptyConfig) -> None:
             calls.append(('ip_changed', event.old_ip, event.new_ip))
 
         async def on_reachability_changed(
                 self, event: ReachabilityChangedEvent,
-                config: BaseModel) -> None:
+                config: EmptyConfig) -> None:
             calls.append(('reachability_changed', event.online, event.online))
 
     try:
@@ -375,17 +373,17 @@ async def test_run_hook_now_fires_per_known_ip_family() -> None:
 @pytest.mark.asyncio
 async def test_run_hook_now_skips_ip_changed_when_no_ip() -> None:
     """ip_changed is skipped and reported when no IP is known."""
-    from tether_ddns.hooks.base import HOOK_REGISTRY, Hook, register_hook
+    from tether_ddns.hooks.base import HOOK_REGISTRY, EmptyConfig, Hook, register_hook
 
     ran: list[str] = []
 
     @register_hook
-    class _SpyNoIp(Hook):
+    class _SpyNoIp(Hook[EmptyConfig]):
         key = '_spynoip'
         display_name = 'SpyNoIp'
 
         async def on_ip_changed(
-                self, event: IpChangedEvent, config: BaseModel) -> None:
+                self, event: IpChangedEvent, config: EmptyConfig) -> None:
             ran.append('ip_changed')
 
     try:
@@ -404,17 +402,17 @@ async def test_run_hook_now_skips_ip_changed_when_no_ip() -> None:
 @pytest.mark.asyncio
 async def test_run_hook_now_ignores_unsupported_enabled_event() -> None:
     """An enabled-but-unsupported event is neither run nor reported as skipped."""
-    from tether_ddns.hooks.base import HOOK_REGISTRY, Hook, register_hook
+    from tether_ddns.hooks.base import HOOK_REGISTRY, EmptyConfig, Hook, register_hook
 
     ran: list[str] = []
 
     @register_hook
-    class _SpyUnsup(Hook):
+    class _SpyUnsup(Hook[EmptyConfig]):
         key = '_spyunsup'
         display_name = 'SpyUnsup'
 
         async def on_ip_changed(
-                self, event: IpChangedEvent, config: BaseModel) -> None:
+                self, event: IpChangedEvent, config: EmptyConfig) -> None:
             ran.append('ip_changed')
 
     try:
@@ -624,18 +622,20 @@ async def test_sync_ips_no_event_without_transition() -> None:
 @pytest.mark.asyncio
 async def test_run_hook_now_domain_update_error_matches_state() -> None:
     """Run-now for domain_update_error fires only for error domains, with message."""
-    from tether_ddns.hooks.base import HOOK_REGISTRY, Hook, register_hook
+    from tether_ddns.hooks.base import (
+        HOOK_REGISTRY, DomainUpdateErrorEvent, EmptyConfig, Hook, register_hook)
 
     seen: list[tuple[str, str]] = []
 
     @register_hook
-    class _SpyErr(Hook):  # pyright: ignore[reportUnusedClass]
+    class _SpyErr(Hook[EmptyConfig]):  # pyright: ignore[reportUnusedClass]
         key = '_spyerr'
         display_name = 'SpyErr'
 
         async def on_domain_update_error(
-                self, event: object, config: object) -> None:
-            seen.append((event.domain_id, event.message))  # type: ignore[attr-defined]
+                self, event: DomainUpdateErrorEvent,
+                config: EmptyConfig) -> None:
+            seen.append((event.domain_id, event.message))
 
     try:
         cfg = AppConfig(
@@ -660,18 +660,21 @@ async def test_run_hook_now_domain_update_error_matches_state() -> None:
 @pytest.mark.asyncio
 async def test_run_hook_now_domain_update_success_matches_state() -> None:
     """Run-now for domain_update_success fires only for synced domains with ip."""
-    from tether_ddns.hooks.base import HOOK_REGISTRY, Hook, register_hook
+    from tether_ddns.hooks.base import (
+        HOOK_REGISTRY, DomainUpdateSuccessEvent, EmptyConfig, Hook,
+        register_hook)
 
     seen: list[str] = []
 
     @register_hook
-    class _SpyOk(Hook):  # pyright: ignore[reportUnusedClass]
+    class _SpyOk(Hook[EmptyConfig]):  # pyright: ignore[reportUnusedClass]
         key = '_spyok'
         display_name = 'SpyOk'
 
         async def on_domain_update_success(
-                self, event: object, config: object) -> None:
-            seen.append(event.ip)  # type: ignore[attr-defined]
+                self, event: DomainUpdateSuccessEvent,
+                config: EmptyConfig) -> None:
+            seen.append(event.ip)
 
     try:
         cfg = AppConfig(
@@ -696,18 +699,21 @@ async def test_run_hook_now_domain_update_success_matches_state() -> None:
 @pytest.mark.asyncio
 async def test_run_hook_now_domain_update_pending_matches_state() -> None:
     """Run-now for domain_update_pending fires for pending domains with current_ip."""
-    from tether_ddns.hooks.base import HOOK_REGISTRY, Hook, register_hook
+    from tether_ddns.hooks.base import (
+        HOOK_REGISTRY, DomainUpdatePendingEvent, EmptyConfig, Hook,
+        register_hook)
 
     seen: list[tuple[str, str | None]] = []
 
     @register_hook
-    class _SpyPend(Hook):  # pyright: ignore[reportUnusedClass]
+    class _SpyPend(Hook[EmptyConfig]):  # pyright: ignore[reportUnusedClass]
         key = '_spypend'
         display_name = 'SpyPend'
 
         async def on_domain_update_pending(
-                self, event: object, config: object) -> None:
-            seen.append((event.domain_id, event.current_ip))  # type: ignore[attr-defined]
+                self, event: DomainUpdatePendingEvent,
+                config: EmptyConfig) -> None:
+            seen.append((event.domain_id, event.current_ip))
 
     try:
         cfg = AppConfig(
@@ -732,18 +738,21 @@ async def test_run_hook_now_domain_update_pending_matches_state() -> None:
 @pytest.mark.asyncio
 async def test_run_hook_now_success_skips_synced_without_ip() -> None:
     """A synced domain with no known ip is skipped for domain_update_success."""
-    from tether_ddns.hooks.base import HOOK_REGISTRY, Hook, register_hook
+    from tether_ddns.hooks.base import (
+        HOOK_REGISTRY, DomainUpdateSuccessEvent, EmptyConfig, Hook,
+        register_hook)
 
     seen: list[str] = []
 
     @register_hook
-    class _SpyNoIp(Hook):  # pyright: ignore[reportUnusedClass]
+    class _SpyNoIp(Hook[EmptyConfig]):  # pyright: ignore[reportUnusedClass]
         key = '_spynoipok'
         display_name = 'SpyNoIpOk'
 
         async def on_domain_update_success(
-                self, event: object, config: object) -> None:
-            seen.append(event.ip)  # type: ignore[attr-defined]
+                self, event: DomainUpdateSuccessEvent,
+                config: EmptyConfig) -> None:
+            seen.append(event.ip)
 
     try:
         cfg = AppConfig(
