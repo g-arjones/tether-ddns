@@ -53,11 +53,14 @@ async def test_check_uses_query_dns(monkeypatch: pytest.MonkeyPatch) -> None:
         def __init__(self, nameservers: list[str]) -> None:
             self.nameservers = nameservers
 
+        async def __aenter__(self) -> '_FakeResolver':
+            return self
+
+        async def __aexit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+            return None
+
         async def query_dns(self, host: str, qtype: str) -> object:
             return object()
-
-        async def close(self) -> None:
-            return None
 
     monkeypatch.setattr('tether_ddns.reachability.aiodns.DNSResolver', _FakeResolver)
     result = await service.check()

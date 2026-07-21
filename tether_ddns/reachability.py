@@ -56,23 +56,19 @@ class ReachabilityProbe:
 
     async def _query_one(self, resolver_ip: str) -> ResolverProbe:
         """Resolve against one resolver, returning a timed probe."""
-        resolver = aiodns.DNSResolver(nameservers=[resolver_ip])
-        start = time.perf_counter()
-        try:
-            await asyncio.wait_for(
-                resolver.query_dns(self._query_host, 'A'), timeout=self._timeout)
-        except asyncio.TimeoutError:
-            return ResolverProbe(ip=resolver_ip, ok=False)
-        except aiodns.error.DNSError:
-            return ResolverProbe(ip=resolver_ip, ok=False)
-        except Exception:  # noqa: BLE001 - one bad resolver must not kill the check
-            return ResolverProbe(ip=resolver_ip, ok=False)
-        finally:
-            # Drain pending c-ares queries while the loop is still alive so a
-            # late callback cannot fire on a closed loop.
-            await resolver.close()
-        latency_ms = (time.perf_counter() - start) * 1000
-        return ResolverProbe(ip=resolver_ip, ok=True, latency_ms=latency_ms)
+        async with aiodns.DNSResolver(nameservers=[resolver_ip]) as resolver:
+            start = time.perf_counter()
+            try:
+                await asyncio.wait_for(
+                    resolver.query_dns(self._query_host, 'A'), timeout=self._timeout)
+            except asyncio.TimeoutError:
+                return ResolverProbe(ip=resolver_ip, ok=False)
+            except aiodns.error.DNSError:
+                return ResolverProbe(ip=resolver_ip, ok=False)
+            except Exception:  # noqa: BLE001 - one bad resolver must not kill the check
+                return ResolverProbe(ip=resolver_ip, ok=False)
+            latency_ms = (time.perf_counter() - start) * 1000
+            return ResolverProbe(ip=resolver_ip, ok=True, latency_ms=latency_ms)
 
     async def check(self) -> ReachabilityResult:
         """Query all resolvers concurrently and evaluate the quorum."""
