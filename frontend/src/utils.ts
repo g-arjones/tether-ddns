@@ -16,22 +16,38 @@ export function providerColor(key: string): string {
   return `hsl(${deriveHue(key)} 65% 55%)`;
 }
 
-function hms(totalSeconds: number): string {
-  const s = Math.max(0, Math.floor(totalSeconds));
-  const h = Math.floor(s / 3600);
-  const m = Math.floor((s % 3600) / 60);
-  if (h > 0) return `${h}h ${m}m`;
-  if (m > 0) return `${m}m`;
-  return `${s}s`;
+function humanTime(totalSeconds: number): string {
+  const months = Math.floor(totalSeconds / (3600 * 24 * 30));
+  const days = Math.floor((totalSeconds % (3600 * 24 * 30)) / (3600 * 24));
+  const hours = Math.floor((totalSeconds % (3600 * 24)) / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = Math.floor(totalSeconds % 60);
+  if (months > 0) {
+    if (days > 0) return `${months}mo ${days}d`;
+    return `${months}mo`;
+  }
+  if (days > 0) {
+    if (hours > 0) return `${days}d ${hours}h`;
+    return `${days}d`;
+  }
+  if (hours > 0) {
+    if (minutes > 0) return `${hours}h ${minutes}m`;
+    return `${hours}h`;
+  }
+  if (minutes > 0) {
+    if (seconds > 0) return `${minutes}m ${seconds}s`;
+    return `${minutes}m`;
+  }
+  return `${seconds}s`;
 }
 
 export function formatUptime(startedAt: number, now: number = Date.now()): string {
-  return hms(now / 1000 - startedAt);
+  return humanTime(now / 1000 - startedAt);
 }
 
 export function relStable(changedAt: number | null, now: number = Date.now()): string {
   if (changedAt == null) return '—';
-  return hms(now / 1000 - changedAt);
+  return humanTime(now / 1000 - changedAt);
 }
 
 export function formatCountdown(nextCheckAt: number | null, now: number = Date.now()): string {
