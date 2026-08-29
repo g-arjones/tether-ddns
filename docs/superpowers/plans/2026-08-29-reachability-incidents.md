@@ -22,7 +22,7 @@
 - **Access protected members in tests** via `patch.object(obj, '_name')` to avoid `reportPrivateUsage`.
 - **Python venv:** `source .venv/bin/activate` from the repo root.
 - **Frontend:** run from `frontend/`. `npm test` (Vitest; `npm run lint` with oxlint runs as pretest), `npm run test:e2e` (Playwright).
-- **Retention constant:** `WINDOW_DAYS = 30`. Do not hardcode `30` or `2592000` anywhere else.
+- **Retention constant:** in Python, `WINDOW_DAYS = 30` in `tether_ddns/incidents.py` is the single source; do not hardcode `30` or `2592000` anywhere else in the package. The frontend cannot import it, so it declares its own single named constant, `DAY_BARS` in `ReachabilityPanel.tsx`; the `days` parameters in `utils.ts` default to `30` and callers pass `DAY_BARS`. Those two declarations are the only literals permitted.
 - **Timestamps are epoch seconds (floats)** everywhere in Python and in the JSON payloads. The frontend converts from `Date.now()` milliseconds at the boundary.
 
 ## File Structure
