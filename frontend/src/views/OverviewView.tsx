@@ -84,13 +84,11 @@ export function OverviewView({ snapshot, domains, settings }: OverviewViewProps)
         <StatCard label="Update Interval" value={intervalStr} sub="Check for IP changes" tint="tint-accent" icon={clockIcon} />
       </div>
       <div className="ov-grid">
-        <div>
-          <IpReadoutPanel ipv4={ipv4} ipv6={ipv6} ipv4ChangedAt={ipv4ChangedAt} ipv6ChangedAt={ipv6ChangedAt} ipSource={ipSource} />
-          <div className="panel" style={{ marginTop: '16px' }}>
-            <ReachabilityPanel reachability={reachability} incidentWindow={incidentWindow} />
-          </div>
-        </div>
+        <IpReadoutPanel ipv4={ipv4} ipv6={ipv6} ipv4ChangedAt={ipv4ChangedAt} ipv6ChangedAt={ipv6ChangedAt} ipSource={ipSource} />
         <RecordHealthPanel domains={runtimeDomains} enabledById={enabledById} nextCheckAt={nextCheckAt} checkInterval={checkInterval} />
+        <div className="panel ov-wide">
+          <ReachabilityPanel reachability={reachability} incidentWindow={incidentWindow} />
+        </div>
       </div>
     </>
   );
