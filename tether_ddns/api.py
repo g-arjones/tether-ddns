@@ -292,7 +292,8 @@ def register_routes(app: FastAPI) -> None:
         app.state.manager.register(ws)
         try:
             while True:
-                await ws.receive_text()
+                if await ws.receive_text() == 'ping':
+                    await ws.send_json({'kind': 'pong', 'payload': None})
         except WebSocketDisconnect:
             app.state.manager.disconnect(ws)
 
