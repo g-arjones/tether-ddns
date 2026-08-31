@@ -241,3 +241,64 @@ describe('LiveConnection backoff', () => {
     conn.stop();
   });
 });
+
+describe('LiveConnection heartbeat', () => {
+  it('does not ping before the socket opens', () => {
+    const conn = new LiveConnection();
+    conn.start();
+    vi.advanceTimersByTime(30_000);
+    expect(last().sent).toHaveLength(0);
+    conn.stop();
+  });
+
+  it('sends a ping every 10s while open', () => {
+    const conn = new LiveConnection();
+    conn.start();
+    last().fireOpen();
+    vi.advanceTimersByTime(10_000);
+    expect(last().sent).toEqual(['ping']);
+    vi.advanceTimersByTime(10_000);
+    expect(last().sent).toEqual(['ping', 'ping']);
+    conn.stop();
+  });
+
+  it('force-reconnects after 25s of silence even while readyState is OPEN', () => {
+    const conn = new LiveConnection({ random: () => 0.5 });
+    conn.start();
+    const zombie = last();
+    zombie.fireOpen();
+    expect(zombie.readyState).toBe(1);
+
+    vi.advanceTimersByTime(30_000);
+    expect(zombie.closed).toBe(true);
+
+    vi.advanceTimersByTime(500);
+    expect(FakeWS.instances.length).toBeGreaterThan(1);
+    conn.stop();
+  });
+
+  it('treats any inbound frame as proof of life', () => {
+    const conn = new LiveConnection();
+    conn.start();
+    const ws = last();
+    ws.fireOpen();
+    for (let i = 0; i < 6; i++) {
+      vi.advanceTimersByTime(20_000);
+      ws.fireMessage('pong', null);
+    }
+    expect(ws.closed).toBe(false);
+    conn.stop();
+  });
+
+  it('stops pinging once the socket has closed', () => {
+    const conn = new LiveConnection({ random: () => 0.5 });
+    conn.start();
+    const first = last();
+    first.fireOpen();
+    first.fireClose();
+    const sentAtClose = first.sent.length;
+    vi.advanceTimersByTime(30_000);
+    expect(first.sent).toHaveLength(sentAtClose);
+    conn.stop();
+  });
+});

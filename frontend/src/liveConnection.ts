@@ -37,6 +37,9 @@ export class LiveConnection {
   private stopped = true;
   private attempt = 0;
   private retryTimer: ReturnType<typeof setTimeout> | null = null;
+  private pingTimer: ReturnType<typeof setInterval> | null = null;
+  private watchdogTimer: ReturnType<typeof setInterval> | null = null;
+  private lastMessageAt = 0;
 
   private statusListeners = new Set<StatusListener>();
   private messageListeners = new Set<MessageListener>();
@@ -123,9 +126,11 @@ export class LiveConnection {
     this.hasConnected = true;
     this.setStatus('open');
     for (const listener of this.connectedListeners) listener(this.generationValue);
+    this.startTimers();
   }
 
   private handleMessage(event: MessageEvent): void {
+    this.lastMessageAt = Date.now();
     let envelope: Envelope;
     try {
       envelope = JSON.parse(String(event.data)) as Envelope;
@@ -160,6 +165,7 @@ export class LiveConnection {
 
   /** Detaches handlers before closing so the old socket cannot schedule work. */
   private teardownSocket(): void {
+    this.stopTimers();
     const ws = this.socket;
     this.socket = null;
     if (!ws) return;
@@ -168,5 +174,36 @@ export class LiveConnection {
     ws.onclose = null;
     ws.onerror = null;
     if (ws.readyState !== 3) ws.close();
+  }
+
+  private startTimers(): void {
+    this.stopTimers();
+    this.lastMessageAt = Date.now();
+    this.pingTimer = setInterval(() => { this.sendPing(); }, this.options.pingIntervalMs);
+    this.watchdogTimer = setInterval(() => { this.checkStale(); }, this.options.watchdogTickMs);
+  }
+
+  private stopTimers(): void {
+    if (this.pingTimer !== null) clearInterval(this.pingTimer);
+    if (this.watchdogTimer !== null) clearInterval(this.watchdogTimer);
+    this.pingTimer = null;
+    this.watchdogTimer = null;
+  }
+
+  private sendPing(): void {
+    const ws = this.socket;
+    if (!ws || ws.readyState !== SOCKET_OPEN) return;
+    try {
+      ws.send('ping');
+    } catch {
+      this.handleDrop();
+    }
+  }
+
+  /** readyState is untrustworthy on suspended iOS sockets, so age decides. */
+  private checkStale(): void {
+    if (!this.socket) return;
+    if (Date.now() - this.lastMessageAt <= this.options.staleAfterMs) return;
+    this.handleDrop();
   }
 }
