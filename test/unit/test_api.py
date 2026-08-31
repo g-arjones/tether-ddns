@@ -6,7 +6,11 @@ from unittest.mock import AsyncMock, patch
 
 from fastapi.testclient import TestClient
 
-from tether_ddns.app import create_app
+import pytest
+
+from starlette.types import Scope
+
+from tether_ddns.app import SpaStaticFiles, create_app
 from tether_ddns.config_store import AppConfig, ConfigStore, DomainConfig
 from tether_ddns.incidents import WINDOW_SECONDS
 from tether_ddns.reachability import ReachabilityResult
@@ -15,6 +19,21 @@ from tether_ddns.state_store import StateStore
 
 
 ResultFactory = Callable[[list[bool]], ReachabilityResult]
+
+
+@pytest.mark.asyncio
+async def test_spa_entry_point_revalidates_but_assets_do_not(tmp_path: Path) -> None:
+    """index.html is served no-cache while hashed assets stay cacheable."""
+    (tmp_path / 'index.html').write_text('<html></html>', encoding='utf-8')
+    (tmp_path / 'app.js').write_text('// bundle', encoding='utf-8')
+    static = SpaStaticFiles(directory=str(tmp_path), html=True)
+    scope: Scope = {'type': 'http', 'method': 'GET', 'headers': []}
+
+    html = await static.get_response('index.html', scope)
+    asset = await static.get_response('app.js', scope)
+
+    assert html.headers['cache-control'] == 'no-cache'
+    assert 'cache-control' not in asset.headers
 
 
 def _client(tmp_path: Path) -> Any:

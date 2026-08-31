@@ -8,6 +8,9 @@ from typing import AsyncGenerator
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
+from starlette.responses import Response
+from starlette.types import Scope
+
 from tether_ddns.api import register_routes
 from tether_ddns.config_store import ConfigStore
 from tether_ddns.context import AppContext
@@ -30,6 +33,22 @@ from tether_ddns.state_store import StateStore
 from tether_ddns.ws import ConnectionManager
 
 _STATIC_DIR = Path(__file__).parent / 'static'
+
+
+class SpaStaticFiles(StaticFiles):
+    """Static files that always revalidate the SPA entry point.
+
+    Asset filenames are content-hashed and safe to cache forever, but a cached
+    ``index.html`` outlives an upgrade and then references hashed bundles the
+    build has already deleted, leaving a blank page.
+    """
+
+    async def get_response(self, path: str, scope: Scope) -> Response:
+        """Add a revalidation header to HTML responses."""
+        response = await super().get_response(path, scope)
+        if response.headers.get('content-type', '').startswith('text/html'):
+            response.headers['Cache-Control'] = 'no-cache'
+        return response
 
 
 def create_app(
@@ -87,5 +106,5 @@ def create_app(
     app = FastAPI(lifespan=lifespan)
     register_routes(app)
     if _STATIC_DIR.exists():
-        app.mount('/', StaticFiles(directory=str(_STATIC_DIR), html=True), name='static')
+        app.mount('/', SpaStaticFiles(directory=str(_STATIC_DIR), html=True), name='static')
     return app
