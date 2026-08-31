@@ -302,3 +302,81 @@ describe('LiveConnection heartbeat', () => {
     conn.stop();
   });
 });
+
+function setVisibility(state: 'visible' | 'hidden'): void {
+  Object.defineProperty(document, 'visibilityState', {
+    value: state, writable: true, configurable: true,
+  });
+  document.dispatchEvent(new Event('visibilitychange'));
+}
+
+describe('LiveConnection resume', () => {
+  it('reconnects immediately when the page becomes visible and the socket is down', () => {
+    const conn = new LiveConnection({ random: () => 0.5, maxBackoffMs: 60_000 });
+    conn.start();
+    last().fireOpen();
+    last().fireClose();
+    expect(FakeWS.instances).toHaveLength(1);
+
+    setVisibility('visible');
+    expect(FakeWS.instances).toHaveLength(2);
+    conn.stop();
+  });
+
+  it('force-reconnects on resume when readyState still claims OPEN but the socket is stale', () => {
+    const conn = new LiveConnection({ random: () => 0.5 });
+    conn.start();
+    const zombie = last();
+    zombie.fireOpen();
+
+    // Simulate a suspended tab: time passes while timers are frozen.
+    vi.setSystemTime(Date.now() + 600_000);
+    expect(zombie.readyState).toBe(1);
+
+    setVisibility('visible');
+    expect(zombie.closed).toBe(true);
+    conn.stop();
+  });
+
+  it('does nothing on resume while the socket is healthy', () => {
+    const conn = new LiveConnection();
+    conn.start();
+    const ws = last();
+    ws.fireOpen();
+    setVisibility('visible');
+    expect(ws.closed).toBe(false);
+    expect(FakeWS.instances).toHaveLength(1);
+    conn.stop();
+  });
+
+  it('ignores visibilitychange when the page went hidden', () => {
+    const conn = new LiveConnection();
+    conn.start();
+    last().fireOpen();
+    last().fireClose();
+    setVisibility('hidden');
+    expect(FakeWS.instances).toHaveLength(1);
+    conn.stop();
+  });
+
+  it('reconnects on the window online event', () => {
+    const conn = new LiveConnection({ random: () => 0.5, maxBackoffMs: 60_000 });
+    conn.start();
+    last().fireOpen();
+    last().fireClose();
+    window.dispatchEvent(new Event('online'));
+    expect(FakeWS.instances).toHaveLength(2);
+    conn.stop();
+  });
+
+  it('removes its listeners on stop', () => {
+    const conn = new LiveConnection();
+    conn.start();
+    last().fireOpen();
+    conn.stop();
+    const count = FakeWS.instances.length;
+    setVisibility('visible');
+    window.dispatchEvent(new Event('online'));
+    expect(FakeWS.instances).toHaveLength(count);
+  });
+});

@@ -45,6 +45,11 @@ export class LiveConnection {
   private messageListeners = new Set<MessageListener>();
   private connectedListeners = new Set<ConnectedListener>();
 
+  private readonly onResume = (): void => { this.resume(); };
+  private readonly onVisibility = (): void => {
+    if (document.visibilityState === 'visible') this.resume();
+  };
+
   constructor(options: LiveConnectionOptions = {}) {
     this.options = {
       url: options.url,
@@ -92,11 +97,17 @@ export class LiveConnection {
   start(): void {
     if (!this.stopped) return;
     this.stopped = false;
+    document.addEventListener('visibilitychange', this.onVisibility);
+    window.addEventListener('pageshow', this.onResume);
+    window.addEventListener('online', this.onResume);
     this.connect();
   }
 
   stop(): void {
     this.stopped = true;
+    document.removeEventListener('visibilitychange', this.onVisibility);
+    window.removeEventListener('pageshow', this.onResume);
+    window.removeEventListener('online', this.onResume);
     if (this.retryTimer !== null) {
       clearTimeout(this.retryTimer);
       this.retryTimer = null;
@@ -205,5 +216,20 @@ export class LiveConnection {
     if (!this.socket) return;
     if (Date.now() - this.lastMessageAt <= this.options.staleAfterMs) return;
     this.handleDrop();
+  }
+
+  /** Frozen background timers mean lastMessageAt is stale on wake, so this fires. */
+  private resume(): void {
+    if (this.stopped) return;
+    this.attempt = 0;
+    if (this.socket && this.socket.readyState === SOCKET_OPEN) {
+      this.checkStale();
+      return;
+    }
+    if (this.retryTimer !== null) {
+      clearTimeout(this.retryTimer);
+      this.retryTimer = null;
+    }
+    this.connect();
   }
 }
