@@ -34,6 +34,7 @@
 | `tether_ddns/incidents.py` | `Severity`, `Incident`, `IncidentWindow`, `IncidentView`, `classify()`, `failed_ips()`, `prune()`, `WINDOW_DAYS`/`WINDOW_SECONDS` |
 | `tether_ddns/incident_store.py` | `IncidentStore` — fail-soft load, atomic save, path resolution |
 | `tether_ddns/services/incidents.py` | `IncidentRecorder` — the transition table, prune-on-load, write policy |
+| `test/unit/conftest.py` | Shared `make_result` fixture: builds a `ReachabilityResult` from a list of per-probe outcomes |
 | `test/unit/test_incidents.py` | Model, classification, prune |
 | `test/unit/test_incident_store.py` | Persistence round-trip, fail-soft, path |
 | `test/unit/test_incident_recorder.py` | Transition table, **write policy**, restart, retention |
@@ -67,6 +68,7 @@ Existing tests that must be updated as part of the task that breaks them: `test/
 
 **Files:**
 - Create: `tether_ddns/incidents.py`
+- Create: `test/unit/conftest.py`
 - Test: `test/unit/test_incidents.py`
 
 **Interfaces:**
@@ -80,13 +82,50 @@ Existing tests that must be updated as part of the task that breaks them: `test/
   - `failed_ips(result: ReachabilityResult) -> list[str]`
   - `prune(window: IncidentWindow, cutoff: float) -> bool`
   - `WINDOW_DAYS: int = 30`, `WINDOW_SECONDS: float`
+  - `make_result` pytest fixture in `test/unit/conftest.py`, reused by Tasks 3 and 6
+
+The fixture lives in `conftest.py` rather than a plain module because `test/` is not a package and cannot become one — `test` collides with the stdlib module — and pyright resolves imports from the project root, so a sibling `import` would need `extraPaths` in `pyrightconfig.json`. A fixture needs no import at all.
 
 - [ ] **Step 1: Write the failing tests**
+
+Create `test/unit/conftest.py`:
+
+```python
+"""Shared fixtures for the unit test suite."""
+from typing import Callable
+
+import pytest
+
+from tether_ddns.reachability import ReachabilityResult, ResolverProbe
+
+QUORUM = 2
+
+
+@pytest.fixture
+def make_result() -> Callable[[list[bool]], ReachabilityResult]:
+    """Return a factory building a ReachabilityResult from probe outcomes.
+
+    Probe IPs are assigned as ``10.0.0.<index>`` and ``online`` is derived from
+    the quorum, matching ReachabilityProbe's own rule.
+    """
+    def _make(oks: list[bool]) -> ReachabilityResult:
+        probes = [
+            ResolverProbe(ip=f'10.0.0.{i}', ok=ok, latency_ms=1.0 if ok else None)
+            for i, ok in enumerate(oks)
+        ]
+        successes = sum(oks)
+        return ReachabilityResult(
+            online=successes >= QUORUM, successes=successes,
+            total=len(oks), details={}, probes=probes)
+    return _make
+```
 
 Create `test/unit/test_incidents.py`:
 
 ```python
 """Tests for the incident domain model and helpers."""
+from typing import Callable
+
 from tether_ddns.incidents import (
     Incident,
     IncidentWindow,
@@ -94,43 +133,34 @@ from tether_ddns.incidents import (
     failed_ips,
     prune,
 )
-from tether_ddns.reachability import ReachabilityResult, ResolverProbe
+from tether_ddns.reachability import ReachabilityResult
+
+ResultFactory = Callable[[list[bool]], ReachabilityResult]
 
 
-def _result(oks: list[bool], online: bool) -> ReachabilityResult:
-    """Build a ReachabilityResult from a list of per-probe outcomes."""
-    probes = [
-        ResolverProbe(ip=f'10.0.0.{i}', ok=ok, latency_ms=1.0 if ok else None)
-        for i, ok in enumerate(oks)
-    ]
-    return ReachabilityResult(
-        online=online, successes=sum(oks), total=len(oks),
-        details={}, probes=probes)
-
-
-def test_classify_all_ok_is_healthy() -> None:
+def test_classify_all_ok_is_healthy(make_result: ResultFactory) -> None:
     """A check where every probe succeeded yields no incident."""
-    assert classify(_result([True, True, True], True)) is None
+    assert classify(make_result([True, True, True])) is None
 
 
-def test_classify_partial_failure_is_degraded() -> None:
+def test_classify_partial_failure_is_degraded(make_result: ResultFactory) -> None:
     """A check that lost a probe but held quorum is degraded."""
-    assert classify(_result([True, True, False], True)) == 'degraded'
+    assert classify(make_result([True, True, False])) == 'degraded'
 
 
-def test_classify_quorum_lost_is_outage() -> None:
+def test_classify_quorum_lost_is_outage(make_result: ResultFactory) -> None:
     """A check that lost quorum is an outage."""
-    assert classify(_result([True, False, False], False)) == 'outage'
+    assert classify(make_result([True, False, False])) == 'outage'
 
 
-def test_classify_total_failure_is_outage() -> None:
+def test_classify_total_failure_is_outage(make_result: ResultFactory) -> None:
     """A check where every probe failed is an outage."""
-    assert classify(_result([False, False, False], False)) == 'outage'
+    assert classify(make_result([False, False, False])) == 'outage'
 
 
-def test_failed_ips_lists_only_failures() -> None:
+def test_failed_ips_lists_only_failures(make_result: ResultFactory) -> None:
     """failed_ips returns the IPs of probes that did not succeed."""
-    result = _result([True, False, False], False)
+    result = make_result([True, False, False])
     assert failed_ips(result) == ['10.0.0.1', '10.0.0.2']
 
 
@@ -257,7 +287,7 @@ Expected: all clean
 - [ ] **Step 6: Commit**
 
 ```bash
-git add tether_ddns/incidents.py test/unit/test_incidents.py
+git add tether_ddns/incidents.py test/unit/conftest.py test/unit/test_incidents.py
 git commit -m "feat: add reachability incident model and classification"
 ```
 
@@ -481,7 +511,7 @@ This is the heart of the feature. The write-policy test in Step 1 is a hard requ
 - Test: `test/unit/test_incident_recorder.py`
 
 **Interfaces:**
-- Consumes: everything from Tasks 1 and 2.
+- Consumes: everything from Tasks 1 and 2, including the `make_result` fixture in `test/unit/conftest.py`.
 - Produces: `IncidentRecorder(store: IncidentStore)` with
   - `record(result: ReachabilityResult, now: float | None = None) -> IncidentView`
   - `view` property `-> IncidentView`
@@ -500,6 +530,7 @@ Create `test/unit/test_incident_recorder.py`:
 """Tests for the IncidentRecorder transition table and write policy."""
 import time
 from pathlib import Path
+from typing import Callable
 from unittest.mock import patch
 
 from tether_ddns.incident_store import IncidentStore
@@ -508,51 +539,47 @@ from tether_ddns.incidents import (
     Incident,
     IncidentWindow,
 )
-from tether_ddns.reachability import ReachabilityResult, ResolverProbe
+from tether_ddns.reachability import ReachabilityResult
 from tether_ddns.services.incidents import IncidentRecorder
 
 HEALTHY = [True, True, True]
 DEGRADED = [True, True, False]
 OUTAGE = [True, False, False]
 
-
-def _result(oks: list[bool]) -> ReachabilityResult:
-    """Build a ReachabilityResult from a list of per-probe outcomes."""
-    probes = [
-        ResolverProbe(ip=f'10.0.0.{i}', ok=ok, latency_ms=1.0 if ok else None)
-        for i, ok in enumerate(oks)
-    ]
-    successes = sum(oks)
-    return ReachabilityResult(
-        online=successes >= 2, successes=successes, total=len(oks),
-        details={}, probes=probes)
+ResultFactory = Callable[[list[bool]], ReachabilityResult]
 
 
-def test_healthy_checks_open_no_incident(tmp_path: Path) -> None:
+def test_healthy_checks_open_no_incident(
+    tmp_path: Path, make_result: ResultFactory
+) -> None:
     """A run of healthy checks leaves the window empty."""
     recorder = IncidentRecorder(IncidentStore(tmp_path / 'i.json'))
     for tick in range(5):
-        view = recorder.record(_result(HEALTHY), now=float(tick))
+        view = recorder.record(make_result(HEALTHY), now=float(tick))
     assert view.ongoing is None
     assert recorder.window(now=10.0).incidents == []
 
 
-def test_first_bad_check_opens_an_incident(tmp_path: Path) -> None:
+def test_first_bad_check_opens_an_incident(
+    tmp_path: Path, make_result: ResultFactory
+) -> None:
     """The first non-healthy check opens an ongoing incident."""
     recorder = IncidentRecorder(IncidentStore(tmp_path / 'i.json'))
-    view = recorder.record(_result(OUTAGE), now=100.0)
+    view = recorder.record(make_result(OUTAGE), now=100.0)
     assert view.ongoing is not None
     assert view.ongoing.severity == 'outage'
     assert view.ongoing.start == 100.0
     assert view.ongoing.end is None
 
 
-def test_same_severity_checks_extend_one_incident(tmp_path: Path) -> None:
+def test_same_severity_checks_extend_one_incident(
+    tmp_path: Path, make_result: ResultFactory
+) -> None:
     """Consecutive checks at the same severity merge into one span."""
     recorder = IncidentRecorder(IncidentStore(tmp_path / 'i.json'))
-    recorder.record(_result(OUTAGE), now=100.0)
-    recorder.record(_result(OUTAGE), now=130.0)
-    view = recorder.record(_result(HEALTHY), now=160.0)
+    recorder.record(make_result(OUTAGE), now=100.0)
+    recorder.record(make_result(OUTAGE), now=130.0)
+    view = recorder.record(make_result(HEALTHY), now=160.0)
     window = recorder.window(now=200.0)
     assert view.ongoing is None
     assert len(window.incidents) == 1
@@ -560,56 +587,64 @@ def test_same_severity_checks_extend_one_incident(tmp_path: Path) -> None:
     assert window.incidents[0].end == 160.0
 
 
-def test_severity_change_splits_into_contiguous_spans(tmp_path: Path) -> None:
+def test_severity_change_splits_into_contiguous_spans(
+    tmp_path: Path, make_result: ResultFactory
+) -> None:
     """A severity change closes one incident and opens the next at the same instant."""
     recorder = IncidentRecorder(IncidentStore(tmp_path / 'i.json'))
-    recorder.record(_result(DEGRADED), now=100.0)
-    recorder.record(_result(OUTAGE), now=130.0)
-    recorder.record(_result(HEALTHY), now=160.0)
+    recorder.record(make_result(DEGRADED), now=100.0)
+    recorder.record(make_result(OUTAGE), now=130.0)
+    recorder.record(make_result(HEALTHY), now=160.0)
     window = recorder.window(now=200.0)
     assert [i.severity for i in window.incidents] == ['degraded', 'outage']
     assert window.incidents[0].end == 130.0
     assert window.incidents[1].start == 130.0
 
 
-def test_incident_records_worst_quorum_and_failed_resolvers(tmp_path: Path) -> None:
+def test_incident_records_worst_quorum_and_failed_resolvers(
+    tmp_path: Path, make_result: ResultFactory
+) -> None:
     """An incident keeps the worst quorum and the union of failed resolvers."""
     recorder = IncidentRecorder(IncidentStore(tmp_path / 'i.json'))
-    recorder.record(_result([True, False, False]), now=100.0)
-    recorder.record(_result([False, False, False]), now=130.0)
-    recorder.record(_result(HEALTHY), now=160.0)
+    recorder.record(make_result([True, False, False]), now=100.0)
+    recorder.record(make_result([False, False, False]), now=130.0)
+    recorder.record(make_result(HEALTHY), now=160.0)
     incident = recorder.window(now=200.0).incidents[0]
     assert incident.min_successes == 0
     assert incident.failed == ['10.0.0.0', '10.0.0.1', '10.0.0.2']
 
 
-def test_no_disk_writes_while_healthy_or_steady(tmp_path: Path) -> None:
+def test_no_disk_writes_while_healthy_or_steady(
+    tmp_path: Path, make_result: ResultFactory
+) -> None:
     """Disk writes happen only on open, close, split and prune."""
     store = IncidentStore(tmp_path / 'i.json')
     recorder = IncidentRecorder(store)
     with patch.object(store, 'save', wraps=store.save) as save:
-        recorder.record(_result(HEALTHY), now=100.0)
-        recorder.record(_result(HEALTHY), now=130.0)
+        recorder.record(make_result(HEALTHY), now=100.0)
+        recorder.record(make_result(HEALTHY), now=130.0)
         assert save.call_count == 0, 'healthy checks must not write'
 
-        recorder.record(_result(OUTAGE), now=160.0)
+        recorder.record(make_result(OUTAGE), now=160.0)
         assert save.call_count == 1, 'opening an incident writes once'
 
-        recorder.record(_result(OUTAGE), now=190.0)
-        recorder.record(_result(OUTAGE), now=220.0)
+        recorder.record(make_result(OUTAGE), now=190.0)
+        recorder.record(make_result(OUTAGE), now=220.0)
         assert save.call_count == 1, 'a steady incident must not write'
 
-        recorder.record(_result(DEGRADED), now=250.0)
+        recorder.record(make_result(DEGRADED), now=250.0)
         assert save.call_count == 2, 'a severity split writes once'
 
-        recorder.record(_result(HEALTHY), now=280.0)
+        recorder.record(make_result(HEALTHY), now=280.0)
         assert save.call_count == 3, 'closing an incident writes once'
 
-        recorder.record(_result(HEALTHY), now=310.0)
+        recorder.record(make_result(HEALTHY), now=310.0)
         assert save.call_count == 3, 'healthy checks after close must not write'
 
 
-def test_prune_writes_only_when_a_record_expires(tmp_path: Path) -> None:
+def test_prune_writes_only_when_a_record_expires(
+    tmp_path: Path, make_result: ResultFactory
+) -> None:
     """A tick prunes and writes only when an incident actually falls out."""
     path = tmp_path / 'i.json'
     end = time.time() - WINDOW_SECONDS / 2
@@ -621,32 +656,38 @@ def test_prune_writes_only_when_a_record_expires(tmp_path: Path) -> None:
     store = IncidentStore(path)
     recorder = IncidentRecorder(store)
     with patch.object(store, 'save', wraps=store.save) as save:
-        recorder.record(_result(HEALTHY), now=end + 100)
+        recorder.record(make_result(HEALTHY), now=end + 100)
         assert save.call_count == 0
-        recorder.record(_result(HEALTHY), now=end + WINDOW_SECONDS + 1)
+        recorder.record(make_result(HEALTHY), now=end + WINDOW_SECONDS + 1)
         assert save.call_count == 1
     assert recorder.window(now=end + WINDOW_SECONDS + 1).incidents == []
 
 
-def test_rev_is_stable_across_healthy_checks(tmp_path: Path) -> None:
+def test_rev_is_stable_across_healthy_checks(
+    tmp_path: Path, make_result: ResultFactory
+) -> None:
     """The revision counter does not move on a healthy tick."""
     recorder = IncidentRecorder(IncidentStore(tmp_path / 'i.json'))
-    first = recorder.record(_result(HEALTHY), now=100.0).rev
-    second = recorder.record(_result(HEALTHY), now=130.0).rev
+    first = recorder.record(make_result(HEALTHY), now=100.0).rev
+    second = recorder.record(make_result(HEALTHY), now=130.0).rev
     assert first == second
 
 
-def test_rev_advances_on_open_and_close(tmp_path: Path) -> None:
+def test_rev_advances_on_open_and_close(
+    tmp_path: Path, make_result: ResultFactory
+) -> None:
     """The revision counter advances on each real mutation."""
     recorder = IncidentRecorder(IncidentStore(tmp_path / 'i.json'))
-    opened = recorder.record(_result(OUTAGE), now=100.0).rev
-    steady = recorder.record(_result(OUTAGE), now=130.0).rev
-    closed = recorder.record(_result(HEALTHY), now=160.0).rev
+    opened = recorder.record(make_result(OUTAGE), now=100.0).rev
+    steady = recorder.record(make_result(OUTAGE), now=130.0).rev
+    closed = recorder.record(make_result(HEALTHY), now=160.0).rev
     assert steady == opened
     assert closed > opened
 
 
-def test_restart_closes_ongoing_at_first_healthy_check(tmp_path: Path) -> None:
+def test_restart_closes_ongoing_at_first_healthy_check(
+    tmp_path: Path, make_result: ResultFactory
+) -> None:
     """An incident in flight when the process died ends at the first check back."""
     path = tmp_path / 'i.json'
     IncidentStore(path).save(IncidentWindow(
@@ -655,14 +696,16 @@ def test_restart_closes_ongoing_at_first_healthy_check(tmp_path: Path) -> None:
             start=100.0, end=None, severity='outage',
             min_successes=0, total=3, failed=['10.0.0.1'])))
     recorder = IncidentRecorder(IncidentStore(path))
-    recorder.record(_result(HEALTHY), now=5000.0)
+    recorder.record(make_result(HEALTHY), now=5000.0)
     window = recorder.window(now=5000.0)
     assert window.ongoing is None
     assert window.incidents[0].start == 100.0
     assert window.incidents[0].end == 5000.0
 
 
-def test_restart_extends_ongoing_at_same_severity(tmp_path: Path) -> None:
+def test_restart_extends_ongoing_at_same_severity(
+    tmp_path: Path, make_result: ResultFactory
+) -> None:
     """A still-failing check after restart extends the persisted incident."""
     path = tmp_path / 'i.json'
     IncidentStore(path).save(IncidentWindow(
@@ -671,7 +714,7 @@ def test_restart_extends_ongoing_at_same_severity(tmp_path: Path) -> None:
             start=100.0, end=None, severity='outage',
             min_successes=1, total=3, failed=['10.0.0.1'])))
     recorder = IncidentRecorder(IncidentStore(path))
-    view = recorder.record(_result(OUTAGE), now=5000.0)
+    view = recorder.record(make_result(OUTAGE), now=5000.0)
     assert view.ongoing is not None
     assert view.ongoing.start == 100.0
 
@@ -709,34 +752,40 @@ def test_later_starts_do_not_rewrite_the_file(tmp_path: Path) -> None:
         assert save.call_count == 0
 
 
-def test_flush_persists_widening_of_a_steady_incident(tmp_path: Path) -> None:
+def test_flush_persists_widening_of_a_steady_incident(
+    tmp_path: Path, make_result: ResultFactory
+) -> None:
     """flush writes the in-memory widening that a steady tick skipped."""
     path = tmp_path / 'i.json'
     recorder = IncidentRecorder(IncidentStore(path))
-    recorder.record(_result([True, False, False]), now=100.0)
-    recorder.record(_result([False, False, False]), now=130.0)
+    recorder.record(make_result([True, False, False]), now=100.0)
+    recorder.record(make_result([False, False, False]), now=130.0)
     recorder.flush()
     ongoing = IncidentStore(path).load().ongoing
     assert ongoing is not None
     assert ongoing.min_successes == 0
 
 
-def test_flush_is_a_no_op_when_nothing_changed(tmp_path: Path) -> None:
+def test_flush_is_a_no_op_when_nothing_changed(
+    tmp_path: Path, make_result: ResultFactory
+) -> None:
     """flush does not write when no widening is pending."""
     store = IncidentStore(tmp_path / 'i.json')
     recorder = IncidentRecorder(store)
-    recorder.record(_result(HEALTHY), now=100.0)
+    recorder.record(make_result(HEALTHY), now=100.0)
     with patch.object(store, 'save') as save:
         recorder.flush()
         assert save.call_count == 0
 
 
-def test_window_filters_expired_records_on_read(tmp_path: Path) -> None:
+def test_window_filters_expired_records_on_read(
+    tmp_path: Path, make_result: ResultFactory
+) -> None:
     """The served window excludes records outside the retention period."""
     path = tmp_path / 'i.json'
     recorder = IncidentRecorder(IncidentStore(path))
-    recorder.record(_result(OUTAGE), now=100.0)
-    recorder.record(_result(HEALTHY), now=200.0)
+    recorder.record(make_result(OUTAGE), now=100.0)
+    recorder.record(make_result(HEALTHY), now=200.0)
     later = 200.0 + WINDOW_SECONDS + 1
     assert recorder.window(now=later).incidents == []
 ```
@@ -1249,15 +1298,10 @@ git commit -m "feat: wire the incident recorder into the scheduler tick"
 
 - [ ] **Step 1: Write the failing tests**
 
-Add to `test/unit/test_api.py`. It already has a `_client(tmp_path)` helper returning a `TestClient`; use it as a context manager so the lifespan runs. Add `import time` and `from tether_ddns.incidents import WINDOW_SECONDS` to the imports, alphabetically.
+Add to `test/unit/test_api.py`. It already has a `_client(tmp_path)` helper returning a `TestClient`; use it as a context manager so the lifespan runs. Extend the existing `from typing import Any` import to `from typing import Any, Callable`, and add `import time` plus `from tether_ddns.incidents import WINDOW_SECONDS`, keeping imports alphabetical. Reuse the `make_result` fixture from `test/unit/conftest.py` rather than defining local result builders.
 
 ```python
-def _offline() -> ReachabilityResult:
-    return ReachabilityResult(online=False, successes=0, total=3)
-
-
-def _healthy() -> ReachabilityResult:
-    return ReachabilityResult(online=True, successes=3, total=3)
+ResultFactory = Callable[[list[bool]], ReachabilityResult]
 
 
 def test_get_incidents_returns_the_window(tmp_path: Path) -> None:
@@ -1272,13 +1316,15 @@ def test_get_incidents_returns_the_window(tmp_path: Path) -> None:
     assert 'rev' in body
 
 
-def test_get_incidents_filters_expired_records(tmp_path: Path) -> None:
+def test_get_incidents_filters_expired_records(
+    tmp_path: Path, make_result: ResultFactory
+) -> None:
     """Records outside the retention period are not served."""
     with _client(tmp_path) as client:
         recorder = client.app.state.ctx.incidents
         old = time.time() - WINDOW_SECONDS - 100
-        recorder.record(_offline(), now=old)
-        recorder.record(_healthy(), now=old + 50)
+        recorder.record(make_result([False, False, False]), now=old)
+        recorder.record(make_result([True, True, True]), now=old + 50)
         res = client.get('/api/reachability/incidents')
     assert res.json()['incidents'] == []
 ```
