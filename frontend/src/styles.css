@@ -278,7 +278,8 @@ header.topbar {
 
 .quorum { display: flex; align-items: flex-end; gap: 3px; height: 46px; }
 .quorum span { flex: 1; height: 100%; border-radius: 3px; min-height: 3px; background: var(--accent); opacity: .9; transition: var(--transition); }
-.quorum span.empty { background: var(--surface-2); }
+/* `blank`, not `empty`: a global `.empty` utility below carries 60px/20px padding. */
+.quorum span.blank { background: var(--surface-2); }
 .quorum span.degraded { background: var(--warn); }
 .quorum span.down { background: var(--err); }
 .quorum span.live { box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--accent) 55%, transparent); }

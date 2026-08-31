@@ -61,7 +61,7 @@ export function ReachabilityPanel(
       <div className="quorum">
         {Array.from({ length: QUORUM_BARS }, (_, i) => {
           const h = bars[i - (QUORUM_BARS - bars.length)];
-          if (!h) return <span key={i} className="empty" />;
+          if (!h) return <span key={i} className="blank" />;
           const cls = h.successes < QUORUM ? 'down' : (h.successes < h.total ? 'degraded' : '');
           const live = i === QUORUM_BARS - 1 ? ' live' : '';
           return <span key={i} className={`${cls}${live}`} title={`${h.successes}/${h.total} ok`} />;

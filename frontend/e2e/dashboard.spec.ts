@@ -94,3 +94,26 @@ test('the day strip is keyboard reachable', async ({ page }) => {
   await page.keyboard.press('Enter');
   await expect(page.locator('.modal-overlay.open')).toBeVisible();
 });
+
+// Regression: placeholder bars once carried the global `.empty` class, whose
+// 60px/20px padding overflowed the strip and starved the Record health column.
+test('the live strip stays inside its box and does not starve the layout', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto('/');
+
+  const strip = page.locator('.quorum');
+  await expect(strip).toBeVisible();
+  const stripBox = await strip.boundingBox();
+  const bars = page.locator('.quorum span');
+  const count = await bars.count();
+  expect(count).toBeGreaterThan(0);
+  for (let i = 0; i < count; i += 1) {
+    const bar = await bars.nth(i).boundingBox();
+    expect(bar!.height).toBeLessThanOrEqual(stripBox!.height + 1);
+    expect(bar!.y).toBeGreaterThanOrEqual(stripBox!.y - 1);
+  }
+
+  const health = page.locator('.ov-grid > *').nth(1);
+  const healthBox = await health.boundingBox();
+  expect(healthBox!.width).toBeGreaterThan(300);
+});
