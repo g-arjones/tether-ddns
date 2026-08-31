@@ -214,17 +214,14 @@ describe('LiveConnection lifecycle', () => {
     conn.stop();
   });
 
-  it('leaves generation at 0 for the first open and increments after that', () => {
+  it('emits connected with generation 0 on the first open', () => {
     const seen: number[] = [];
-    const conn = new LiveConnection({ random: () => 0.5 });
+    const conn = new LiveConnection();
     conn.on('connected', (g) => seen.push(g));
     conn.start();
     last().fireOpen();
-    last().fireClose();
-    vi.advanceTimersByTime(1000);
-    last().fireOpen();
-    expect(seen).toEqual([0, 1]);
-    expect(conn.generation).toBe(1);
+    expect(seen).toEqual([0]);
+    expect(conn.generation).toBe(0);
     conn.stop();
   });
 
@@ -434,12 +431,12 @@ export class LiveConnection {
 }
 ```
 
-Note: `handleDrop` does not yet reconnect — Task 3 adds that. The `generation` test in Step 1 advances timers expecting a reconnect, so **that one test will still fail after this step**. That is expected and is fixed in Task 3.
+Note: `handleDrop` does not yet reconnect — Task 3 adds that. Every test in this task's suite is passable without reconnection.
 
 - [ ] **Step 4: Run tests**
 
 Run: `cd frontend && npx vitest run src/liveConnection.test.ts`
-Expected: all PASS except `leaves generation at 0 for the first open and increments after that`, which fails because no reconnect happens yet.
+Expected: PASS, all tests.
 
 - [ ] **Step 5: Commit**
 
@@ -561,6 +558,20 @@ describe('LiveConnection backoff', () => {
     expect(conn.status).toBe('reconnecting');
     conn.stop();
   });
+
+  it('increments generation on every reopen after the first', () => {
+    const seen: number[] = [];
+    const conn = new LiveConnection({ random: () => 0.5 });
+    conn.on('connected', (g) => seen.push(g));
+    conn.start();
+    last().fireOpen();
+    last().fireClose();
+    vi.advanceTimersByTime(500);
+    last().fireOpen();
+    expect(seen).toEqual([0, 1]);
+    expect(conn.generation).toBe(1);
+    conn.stop();
+  });
 });
 ```
 
@@ -631,7 +642,7 @@ The `retryTimer !== null` guard in `scheduleReconnect` matters because `onerror`
 - [ ] **Step 4: Run tests to verify they pass**
 
 Run: `cd frontend && npx vitest run src/liveConnection.test.ts`
-Expected: PASS, including the `generation` test from Task 2.
+Expected: PASS, including the generation-increment test.
 
 - [ ] **Step 5: Commit**
 
@@ -1263,10 +1274,10 @@ Expected: FAIL — the second open triggers no additional fetches.
 
 - [ ] **Step 3: Write minimal implementation**
 
-In `frontend/src/App.tsx`, destructure the new values:
+In `frontend/src/App.tsx`, destructure the new value. Do **not** destructure `status` in this task — Task 9 adds it when the overlay needs it, so no unused variable exists at any point:
 
 ```ts
-  const { snapshot, logs, status, generation } = useLiveState();
+  const { snapshot, logs, generation } = useLiveState();
 ```
 
 Add `generation` to the config effect's dependency array:
@@ -1295,12 +1306,12 @@ Pass `generation` to the Overview view:
             )}
 ```
 
-`status` is unused until Task 9; oxlint may flag it. If it does, leave it destructured and complete Task 9 in the same session, or temporarily omit `status` here and add it in Task 9.
+`status` is deliberately NOT destructured in this task — Task 9 adds it together with its first consumer.
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `cd frontend && npx vitest run`
-Expected: PASS, whole suite.
+Run: `cd frontend && npm test`
+Expected: PASS, whole suite, and oxlint clean via the `pretest` hook.
 
 - [ ] **Step 5: Commit**
 
@@ -1530,6 +1541,12 @@ In `frontend/src/App.tsx`, add the imports:
 ```ts
 import { ConnectionOverlay } from './components/ConnectionOverlay';
 import { useDelayedFlag } from './useDelayedFlag';
+```
+
+Add `status` to the destructure Task 8 left without it:
+
+```ts
+  const { snapshot, logs, status, generation } = useLiveState();
 ```
 
 Immediately after the `useLiveState` call:
