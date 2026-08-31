@@ -8,18 +8,12 @@ from tether_ddns.incident_store import IncidentStore
 from tether_ddns.incidents import Incident, IncidentWindow
 
 
-def test_resolve_path_sits_beside_the_state_file(
+def test_default_path_sits_in_the_home_dir(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    """The incident file is resolved into the state file's directory."""
-    monkeypatch.setenv('TETHER_DDNS_STATE_PATH', str(tmp_path / 'state.json'))
-    assert IncidentStore.resolve_path() == tmp_path / 'tether-ddns.incidents.json'
-
-
-def test_beside_derives_from_a_given_state_path(tmp_path: Path) -> None:
-    """The beside method places the incident file next to an explicit state file."""
-    store = IncidentStore.beside(tmp_path / 'nested' / 'state.json')
-    assert store.path == tmp_path / 'nested' / 'tether-ddns.incidents.json'
+    """A default-constructed store writes into TETHER_DDNS_HOME_PATH."""
+    monkeypatch.setenv('TETHER_DDNS_HOME_PATH', str(tmp_path))
+    assert IncidentStore().path == tmp_path / 'tether-ddns.incidents.json'
 
 
 def test_load_missing_returns_fresh_window(tmp_path: Path) -> None:

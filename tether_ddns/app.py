@@ -54,10 +54,13 @@ class SpaStaticFiles(StaticFiles):
 def create_app(
     config_store: ConfigStore | None = None,
     state_store: StateStore | None = None,
+    incident_store: IncidentStore | None = None,
 ) -> FastAPI:
     """Create the configured FastAPI application."""
     resolved_config_store = config_store if config_store is not None else ConfigStore()
     resolved_state_store = (state_store if state_store is not None else StateStore())
+    resolved_incident_store = (
+        incident_store if incident_store is not None else IncidentStore())
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
@@ -72,8 +75,7 @@ def create_app(
         persisted = resolved_state_store.load()
         if persisted is not None:
             runtime.restore(persisted, config)
-        recorder = IncidentRecorder(
-            IncidentStore.beside(resolved_state_store.path))
+        recorder = IncidentRecorder(resolved_incident_store)
         runtime.incident_ongoing = recorder.view.ongoing
         runtime.incident_rev = recorder.view.rev
         runtime.rebuild(config)

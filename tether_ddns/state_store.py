@@ -13,10 +13,8 @@ from pathlib import Path
 
 from pydantic import ValidationError
 
+from tether_ddns import paths
 from tether_ddns.runtime import RuntimeState
-
-ENV_VAR = 'TETHER_DDNS_STATE_PATH'
-DEFAULT_FILENAME = 'tether-ddns.state.json'
 
 logger = logging.getLogger(__name__)
 
@@ -26,18 +24,12 @@ class StateStore:
 
     def __init__(self, path: Path | None = None) -> None:
         """Create a store bound to a path (resolved if omitted)."""
-        self._path = path if path is not None else self.resolve_path()
+        self._path = path if path is not None else paths.state_path()
 
     @property
     def path(self) -> Path:
         """Return the state file path."""
         return self._path
-
-    @staticmethod
-    def resolve_path() -> Path:
-        """Resolve the state path from the env var or cwd fallback."""
-        env = os.environ.get(ENV_VAR)
-        return Path(env) if env else Path.cwd() / DEFAULT_FILENAME
 
     def load(self) -> RuntimeState | None:
         """Load persisted state, or None when absent/corrupt (fail-soft)."""

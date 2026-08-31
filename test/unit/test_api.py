@@ -12,6 +12,7 @@ from starlette.types import Scope
 
 from tether_ddns.app import SpaStaticFiles, create_app
 from tether_ddns.config_store import AppConfig, ConfigStore, DomainConfig
+from tether_ddns.incident_store import IncidentStore
 from tether_ddns.incidents import WINDOW_SECONDS
 from tether_ddns.reachability import ReachabilityResult
 from tether_ddns.runtime import RuntimeState
@@ -43,7 +44,24 @@ def _client(tmp_path: Path) -> Any:
     config.settings.update_on_startup = False
     store.save(config)
     state_store = StateStore(tmp_path / 'state.json')
-    return TestClient(create_app(store, state_store))
+    incident_store = IncidentStore(tmp_path / 'incidents.json')
+    return TestClient(create_app(store, state_store, incident_store))
+
+
+def test_incident_store_is_injectable(tmp_path: Path) -> None:
+    """An injected incident store keeps the app off the shared data home."""
+    store = ConfigStore(tmp_path / 'cfg.json')
+    config = AppConfig()
+    config.settings.update_on_startup = False
+    store.save(config)
+    incidents = tmp_path / 'incidents.json'
+    app = create_app(
+        config_store=store,
+        state_store=StateStore(tmp_path / 'state.json'),
+        incident_store=IncidentStore(incidents))
+    with TestClient(app):
+        pass
+    assert incidents.exists()
 
 
 def test_restores_domain_status_on_startup(tmp_path: Path) -> None:
@@ -60,7 +78,9 @@ def test_restores_domain_status_on_startup(tmp_path: Path) -> None:
     state_store = StateStore(tmp_path / 'state.json')
     state_store.save(seeded)
 
-    app = create_app(config_store=store, state_store=state_store)
+    app = create_app(
+        config_store=store, state_store=state_store,
+        incident_store=IncidentStore(tmp_path / 'incidents.json'))
     with TestClient(app):
         runtime: RuntimeState = app.state.runtime
         assert runtime.domains['a'].status == 'synced'

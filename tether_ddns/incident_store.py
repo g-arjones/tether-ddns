@@ -12,10 +12,8 @@ from pathlib import Path
 
 from pydantic import ValidationError
 
+from tether_ddns import paths
 from tether_ddns.incidents import IncidentWindow
-from tether_ddns.state_store import StateStore
-
-DEFAULT_FILENAME = 'tether-ddns.incidents.json'
 
 logger = logging.getLogger(__name__)
 
@@ -25,22 +23,12 @@ class IncidentStore:
 
     def __init__(self, path: Path | None = None) -> None:
         """Create a store bound to a path (resolved if omitted)."""
-        self._path = path if path is not None else self.resolve_path()
+        self._path = path if path is not None else paths.incidents_path()
 
     @property
     def path(self) -> Path:
         """Return the incident file path."""
         return self._path
-
-    @staticmethod
-    def resolve_path() -> Path:
-        """Resolve the incident path beside the runtime state file."""
-        return StateStore.resolve_path().parent / DEFAULT_FILENAME
-
-    @classmethod
-    def beside(cls, state_path: Path) -> 'IncidentStore':
-        """Create a store in the same directory as ``state_path``."""
-        return cls(state_path.parent / DEFAULT_FILENAME)
 
     def load(self) -> IncidentWindow:
         """Load the persisted window, or a fresh one when absent/corrupt."""
