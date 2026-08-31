@@ -29,8 +29,6 @@
   --sa-right: env(safe-area-inset-right, 0px);
   --sa-bottom: env(safe-area-inset-bottom, 0px);
   --sa-left: env(safe-area-inset-left, 0px);
-  /* iOS always draws standalone status-bar text white; this keeps it legible. */
-  --statusbar-scrim: #0b0f1a;
 
   /* semantic z-scale */
   --z-rail: 30;
@@ -176,12 +174,6 @@ header.topbar {
   backdrop-filter: blur(14px);
   background: color-mix(in srgb, var(--bg) 78%, transparent);
   border-bottom: 1px solid var(--border);
-}
-/* Dark themes let their own background show through; the light theme needs a
-   scrim or the white clock and battery vanish. */
-[data-theme="light"] header.topbar::before {
-  content: ''; position: absolute; top: 0; left: 0; right: 0;
-  height: var(--sa-top); background: var(--statusbar-scrim);
 }
 .topbar-inner { display: flex; align-items: center; gap: 16px; padding: 14px 20px; max-width: 1180px; margin: 0 auto; }
 .rail-toggle { display: grid; }
