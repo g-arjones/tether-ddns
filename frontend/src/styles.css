@@ -20,6 +20,7 @@
 
   --radius: 16px;
   --radius-sm: 10px;
+  --strip-h: 46px;
   --transition: .2s cubic-bezier(.4, 0, .2, 1);
 
   /* semantic z-scale */
@@ -277,7 +278,7 @@ header.topbar {
 .reach-badge.up { background: var(--ok-soft); color: var(--ok); } .reach-badge.up .rb-dot { background: var(--ok); }
 .reach-badge.down { background: var(--err-soft); color: var(--err); } .reach-badge.down .rb-dot { background: var(--err); }
 
-.quorum { display: flex; align-items: flex-end; gap: 3px; height: 46px; }
+.quorum { display: flex; align-items: flex-end; gap: 3px; height: var(--strip-h); }
 .quorum span { flex: 1; height: 100%; border-radius: 3px; min-height: 3px; background: var(--accent); opacity: .9; transition: var(--transition); }
 /* `blank`, not `empty`: a global `.empty` utility below carries 60px/20px padding. */
 .quorum span.blank { background: var(--surface-2); }
@@ -288,7 +289,7 @@ header.topbar {
 
 .reach-label { font-size: 10.5px; color: var(--text-3); font-weight: 600; text-transform: uppercase; letter-spacing: .6px; margin-bottom: 8px; }
 
-.day-strip { display: flex; align-items: stretch; gap: 2px; height: 34px; }
+.day-strip { display: flex; align-items: stretch; gap: 2px; height: var(--strip-h); }
 .day-strip button { flex: 1; border-radius: 2px; background: color-mix(in srgb, var(--ok) 50%, transparent); transition: var(--transition); cursor: pointer; padding: 0; border: none; }
 .day-strip button.degraded { background: var(--warn); }
 .day-strip button.outage { background: var(--err); }
