@@ -1,15 +1,20 @@
 """Tests for the REST API."""
+import time
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 from unittest.mock import AsyncMock, patch
 
 from fastapi.testclient import TestClient
 
 from tether_ddns.app import create_app
 from tether_ddns.config_store import AppConfig, ConfigStore, DomainConfig
+from tether_ddns.incidents import WINDOW_SECONDS
 from tether_ddns.reachability import ReachabilityResult
 from tether_ddns.runtime import RuntimeState
 from tether_ddns.state_store import StateStore
+
+
+ResultFactory = Callable[[list[bool]], ReachabilityResult]
 
 
 def _client(tmp_path: Path) -> Any:
@@ -362,3 +367,28 @@ def test_refresh_and_websocket(tmp_path: Path) -> None:
             with client.websocket_connect('/api/ws') as ws:
                 first: dict[str, object] = ws.receive_json()
     assert first['kind'] == 'state'
+
+
+def test_get_incidents_returns_the_window(tmp_path: Path) -> None:
+    """The incidents endpoint returns the persisted window."""
+    with _client(tmp_path) as client:
+        res = client.get('/api/reachability/incidents')
+    assert res.status_code == 200
+    body = res.json()
+    assert body['incidents'] == []
+    assert body['ongoing'] is None
+    assert 'monitoring_since' in body
+    assert 'rev' in body
+
+
+def test_get_incidents_filters_expired_records(
+    tmp_path: Path, make_result: ResultFactory
+) -> None:
+    """Records outside the retention period are not served."""
+    with _client(tmp_path) as client:
+        recorder = client.app.state.ctx.incidents
+        old = time.time() - WINDOW_SECONDS - 100
+        recorder.record(make_result([False, False, False]), now=old)
+        recorder.record(make_result([True, True, True]), now=old + 50)
+        res = client.get('/api/reachability/incidents')
+    assert res.json()['incidents'] == []
