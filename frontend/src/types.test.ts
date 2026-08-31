@@ -6,6 +6,8 @@ test('snapshot carries reachability telemetry', () => {
   expectTypeOf<StateSnapshot>().toHaveProperty('next_check_at');
   expectTypeOf<StateSnapshot>().toHaveProperty('ipv4_changed_at');
   expectTypeOf<Reachability>().toHaveProperty('history');
+  expectTypeOf<Reachability>().toHaveProperty('rev');
+  expectTypeOf<Reachability>().toHaveProperty('ongoing');
   expectTypeOf<ResolverProbe>().toHaveProperty('latency_ms');
   expectTypeOf<CheckRecord>().toHaveProperty('successes');
 });

@@ -4,8 +4,14 @@ import { ReachabilityPanel } from './ReachabilityPanel';
 import type { Reachability } from '../types';
 
 const reach: Reachability = {
-  since: 0, checks: 100, online: 98,
-  history: Array.from({ length: 30 }, (_, i) => ({ ts: i, successes: 3, total: 3 })),
+  since: 0, rev: 0, ongoing: null,
+  // 50 records: 49 with 3/3, 1 with 0/3 = 147 successes / 150 checks = 98.0%
+  // Failed record in the middle to keep last record online
+  history: [
+    ...Array.from({ length: 25 }, (_, i) => ({ ts: i, successes: 3, total: 3 })),
+    { ts: 25, successes: 0, total: 3 },
+    ...Array.from({ length: 24 }, (_, i) => ({ ts: 26 + i, successes: 3, total: 3 })),
+  ],
   latest: [
     { ip: '1.1.1.1', ok: true, latency_ms: 11.2 },
     { ip: '8.8.8.8', ok: false, latency_ms: null },
@@ -28,7 +34,7 @@ describe('ReachabilityPanel', () => {
     expect(container.querySelectorAll('.quorum span').length).toBe(24);
   });
   it('handles zero checks with a dash', () => {
-    render(<ReachabilityPanel reachability={{ ...reach, checks: 0, online: 0, history: [], latest: [] }} />);
+    render(<ReachabilityPanel reachability={{ ...reach, rev: 0, ongoing: null, history: [], latest: [] }} />);
     expect(screen.getByText('—')).toBeInTheDocument();
   });
   it('shows "up" when the latest check is online', () => {

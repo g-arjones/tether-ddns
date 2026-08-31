@@ -1,4 +1,4 @@
-import type { Provider, HookDef, Settings, StateSnapshot, DomainConfig, HookConfig, AboutInfo } from './types';
+import type { Provider, HookDef, Settings, StateSnapshot, DomainConfig, HookConfig, AboutInfo, IncidentWindow } from './types';
 
 async function json<T>(url: string, init?: RequestInit): Promise<T> {
   const res = init ? await fetch(url, init) : await fetch(url);
@@ -27,3 +27,4 @@ export const deleteHook = (id: string) => json(`/api/hooks-config/${id}`, { meth
 export const runHook = (id: string) => json<{ ran: number; skipped: string[] }>(`/api/hooks-config/${id}/run`, { method: 'POST' });
 export const refresh = () => json('/api/refresh', { method: 'POST' });
 export const getAbout = () => json<AboutInfo>('/api/about');
+export const getIncidents = () => json<IncidentWindow>('/api/reachability/incidents');

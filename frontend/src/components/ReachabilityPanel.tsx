@@ -16,13 +16,17 @@ export function ReachabilityPanel({ reachability: r }: ReachabilityPanelProps): 
   const bars = r.history.slice(-QUORUM_BARS);
   const last = bars.length ? bars[bars.length - 1] : null;
   const online = last ? last.successes >= QUORUM : true;
-  const pct = r.checks ? ((r.online / r.checks) * 100).toFixed(1) + '%' : '—';
+  // TEMPORARY: Tasks 8-10 will replace this with incident-based rendering.
+  // For now, compute uptime from history to keep tests green.
+  const checks = r.history.reduce((sum, h) => sum + h.total, 0);
+  const successCount = r.history.reduce((sum, h) => sum + h.successes, 0);
+  const pct = checks ? ((successCount / checks) * 100).toFixed(1) + '%' : '—';
   return (
     <>
       <div className="reach-head">
         <div className="reach-uptime">
           <span className={`up-val${online ? '' : ' down'}`}>{pct}</span>
-          <span className="up-sub">{r.online}/{r.checks} checks · {online ? 'up' : 'down'} {formatUptime(r.since)}</span>
+          <span className="up-sub">{successCount}/{checks} checks · {online ? 'up' : 'down'} {formatUptime(r.since)}</span>
         </div>
         <span className={`reach-badge ${online ? 'up' : 'down'}`}><span className="rb-dot" />{online ? 'Online' : 'Offline'}</span>
       </div>

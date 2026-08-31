@@ -14,7 +14,8 @@ export interface OverviewViewProps {
 
 export function OverviewView({ snapshot, domains, settings }: OverviewViewProps): JSX.Element {
   // Null-safe defaults
-  const reachability = snapshot?.reachability ?? { since: 0, checks: 0, online: 0, history: [], latest: [] };
+  // TEMPORARY: Tasks 8-10 will use incidents; for now keep fallback minimal.
+  const reachability = snapshot?.reachability ?? { since: 0, rev: 0, ongoing: null, history: [], latest: [] };
   const ipv4 = snapshot?.public_ipv4 ?? null;
   const ipv6 = snapshot?.public_ipv6 ?? null;
   const ipv4ChangedAt = snapshot?.ipv4_changed_at ?? null;
