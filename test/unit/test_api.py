@@ -1,15 +1,40 @@
 """Tests for the REST API."""
+import time
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 from unittest.mock import AsyncMock, patch
 
 from fastapi.testclient import TestClient
 
-from tether_ddns.app import create_app
+import pytest
+
+from starlette.types import Scope
+
+from tether_ddns.app import SpaStaticFiles, create_app
 from tether_ddns.config_store import AppConfig, ConfigStore, DomainConfig
+from tether_ddns.incident_store import IncidentStore
+from tether_ddns.incidents import WINDOW_SECONDS
 from tether_ddns.reachability import ReachabilityResult
 from tether_ddns.runtime import RuntimeState
 from tether_ddns.state_store import StateStore
+
+
+ResultFactory = Callable[[list[bool]], ReachabilityResult]
+
+
+@pytest.mark.asyncio
+async def test_spa_entry_point_revalidates_but_assets_do_not(tmp_path: Path) -> None:
+    """index.html is served no-cache while hashed assets stay cacheable."""
+    (tmp_path / 'index.html').write_text('<html></html>', encoding='utf-8')
+    (tmp_path / 'app.js').write_text('// bundle', encoding='utf-8')
+    static = SpaStaticFiles(directory=str(tmp_path), html=True)
+    scope: Scope = {'type': 'http', 'method': 'GET', 'headers': []}
+
+    html = await static.get_response('index.html', scope)
+    asset = await static.get_response('app.js', scope)
+
+    assert html.headers['cache-control'] == 'no-cache'
+    assert 'cache-control' not in asset.headers
 
 
 def _client(tmp_path: Path) -> Any:
@@ -19,7 +44,37 @@ def _client(tmp_path: Path) -> Any:
     config.settings.update_on_startup = False
     store.save(config)
     state_store = StateStore(tmp_path / 'state.json')
-    return TestClient(create_app(store, state_store))
+    incident_store = IncidentStore(tmp_path / 'incidents.json')
+    return TestClient(create_app(store, state_store, incident_store))
+
+
+def test_incident_store_is_injectable(tmp_path: Path) -> None:
+    """An injected incident store keeps the app off the shared data home."""
+    store = ConfigStore(tmp_path / 'cfg.json')
+    config = AppConfig()
+    config.settings.update_on_startup = False
+    store.save(config)
+    incidents = tmp_path / 'incidents.json'
+    app = create_app(
+        config_store=store,
+        state_store=StateStore(tmp_path / 'state.json'),
+        incident_store=IncidentStore(incidents))
+    with TestClient(app):
+        pass
+    assert incidents.exists()
+
+
+def test_default_stores_resolve_into_the_data_home(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """With no stores injected, all three files land in the data home."""
+    monkeypatch.setenv('TETHER_DDNS_HOME_PATH', str(tmp_path))
+    config = AppConfig()
+    config.settings.update_on_startup = False
+    ConfigStore(tmp_path / 'tether-ddns.config.json').save(config)
+    with TestClient(create_app()):
+        pass
+    assert (tmp_path / 'tether-ddns.incidents.json').exists()
 
 
 def test_restores_domain_status_on_startup(tmp_path: Path) -> None:
@@ -36,7 +91,9 @@ def test_restores_domain_status_on_startup(tmp_path: Path) -> None:
     state_store = StateStore(tmp_path / 'state.json')
     state_store.save(seeded)
 
-    app = create_app(config_store=store, state_store=state_store)
+    app = create_app(
+        config_store=store, state_store=state_store,
+        incident_store=IncidentStore(tmp_path / 'incidents.json'))
     with TestClient(app):
         runtime: RuntimeState = app.state.runtime
         assert runtime.domains['a'].status == 'synced'
@@ -362,3 +419,28 @@ def test_refresh_and_websocket(tmp_path: Path) -> None:
             with client.websocket_connect('/api/ws') as ws:
                 first: dict[str, object] = ws.receive_json()
     assert first['kind'] == 'state'
+
+
+def test_get_incidents_returns_the_window(tmp_path: Path) -> None:
+    """The incidents endpoint returns the persisted window."""
+    with _client(tmp_path) as client:
+        res = client.get('/api/reachability/incidents')
+    assert res.status_code == 200
+    body = res.json()
+    assert body['incidents'] == []
+    assert body['ongoing'] is None
+    assert 'monitoring_since' in body
+    assert 'rev' in body
+
+
+def test_get_incidents_filters_expired_records(
+    tmp_path: Path, make_result: ResultFactory
+) -> None:
+    """Records outside the retention period are not served."""
+    with _client(tmp_path) as client:
+        recorder = client.app.state.ctx.incidents
+        old = time.time() - WINDOW_SECONDS - 100
+        recorder.record(make_result([False, False, False]), now=old)
+        recorder.record(make_result([True, True, True]), now=old + 50)
+        res = client.get('/api/reachability/incidents')
+    assert res.json()['incidents'] == []

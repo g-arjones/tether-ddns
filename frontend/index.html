@@ -3,8 +3,32 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/manifest.json" />
+    <!-- viewport-fit=cover is required for env(safe-area-inset-*) to report real values. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <!-- Default matches [data-theme="dark"] --bg; App.tsx keeps it in sync with the theme toggle. -->
+    <meta name="theme-color" content="#0b0f1a" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="Tether" />
+    <!-- Runs the web view under the status bar so the app background fills it. -->
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <title>Tether — Dynamic DNS</title>
+    <script>
+      // Applies the saved theme before first paint: Safari samples theme-color
+      // early and does not reliably re-read it, so React's effect is too late.
+      // Values mirror --bg in styles.css, which is not yet parsed at this point.
+      (function () {
+        try {
+          var saved = localStorage.getItem('tether-theme');
+          var theme = saved === 'light' || saved === 'dark' ? saved : 'dark';
+          document.documentElement.setAttribute('data-theme', theme);
+          var meta = document.querySelector('meta[name="theme-color"]');
+          if (meta) meta.setAttribute('content', theme === 'light' ? '#f4f6fb' : '#0b0f1a');
+        } catch (e) { /* private mode */ }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

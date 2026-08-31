@@ -1,10 +1,12 @@
 """Tests for the framework-free AppContext."""
 from pathlib import Path
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from tether_ddns.config_store import AppConfig, ConfigStore
 from tether_ddns.context import AppContext
+from tether_ddns.incident_store import IncidentStore
 from tether_ddns.runtime import RuntimeState
+from tether_ddns.services.incidents import IncidentRecorder
 from tether_ddns.state_store import StateStore
 from tether_ddns.ws import ConnectionManager
 
@@ -15,7 +17,7 @@ def _ctx() -> tuple[AppContext, MagicMock, MagicMock]:
     runtime = RuntimeState()
     store = MagicMock()
     manager = MagicMock()
-    ctx = AppContext(cfg, runtime, store, MagicMock(), manager)
+    ctx = AppContext(cfg, runtime, store, MagicMock(), manager, MagicMock())
     return ctx, store, manager
 
 
@@ -46,8 +48,17 @@ def test_persist_state_writes_runtime(tmp_path: Path) -> None:
         config_store=ConfigStore(tmp_path / 'cfg.json'),
         state_store=state_store,
         manager=ConnectionManager(),
+        incidents=IncidentRecorder(IncidentStore(tmp_path / 'incidents.json')),
     )
     ctx.persist_state()
     loaded = state_store.load()
     assert loaded is not None
     assert loaded.public_ipv4 == '5.6.7.8'
+
+
+def test_persist_incidents_flushes_via_recorder() -> None:
+    """persist_incidents() flushes the incident window through the recorder."""
+    ctx, _, _ = _ctx()
+    with patch.object(ctx.incidents, 'flush') as flush:
+        ctx.persist_incidents()
+    flush.assert_called_once()

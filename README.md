@@ -7,10 +7,11 @@ auto-loaded **provider** plugin system. A React + Vite single-page app (served
 by FastAPI in production) shows live status, streaming logs, and configuration —
 pushed over a single WebSocket.
 
-Configuration and last-known runtime state are pydantic-modelled and persisted
-as JSON on disk, so a restart keeps your public IPs, per-domain status, and
-"IP stable since" timestamps. Ephemeral telemetry (the reachability history and
-since-boot uptime%) is intentionally rebuilt on start.
+Configuration, last-known runtime state, and a 30-day reachability incident
+window are pydantic-modelled and persisted as JSON on disk, so a restart keeps
+your public IPs, per-domain status, "IP stable since" timestamps, and your
+uptime history. Only the short per-check reachability sparkline is rebuilt on
+start.
 
 ## Features
 
@@ -28,8 +29,11 @@ since-boot uptime%) is intentionally rebuilt on start.
 - Live logs and state over a WebSocket to the SPA; application logs are also
   printed to stdout alongside uvicorn's own output.
 - **Runtime state persisted across restarts** — last-known public IPs,
-  per-domain status, and "IP stable since" timestamps survive a restart;
-  reachability history and uptime% rebuild on start.
+  per-domain status, and "IP stable since" timestamps survive a restart; only
+  the short per-check reachability sparkline is rebuilt.
+- **30-day reachability incident history** — outages and degraded periods are
+  recorded to disk with a write-on-change policy, shown as a per-day history
+  strip with a per-day incident modal, and used to compute window uptime%.
 
 ## Requirements
 
@@ -79,13 +83,26 @@ python -m tether_ddns            # serves the built SPA + API on :8000
 
 ## Configuration
 
-- `TETHER_DDNS_CONFIG_PATH` — path to the JSON config file. If unset, the app
-  uses `./tether-ddns.json` in the current working directory. The file is
-  created/updated automatically as you change settings through the UI/API.
-- `TETHER_DDNS_STATE_PATH` — path to the JSON runtime-state file. If unset, the
-  app uses `./tether-ddns.state.json` in the current working directory. It is
-  written automatically and is safe to delete: it is disposable and fail-soft,
-  so a missing or corrupt file simply cold-starts with rebuilt state.
+- `TETHER_DDNS_HOME_PATH` — the directory holding everything the app persists.
+  If unset, the current working directory is used. The directory is created on
+  first write, and the filenames inside it are fixed:
+
+  | File | Contents | If deleted |
+  |---|---|---|
+  | `tether-ddns.config.json` | settings, domains, hooks, secrets | must recreate manually (only file worth backing up) |
+  | `tether-ddns.state.json` | last-known public IPs, per-domain status, "IP stable since" | cold-starts with rebuilt state |
+  | `tether-ddns.incidents.json` | 30-day incident window, source of uptime% | history and uptime% reset |
+
+  The state and incident files are disposable and fail-soft: a missing or
+  corrupt file is discarded with a warning rather than stopping the app. Only
+  the config file is authored by you, through the UI or API.
+
+  **Upgrading from before `TETHER_DDNS_HOME_PATH`:**
+  `TETHER_DDNS_CONFIG_PATH` and `TETHER_DDNS_STATE_PATH` are no longer read.
+  Move `tether-ddns.config.json`, `tether-ddns.state.json` and
+  `tether-ddns.incidents.json` into one directory and point
+  `TETHER_DDNS_HOME_PATH` at it. Docker users are unaffected. If the app
+  starts with no domains after an upgrade, this is why.
 - `TETHER_DDNS_HOST` / `TETHER_DDNS_PORT` — bind address for the server
   (defaults `0.0.0.0` / `8000`). CLI flags `--host` / `--port` override these:
   `python -m tether_ddns --port 9000`. Precedence is CLI flag > env var >
@@ -101,12 +118,12 @@ runtime) and a `docker-compose.yml` that auto-builds it are included:
 docker compose up -d          # builds the image and serves on :8000
 ```
 
-Config and runtime state persist in the `tether-config` named volume (mounted at
-`/data`, via `TETHER_DDNS_CONFIG_PATH=/data/tether-ddns.json` and
-`TETHER_DDNS_STATE_PATH=/data/tether-ddns.state.json`), so restarts keep your
-last-known status. For better router/LAN reachability and public-IP detection
-you can switch the service to host networking — see the commented
-`network_mode: host` note in `docker-compose.yml`.
+Config, runtime state, and incident history persist in the `tether-data` named
+volume (mounted at `/data`, via `TETHER_DDNS_HOME_PATH=/data`), so restarts
+keep your last-known status and uptime history. For better router/LAN
+reachability and public-IP detection you can switch the service to host
+networking — see the commented `network_mode: host` note in
+`docker-compose.yml`.
 
 ## Tests
 

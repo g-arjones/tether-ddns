@@ -11,7 +11,8 @@ def _ctx(cfg: AppConfig, runtime: RuntimeState) -> AppContext:
     """Build an AppContext from config and runtime (store/manager unused here)."""
     return AppContext(
         cfg, runtime,
-        config_store=None, state_store=None, manager=None)  # type: ignore[arg-type]
+        config_store=None, state_store=None, manager=None,  # type: ignore[arg-type]
+        incidents=None)  # type: ignore[arg-type]
 
 
 def test_reachability_from_context_snapshots_online() -> None:

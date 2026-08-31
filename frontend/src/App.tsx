@@ -74,6 +74,9 @@ export default function App() {
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
+    // Tints the iOS status bar to match the app background.
+    const bg = getComputedStyle(document.documentElement).getPropertyValue('--bg').trim();
+    if (bg) document.querySelector('meta[name="theme-color"]')?.setAttribute('content', bg);
     try {
       localStorage.setItem('tether-theme', theme);
     } catch {

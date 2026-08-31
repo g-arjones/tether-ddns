@@ -150,6 +150,11 @@ def register_routes(app: FastAPI) -> None:
         snap['logs'] = app.state.log_handler.snapshot()
         return snap
 
+    @router.get('/reachability/incidents')
+    def get_incidents() -> dict[str, object]:
+        window: dict[str, object] = app.state.ctx.incidents.window().model_dump()
+        return window
+
     @router.get('/providers')
     def get_providers() -> list[dict[str, object]]:
         return [

@@ -5,6 +5,7 @@ from dataclasses import dataclass
 
 from tether_ddns.config_store import AppConfig, ConfigStore
 from tether_ddns.runtime import RuntimeState
+from tether_ddns.services.incidents import IncidentRecorder
 from tether_ddns.state_store import StateStore
 from tether_ddns.ws import ConnectionManager
 
@@ -18,6 +19,7 @@ class AppContext:
     config_store: ConfigStore
     state_store: StateStore
     manager: ConnectionManager
+    incidents: IncidentRecorder
 
     def persist(self) -> None:
         """Save the current configuration to disk."""
@@ -26,6 +28,10 @@ class AppContext:
     def persist_state(self) -> None:
         """Save the current runtime state to disk."""
         self.state_store.save(self.runtime)
+
+    def persist_incidents(self) -> None:
+        """Save the current incident window to disk."""
+        self.incidents.flush()
 
     def rebuild(self) -> None:
         """Persist configuration, then rebuild runtime from it."""

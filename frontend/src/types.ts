@@ -7,10 +7,29 @@ export interface LogEntry { time: number; level: string; logger: string; message
 
 export interface ResolverProbe { ip: string; ok: boolean; latency_ms: number | null; }
 export interface CheckRecord { ts: number; successes: number; total: number; }
+
+export type Severity = 'degraded' | 'outage';
+
+export interface Incident {
+  start: number;
+  end: number | null;
+  severity: Severity;
+  min_successes: number;
+  total: number;
+  failed: string[];
+}
+
+export interface IncidentWindow {
+  monitoring_since: number;
+  rev: number;
+  incidents: Incident[];
+  ongoing: Incident | null;
+}
+
 export interface Reachability {
   since: number;
-  checks: number;
-  online: number;
+  rev: number;
+  ongoing: Incident | null;
   history: CheckRecord[];
   latest: ResolverProbe[];
 }

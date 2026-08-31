@@ -76,3 +76,47 @@ test('about view shows backend and frontend panels', async ({ page }) => {
   await expect(page.getByText('Backend')).toBeVisible();
   await expect(page.getByText('Frontend')).toBeVisible();
 });
+
+test('clicking a day bar opens the incident modal', async ({ page }) => {
+  await page.goto('/');
+  const bars = page.locator('.day-strip button');
+  await expect(bars).toHaveCount(30);
+  await bars.last().click();
+  await expect(page.locator('.modal-overlay.open')).toBeVisible();
+  await expect(page.getByText(/Day timeline/)).toBeVisible();
+});
+
+test('the day strip is keyboard reachable', async ({ page }) => {
+  await page.goto('/');
+  const first = page.locator('.day-strip button').first();
+  await first.focus();
+  await expect(first).toBeFocused();
+  await page.keyboard.press('Enter');
+  await expect(page.locator('.modal-overlay.open')).toBeVisible();
+});
+
+// Regression: placeholder bars once carried the global `.empty` class, whose
+// 60px/20px padding overflowed the strip and starved the Record health column.
+test('the live strip stays inside its box and does not starve the layout', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto('/');
+  await expect(page.locator('.quorum span')).toHaveCount(24);
+
+  // One evaluate, one layout pass: the dashboard re-renders on every WebSocket
+  // frame, so boxes sampled across separate calls can disagree by a pixel or two.
+  const geometry = await page.evaluate(() => {
+    const strip = document.querySelector('.quorum')!.getBoundingClientRect();
+    const bars = [...document.querySelectorAll('.quorum span')].map((bar) => {
+      const box = bar.getBoundingClientRect();
+      return { y: box.y, height: box.height };
+    });
+    const health = document.querySelectorAll('.ov-grid > *')[1]!.getBoundingClientRect();
+    return { stripY: strip.y, stripHeight: strip.height, bars, healthWidth: health.width };
+  });
+
+  for (const bar of geometry.bars) {
+    expect(bar.height).toBeLessThanOrEqual(geometry.stripHeight);
+    expect(bar.y).toBeGreaterThanOrEqual(geometry.stripY);
+  }
+  expect(geometry.healthWidth).toBeGreaterThan(300);
+});

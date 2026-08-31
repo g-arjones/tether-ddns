@@ -5,6 +5,7 @@ import { IpReadoutPanel } from '../components/IpReadoutPanel';
 import { ReachabilityPanel } from '../components/ReachabilityPanel';
 import { RecordHealthPanel } from '../components/RecordHealthPanel';
 import { formatInterval } from '../utils';
+import { useIncidents } from '../useIncidents';
 
 export interface OverviewViewProps {
   snapshot: StateSnapshot | null;
@@ -14,7 +15,8 @@ export interface OverviewViewProps {
 
 export function OverviewView({ snapshot, domains, settings }: OverviewViewProps): JSX.Element {
   // Null-safe defaults
-  const reachability = snapshot?.reachability ?? { since: 0, checks: 0, online: 0, history: [], latest: [] };
+  const reachability = snapshot?.reachability ?? { since: 0, rev: 0, ongoing: null, history: [], latest: [] };
+  const incidentWindow = useIncidents(reachability.rev);
   const ipv4 = snapshot?.public_ipv4 ?? null;
   const ipv6 = snapshot?.public_ipv6 ?? null;
   const ipv4ChangedAt = snapshot?.ipv4_changed_at ?? null;
@@ -82,13 +84,11 @@ export function OverviewView({ snapshot, domains, settings }: OverviewViewProps)
         <StatCard label="Update Interval" value={intervalStr} sub="Check for IP changes" tint="tint-accent" icon={clockIcon} />
       </div>
       <div className="ov-grid">
-        <div>
-          <IpReadoutPanel ipv4={ipv4} ipv6={ipv6} ipv4ChangedAt={ipv4ChangedAt} ipv6ChangedAt={ipv6ChangedAt} ipSource={ipSource} />
-          <div className="panel" style={{ marginTop: '16px' }}>
-            <ReachabilityPanel reachability={reachability} />
-          </div>
-        </div>
+        <IpReadoutPanel ipv4={ipv4} ipv6={ipv6} ipv4ChangedAt={ipv4ChangedAt} ipv6ChangedAt={ipv6ChangedAt} ipSource={ipSource} />
         <RecordHealthPanel domains={runtimeDomains} enabledById={enabledById} nextCheckAt={nextCheckAt} checkInterval={checkInterval} />
+        <div className="panel ov-wide">
+          <ReachabilityPanel reachability={reachability} incidentWindow={incidentWindow} />
+        </div>
       </div>
     </>
   );

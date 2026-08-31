@@ -81,8 +81,9 @@ class Scheduler:
         self._last_state_json = payload
 
     def shutdown(self) -> None:
-        """Flush runtime state (if changed), then stop the scheduler."""
+        """Flush runtime state and incidents, then stop the scheduler."""
         self.flush_state()
+        self._ctx.persist_incidents()
         if self._scheduler.running:
             self._scheduler.shutdown(wait=False)
 
@@ -102,7 +103,8 @@ class Scheduler:
         state = self._ctx.runtime
         was_online = state.online
         reach = await self._reachability.check()
-        if state.record_reachability(reach):
+        view = self._ctx.incidents.record(reach)
+        if state.record_reachability(reach, view):
             await self._dispatch.dispatch(
                 'reachability_changed',
                 ReachabilityChangedEvent(

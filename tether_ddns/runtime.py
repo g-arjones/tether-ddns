@@ -8,6 +8,7 @@ from typing import Callable, Literal, cast
 from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, field_validator
 
 from tether_ddns.config_store import AppConfig, DomainConfig
+from tether_ddns.incidents import Incident, IncidentView
 from tether_ddns.reachability import ReachabilityResult, ResolverProbe
 
 Status = Literal['synced', 'pending', 'error', 'updating']
@@ -52,16 +53,15 @@ class RuntimeState(BaseModel):
     domains: dict[str, DomainRuntime] = Field(default_factory=dict)
     # Reachability telemetry is deliberately NOT persisted. It is a live,
     # per-check time-series that turns over every ~30 min, so persisting it
-    # (a) rewrites the state file on every 30 s check and (b) would turn the
-    # since-boot uptime% (online / checks) into a meaningless all-time figure
-    # across restarts. These stay in memory and in snapshot() for the live UI;
-    # the sparkline and uptime% intentionally rebuild after a restart.
+    # would rewrite the state file on every 30 s check. The incident view
+    # (maintained by the recorder) is the source of uptime%; the sparkline
+    # and 30-day window intentionally rebuild after a restart.
     #
     # Timestamp the current online/offline state began; reset on each
     # transition so the UI can show "up/down for <duration>".
     reachability_since: float = Field(default_factory=time.time, exclude=True)
-    reachability_checks: int = Field(default=0, exclude=True)
-    reachability_online: int = Field(default=0, exclude=True)
+    incident_rev: int = Field(default=0, exclude=True)
+    incident_ongoing: Incident | None = Field(default=None, exclude=True)
     reachability_history: deque[CheckRecord] = Field(
         default_factory=lambda: deque(maxlen=REACHABILITY_HISTORY_SIZE),
         exclude=True)
@@ -119,8 +119,6 @@ class RuntimeState(BaseModel):
         self.online = other.online
         self.ipv4_changed_at = other.ipv4_changed_at
         self.ipv6_changed_at = other.ipv6_changed_at
-        self.reachability_checks = other.reachability_checks
-        self.reachability_online = other.reachability_online
         self.reachability_history = deque(
             other.reachability_history, maxlen=REACHABILITY_HISTORY_SIZE)
         self.domains = dict(other.domains)
@@ -171,17 +169,18 @@ class RuntimeState(BaseModel):
         self.online = online
         self._emit()
 
-    def record_reachability(self, result: ReachabilityResult) -> bool:
+    def record_reachability(
+        self, result: ReachabilityResult, view: IncidentView,
+    ) -> bool:
         """Record a reachability check; return True on an online transition."""
         transitioned = result.online != self.online
         if transitioned:
             self.reachability_since = time.time()
         self.reachability_history.append(CheckRecord(
             ts=time.time(), successes=result.successes, total=result.total))
-        self.reachability_checks += 1
-        if result.online:
-            self.reachability_online += 1
         self.reachability_latest = list(result.probes)
+        self.incident_ongoing = view.ongoing
+        self.incident_rev = view.rev
         self.online = result.online
         self._emit()
         return transitioned
@@ -234,8 +233,10 @@ class RuntimeState(BaseModel):
             'next_check_at': self.next_check_at,
             'reachability': {
                 'since': self.reachability_since,
-                'checks': self.reachability_checks,
-                'online': self.reachability_online,
+                'rev': self.incident_rev,
+                'ongoing': (
+                    self.incident_ongoing.model_dump()
+                    if self.incident_ongoing is not None else None),
                 'history': [r.model_dump() for r in self.reachability_history],
                 'latest': [p.model_dump() for p in self.reachability_latest],
             },

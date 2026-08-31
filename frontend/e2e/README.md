@@ -1,7 +1,7 @@
 # End-to-end tests (Playwright)
 
 These tests run against the **production SPA served by FastAPI**: the built
-frontend (`tether_ddns/static`) is served by `python -m tether_ddns` on port 8000.
+frontend (`tether_ddns/static`) is served by `python -m tether_ddns` on port 8123.
 
 ## Prerequisites
 
@@ -11,8 +11,9 @@ frontend (`tether_ddns/static`) is served by `python -m tether_ddns` on port 800
 
 The `webServer` in `playwright.config.ts` handles building the frontend and
 launching the backend automatically, so you do not need to build or start the
-server manually. Each run uses a fresh temp `TETHER_DDNS_CONFIG_PATH`, so tests
-begin from an empty configuration.
+server manually. Each run points `TETHER_DDNS_HOME_PATH` at a fresh temp
+directory, so tests begin from an empty configuration and leave no files in the
+repository.
 
 ## Run
 
@@ -26,8 +27,8 @@ npm run test:e2e
 ## Notes
 
 - The webServer command is:
-  `npm run build && cd .. && TETHER_DDNS_CONFIG_PATH=$(mktemp -d)/e2e-config.json .venv/bin/python -m tether_ddns`
+  `npm run build && cd .. && TETHER_DDNS_HOME_PATH=$(mktemp -d) TETHER_DDNS_PORT=8123 .venv/bin/python -m tether_ddns`
   (the `.venv/bin/python` path is relative to the repo root, which is the cwd after `cd ..`)
 - `reuseExistingServer` is enabled outside CI, so an already-running server on
-  port 8000 will be reused.
+  port 8123 will be reused.
 - Reports/artifacts (`playwright-report/`, `test-results/`) are git-ignored.
