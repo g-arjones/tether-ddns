@@ -23,6 +23,15 @@
   --strip-h: 46px;
   --transition: .2s cubic-bezier(.4, 0, .2, 1);
 
+  /* iOS standalone runs the web view under the status bar and home indicator.
+     Routed through tokens so they can be overridden to simulate a device. */
+  --sa-top: env(safe-area-inset-top, 0px);
+  --sa-right: env(safe-area-inset-right, 0px);
+  --sa-bottom: env(safe-area-inset-bottom, 0px);
+  --sa-left: env(safe-area-inset-left, 0px);
+  /* iOS always draws standalone status-bar text white; this keeps it legible. */
+  --statusbar-scrim: #0b0f1a;
+
   /* semantic z-scale */
   --z-rail: 30;
   --z-sticky: 40;
@@ -91,7 +100,7 @@ h1, h2, h3, h4 { color: var(--text); }
   background: var(--rail-bg);
   border-right: 1px solid var(--border);
   display: flex; flex-direction: column;
-  padding: 18px 14px;
+  padding: calc(18px + var(--sa-top)) 14px calc(18px + var(--sa-bottom));
   gap: 6px;
   z-index: var(--z-rail);
 }
@@ -163,9 +172,16 @@ h1, h2, h3, h4 { color: var(--text); }
 /* ---------- Top bar ---------- */
 header.topbar {
   position: sticky; top: 0; z-index: var(--z-sticky);
+  padding-top: var(--sa-top);
   backdrop-filter: blur(14px);
   background: color-mix(in srgb, var(--bg) 78%, transparent);
   border-bottom: 1px solid var(--border);
+}
+/* Dark themes let their own background show through; the light theme needs a
+   scrim or the white clock and battery vanish. */
+[data-theme="light"] header.topbar::before {
+  content: ''; position: absolute; top: 0; left: 0; right: 0;
+  height: var(--sa-top); background: var(--statusbar-scrim);
 }
 .topbar-inner { display: flex; align-items: center; gap: 16px; padding: 14px 20px; max-width: 1180px; margin: 0 auto; }
 .rail-toggle { display: grid; }
@@ -215,7 +231,10 @@ header.topbar {
 .btn-sm { padding: 7px 12px; font-size: 13px; }
 
 /* ---------- Page container ---------- */
-.page { padding: 26px 28px 80px; max-width: 1200px; width: 100%; margin: 0 auto; }
+.page {
+  padding: 26px max(28px, var(--sa-right)) calc(80px + var(--sa-bottom)) max(28px, var(--sa-left));
+  max-width: 1200px; width: 100%; margin: 0 auto;
+}
 .view { display: none; animation: viewIn .28s cubic-bezier(.2,.8,.2,1); }
 .view.active { display: block; }
 @keyframes viewIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
@@ -514,7 +533,9 @@ header.topbar {
 /* ---------- Modal ---------- */
 .modal-overlay {
   position: fixed; inset: 0; background: rgba(5, 8, 16, .6); backdrop-filter: blur(4px);
-  display: grid; place-items: center; padding: 20px; z-index: var(--z-modal);
+  display: grid; place-items: center; z-index: var(--z-modal);
+  padding: calc(20px + var(--sa-top)) calc(20px + var(--sa-right))
+           calc(20px + var(--sa-bottom)) calc(20px + var(--sa-left));
   opacity: 0; pointer-events: none; transition: opacity var(--transition);
 }
 .modal-overlay.open { opacity: 1; pointer-events: auto; }
@@ -534,7 +555,7 @@ header.topbar {
 .modal-foot { flex: none; padding: 16px 22px; border-top: 1px solid var(--border); display: flex; gap: 10px; justify-content: flex-end; }
 
 /* ---------- Toasts ---------- */
-.toast-wrap { position: fixed; bottom: 22px; right: 22px; display: flex; flex-direction: column; gap: 10px; z-index: var(--z-toast); }
+.toast-wrap { position: fixed; bottom: calc(22px + var(--sa-bottom)); right: calc(22px + var(--sa-right)); display: flex; flex-direction: column; gap: 10px; z-index: var(--z-toast); }
 .toast {
   display: flex; align-items: center; gap: 11px; background: var(--surface); border: 1px solid var(--border);
   border-radius: 12px; padding: 13px 16px; box-shadow: var(--shadow); min-width: 260px; max-width: 340px;
@@ -570,13 +591,13 @@ header.topbar {
   .topbar-inner { padding: 12px 16px; gap: 8px; }
   .page-title { min-width: 0; }
   .page-title h2, .page-title p { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
-  .page { padding: 20px 16px 70px; }
+  .page { padding: 20px max(16px, var(--sa-right)) calc(70px + var(--sa-bottom)) max(16px, var(--sa-left)); }
   .stats { grid-template-columns: 1fr; gap: 12px; }
   .stat-value { font-size: 26px; }
   .domain-grid { grid-template-columns: 1fr; }
   .ip-pill { display: none; }
   .field-row { grid-template-columns: 1fr; }
-  .toast-wrap { left: 16px; right: 16px; bottom: 16px; }
+  .toast-wrap { left: max(16px, var(--sa-left)); right: max(16px, var(--sa-right)); bottom: calc(16px + var(--sa-bottom)); }
   .toast { max-width: none; }
   .page-title p { display: none; }
 }
