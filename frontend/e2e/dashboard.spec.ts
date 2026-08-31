@@ -100,20 +100,23 @@ test('the day strip is keyboard reachable', async ({ page }) => {
 test('the live strip stays inside its box and does not starve the layout', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto('/');
+  await expect(page.locator('.quorum span')).toHaveCount(24);
 
-  const strip = page.locator('.quorum');
-  await expect(strip).toBeVisible();
-  const stripBox = await strip.boundingBox();
-  const bars = page.locator('.quorum span');
-  const count = await bars.count();
-  expect(count).toBeGreaterThan(0);
-  for (let i = 0; i < count; i += 1) {
-    const bar = await bars.nth(i).boundingBox();
-    expect(bar!.height).toBeLessThanOrEqual(stripBox!.height + 1);
-    expect(bar!.y).toBeGreaterThanOrEqual(stripBox!.y - 1);
+  // One evaluate, one layout pass: the dashboard re-renders on every WebSocket
+  // frame, so boxes sampled across separate calls can disagree by a pixel or two.
+  const geometry = await page.evaluate(() => {
+    const strip = document.querySelector('.quorum')!.getBoundingClientRect();
+    const bars = [...document.querySelectorAll('.quorum span')].map((bar) => {
+      const box = bar.getBoundingClientRect();
+      return { y: box.y, height: box.height };
+    });
+    const health = document.querySelectorAll('.ov-grid > *')[1]!.getBoundingClientRect();
+    return { stripY: strip.y, stripHeight: strip.height, bars, healthWidth: health.width };
+  });
+
+  for (const bar of geometry.bars) {
+    expect(bar.height).toBeLessThanOrEqual(geometry.stripHeight);
+    expect(bar.y).toBeGreaterThanOrEqual(geometry.stripY);
   }
-
-  const health = page.locator('.ov-grid > *').nth(1);
-  const healthBox = await health.boundingBox();
-  expect(healthBox!.width).toBeGreaterThan(300);
+  expect(geometry.healthWidth).toBeGreaterThan(300);
 });

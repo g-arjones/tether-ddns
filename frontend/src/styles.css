@@ -247,7 +247,9 @@ header.topbar {
 .tint-err { background: var(--err-soft); color: var(--err); }
 
 /* ---------- Overview: two-column panels ---------- */
-.ov-grid { display: grid; grid-template-columns: 1.4fr 1fr; gap: 16px; margin-bottom: 26px; }
+/* start, not stretch: the right panel sizes to its content instead of matching
+   the taller reachability column. */
+.ov-grid { display: grid; grid-template-columns: 1.4fr 1fr; align-items: start; gap: 16px; margin-bottom: 26px; }
 .panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; }
 .panel-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
 .panel-head h4 { font-size: 14px; font-weight: 700; letter-spacing: -.2px; }
