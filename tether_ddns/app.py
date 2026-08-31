@@ -12,6 +12,7 @@ from tether_ddns.api import register_routes
 from tether_ddns.config_store import ConfigStore
 from tether_ddns.context import AppContext
 from tether_ddns.hooks.base import load_hooks
+from tether_ddns.incident_store import IncidentStore
 from tether_ddns.ip_sources.base import load_ip_sources
 from tether_ddns.logging_setup import (
     LogRingHandler,
@@ -23,6 +24,7 @@ from tether_ddns.reachability import ReachabilityProbe
 from tether_ddns.runtime import RuntimeState
 from tether_ddns.scheduler import Scheduler
 from tether_ddns.services.dispatch import DispatchService
+from tether_ddns.services.incidents import IncidentRecorder
 from tether_ddns.services.sync import SyncService
 from tether_ddns.state_store import StateStore
 from tether_ddns.ws import ConnectionManager
@@ -51,11 +53,16 @@ def create_app(
         persisted = resolved_state_store.load()
         if persisted is not None:
             runtime.restore(persisted, config)
+        recorder = IncidentRecorder(
+            IncidentStore.beside(resolved_state_store.path))
+        runtime.incident_ongoing = recorder.view.ongoing
+        runtime.incident_rev = recorder.view.rev
         runtime.rebuild(config)
         manager = ConnectionManager()
         handler.add_listener(lambda rec: manager.sync_broadcast('log', rec))
         runtime.add_listener(lambda snap: manager.sync_broadcast('state', snap))
-        ctx = AppContext(config, runtime, resolved_config_store, resolved_state_store, manager)
+        ctx = AppContext(config, runtime, resolved_config_store, resolved_state_store, manager,
+                         recorder)
         dispatch = DispatchService(ctx)
         sync = SyncService(ctx, dispatch)
         scheduler = Scheduler(ctx, sync, dispatch, ReachabilityProbe())

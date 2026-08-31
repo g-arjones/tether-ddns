@@ -1,6 +1,7 @@
 """Tests for scheduler dispatch and exception isolation."""
 import asyncio
 from pathlib import Path
+from tempfile import mkdtemp
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -10,21 +11,30 @@ from tether_ddns.config_store import AppConfig, DomainConfig, HookConfig
 from tether_ddns.context import AppContext
 from tether_ddns.hooks.base import (
     IpChangedEvent, ReachabilityChangedEvent, load_hooks)
+from tether_ddns.incident_store import IncidentStore
 from tether_ddns.providers.base import load_providers
 from tether_ddns.reachability import (
     ReachabilityProbe, ReachabilityResult, ResolverProbe)
 from tether_ddns.runtime import RuntimeState
 from tether_ddns.services.dispatch import DispatchService
+from tether_ddns.services.incidents import IncidentRecorder
 from tether_ddns.services.sync import SyncService
 from tether_ddns.state_store import StateStore
 
 
+def _recorder() -> IncidentRecorder:
+    """Build an IncidentRecorder bound to a throwaway temp file."""
+    return IncidentRecorder(IncidentStore(Path(mkdtemp()) / 'incidents.json'))
+
+
 def _ctx(
     cfg: AppConfig, state: RuntimeState, state_store: StateStore | None = None,
+    incidents: IncidentRecorder | None = None,
 ) -> AppContext:
     """Build an AppContext for dispatch tests."""
     store = state_store if state_store is not None else MagicMock()
-    return AppContext(cfg, state, MagicMock(), store, MagicMock())
+    recorder = incidents if incidents is not None else _recorder()
+    return AppContext(cfg, state, MagicMock(), store, MagicMock(), recorder)
 
 
 def _disp(cfg: AppConfig, state: RuntimeState) -> DispatchService:
@@ -980,3 +990,42 @@ def test_flush_state_ignores_reachability_ticks(tmp_path: Path) -> None:
     # online stays False and the telemetry series is excluded, so the
     # persisted payload is unchanged and no second save occurs.
     assert save.call_count == 1
+
+
+@pytest.mark.asyncio
+async def test_check_reachability_records_an_incident() -> None:
+    """A failing check is folded into the incident window."""
+    ctx = _ctx(AppConfig(), RuntimeState())
+    probe = ReachabilityProbe()
+    sched = scheduler.Scheduler(
+        ctx, SyncService(ctx, AsyncMock()), AsyncMock(), probe)
+    with patch.object(probe, 'check', new=AsyncMock(return_value=_online(False))):
+        await sched.check_reachability()
+    ongoing = ctx.incidents.view.ongoing
+    assert ongoing is not None
+    assert ongoing.severity == 'outage'
+
+
+@pytest.mark.asyncio
+async def test_check_reachability_emits_once_per_tick() -> None:
+    """Recording an incident does not produce a second state emit."""
+    state = RuntimeState()
+    ctx = _ctx(AppConfig(), state)
+    emits: list[dict[str, object]] = []
+    state.add_listener(emits.append)
+    probe = ReachabilityProbe()
+    sched = scheduler.Scheduler(
+        ctx, SyncService(ctx, AsyncMock()), AsyncMock(), probe)
+    with patch.object(probe, 'check', new=AsyncMock(return_value=_online(False))):
+        await sched.check_reachability()
+    assert len(emits) == 1
+
+
+def test_shutdown_flushes_the_incident_window() -> None:
+    """Shutdown persists pending incident widening before stopping."""
+    ctx = _ctx(AppConfig(), RuntimeState())
+    sched = scheduler.Scheduler(
+        ctx, SyncService(ctx, AsyncMock()), AsyncMock(), ReachabilityProbe())
+    with patch.object(ctx.incidents, 'flush') as flush:
+        sched.shutdown()
+    flush.assert_called_once()

@@ -7,7 +7,6 @@ from apscheduler.schedulers.asyncio import (  # pyright: ignore[reportMissingTyp
 
 from tether_ddns.context import AppContext
 from tether_ddns.hooks.base import ReachabilityChangedEvent
-from tether_ddns.incidents import IncidentView
 from tether_ddns.reachability import ReachabilityProbe
 from tether_ddns.runtime import RuntimeState
 from tether_ddns.services.dispatch import DispatchService
@@ -82,8 +81,9 @@ class Scheduler:
         self._last_state_json = payload
 
     def shutdown(self) -> None:
-        """Flush runtime state (if changed), then stop the scheduler."""
+        """Flush runtime state and incidents, then stop the scheduler."""
         self.flush_state()
+        self._ctx.persist_incidents()
         if self._scheduler.running:
             self._scheduler.shutdown(wait=False)
 
@@ -103,9 +103,8 @@ class Scheduler:
         state = self._ctx.runtime
         was_online = state.online
         reach = await self._reachability.check()
-        # TEMPORARY: Task 5 will replace this neutral view with the
-        # IncidentRecorder's output. This placeholder keeps the suite green.
-        if state.record_reachability(reach, IncidentView(None, 0)):
+        view = self._ctx.incidents.record(reach)
+        if state.record_reachability(reach, view):
             await self._dispatch.dispatch(
                 'reachability_changed',
                 ReachabilityChangedEvent(
