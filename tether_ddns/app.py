@@ -1,6 +1,7 @@
 """FastAPI application factory and lifespan wiring."""
 from __future__ import annotations
 
+import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import AsyncGenerator
@@ -11,6 +12,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.responses import Response
 from starlette.types import Scope
 
+from tether_ddns import paths
 from tether_ddns.api import register_routes
 from tether_ddns.config_store import ConfigStore
 from tether_ddns.context import AppContext
@@ -32,6 +34,7 @@ from tether_ddns.services.sync import SyncService
 from tether_ddns.state_store import StateStore
 from tether_ddns.ws import ConnectionManager
 
+logger = logging.getLogger(__name__)
 _STATIC_DIR = Path(__file__).parent / 'static'
 
 
@@ -67,6 +70,7 @@ def create_app(
         handler = LogRingHandler()
         install_ring_handler(handler)
         install_stdout_handler()
+        logger.info('Data home: %s', paths.home())
         load_providers()
         load_hooks()
         load_ip_sources()

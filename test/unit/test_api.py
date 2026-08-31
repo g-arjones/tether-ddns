@@ -64,6 +64,19 @@ def test_incident_store_is_injectable(tmp_path: Path) -> None:
     assert incidents.exists()
 
 
+def test_default_stores_resolve_into_the_data_home(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """With no stores injected, all three files land in the data home."""
+    monkeypatch.setenv('TETHER_DDNS_HOME_PATH', str(tmp_path))
+    config = AppConfig()
+    config.settings.update_on_startup = False
+    ConfigStore(tmp_path / 'tether-ddns.config.json').save(config)
+    with TestClient(create_app()):
+        pass
+    assert (tmp_path / 'tether-ddns.incidents.json').exists()
+
+
 def test_restores_domain_status_on_startup(tmp_path: Path) -> None:
     """A persisted synced domain is restored (not reset to pending) on boot."""
     store = ConfigStore(tmp_path / 'cfg.json')

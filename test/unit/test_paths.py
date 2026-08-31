@@ -44,6 +44,15 @@ def test_files_fall_back_to_cwd(
     assert paths.incidents_path() == tmp_path / 'tether-ddns.incidents.json'
 
 
+def test_home_expands_tilde(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A tilde-prefixed home path expands to the real home directory."""
+    monkeypatch.setenv('HOME', str(tmp_path))
+    monkeypatch.setenv('TETHER_DDNS_HOME_PATH', '~/tether')
+    assert paths.home() == tmp_path / 'tether'
+
+
 def test_home_is_resolved_lazily(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
@@ -52,3 +61,4 @@ def test_home_is_resolved_lazily(
     first = paths.config_path()
     monkeypatch.setenv('TETHER_DDNS_HOME_PATH', str(tmp_path / 'b'))
     assert first != paths.config_path()
+    assert paths.config_path() == tmp_path / 'b' / 'tether-ddns.config.json'

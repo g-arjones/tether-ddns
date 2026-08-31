@@ -89,13 +89,20 @@ python -m tether_ddns            # serves the built SPA + API on :8000
 
   | File | Contents | If deleted |
   |---|---|---|
-  | `tether-ddns.config.json` | settings, domains, hooks, secrets | **durable** — the only file worth backing up |
+  | `tether-ddns.config.json` | settings, domains, hooks, secrets | must recreate manually (only file worth backing up) |
   | `tether-ddns.state.json` | last-known public IPs, per-domain status, "IP stable since" | cold-starts with rebuilt state |
   | `tether-ddns.incidents.json` | 30-day incident window, source of uptime% | history and uptime% reset |
 
-  Both state files are disposable and fail-soft: a missing or corrupt file is
-  discarded with a warning rather than stopping the app. Only the config file
-  is authored by you, through the UI or API.
+  The state and incident files are disposable and fail-soft: a missing or
+  corrupt file is discarded with a warning rather than stopping the app. Only
+  the config file is authored by you, through the UI or API.
+
+  **Upgrading from before `TETHER_DDNS_HOME_PATH`:**
+  `TETHER_DDNS_CONFIG_PATH` and `TETHER_DDNS_STATE_PATH` are no longer read.
+  Move `tether-ddns.config.json`, `tether-ddns.state.json` and
+  `tether-ddns.incidents.json` into one directory and point
+  `TETHER_DDNS_HOME_PATH` at it. Docker users are unaffected. If the app
+  starts with no domains after an upgrade, this is why.
 - `TETHER_DDNS_HOST` / `TETHER_DDNS_PORT` — bind address for the server
   (defaults `0.0.0.0` / `8000`). CLI flags `--host` / `--port` override these:
   `python -m tether_ddns --port 9000`. Precedence is CLI flag > env var >
@@ -112,10 +119,11 @@ docker compose up -d          # builds the image and serves on :8000
 ```
 
 Config, runtime state, and incident history persist in the `tether-data` named
-volume (mounted at `/data`, via `TETHER_DDNS_HOME_PATH=/data`), so restarts keep
-your last-known status and uptime history. For better router/LAN reachability and public-IP detection
-you can switch the service to host networking — see the commented
-`network_mode: host` note in `docker-compose.yml`.
+volume (mounted at `/data`, via `TETHER_DDNS_HOME_PATH=/data`), so restarts
+keep your last-known status and uptime history. For better router/LAN
+reachability and public-IP detection you can switch the service to host
+networking — see the commented `network_mode: host` note in
+`docker-compose.yml`.
 
 ## Tests
 

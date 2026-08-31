@@ -19,7 +19,7 @@ INCIDENTS_FILENAME = 'tether-ddns.incidents.json'
 def home() -> Path:
     """Resolve the data home from the env var, else the working directory."""
     env = os.environ.get(ENV_VAR)
-    return Path(env) if env else Path.cwd()
+    return Path(env).expanduser() if env else Path.cwd()
 
 
 def config_path() -> Path:
