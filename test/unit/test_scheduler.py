@@ -816,7 +816,7 @@ def _reach(online: bool) -> ReachabilityResult:
 
 
 def test_check_reachability_records_every_run(monkeypatch: pytest.MonkeyPatch) -> None:
-    """check_reachability increments check count on every run."""
+    """check_reachability runs and updates online state on every run."""
     state = RuntimeState()
     sched = _sched(AppConfig(), state)
 
@@ -827,7 +827,6 @@ def test_check_reachability_records_every_run(monkeypatch: pytest.MonkeyPatch) -
         reach.check = AsyncMock(side_effect=fake_check)
         asyncio.run(sched.check_reachability())
         asyncio.run(sched.check_reachability())
-        assert state.reachability_checks == 2
         assert state.online is True
 
 
@@ -963,7 +962,9 @@ def test_flush_state_writes_again_after_real_change(tmp_path: Path) -> None:
 
 
 def test_flush_state_ignores_reachability_ticks(tmp_path: Path) -> None:
-    """record_reachability between flushes does not cause a second save."""
+    """Reachability telemetry between flushes does not cause a second save."""
+    from tether_ddns.incidents import IncidentView
+
     cfg = AppConfig()
     state = RuntimeState()
     ss = StateStore(tmp_path / 'state.json')
@@ -973,10 +974,9 @@ def test_flush_state_ignores_reachability_ticks(tmp_path: Path) -> None:
     with patch.object(ss, 'save', wraps=ss.save) as save:
         sched.flush_state()
         state.record_reachability(
-            ReachabilityResult(online=False, successes=0, total=3, probes=[]))
-        # The tick genuinely mutated in-memory telemetry...
-        assert state.reachability_checks == 1
+            ReachabilityResult(online=False, successes=0, total=3, probes=[]),
+            IncidentView(None, 0))
         sched.flush_state()
-    # ...but online stays False and the telemetry series is excluded, so the
+    # online stays False and the telemetry series is excluded, so the
     # persisted payload is unchanged and no second save occurs.
     assert save.call_count == 1
