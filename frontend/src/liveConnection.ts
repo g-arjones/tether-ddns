@@ -35,6 +35,8 @@ export class LiveConnection {
   private generationValue = 0;
   private hasConnected = false;
   private stopped = true;
+  private attempt = 0;
+  private retryTimer: ReturnType<typeof setTimeout> | null = null;
 
   private statusListeners = new Set<StatusListener>();
   private messageListeners = new Set<MessageListener>();
@@ -92,6 +94,10 @@ export class LiveConnection {
 
   stop(): void {
     this.stopped = true;
+    if (this.retryTimer !== null) {
+      clearTimeout(this.retryTimer);
+      this.retryTimer = null;
+    }
     this.teardownSocket();
   }
 
@@ -112,6 +118,7 @@ export class LiveConnection {
   }
 
   private handleOpen(): void {
+    this.attempt = 0;
     if (this.hasConnected) this.generationValue += 1;
     this.hasConnected = true;
     this.setStatus('open');
@@ -130,7 +137,25 @@ export class LiveConnection {
 
   private handleDrop(): void {
     if (this.stopped) return;
+    this.teardownSocket();
     this.setStatus(this.hasConnected ? 'reconnecting' : 'connecting');
+    this.scheduleReconnect();
+  }
+
+  private scheduleReconnect(): void {
+    if (this.stopped || this.retryTimer !== null) return;
+    const delay = this.nextDelay();
+    this.attempt += 1;
+    this.retryTimer = setTimeout(() => {
+      this.retryTimer = null;
+      this.connect();
+    }, delay);
+  }
+
+  private nextDelay(): number {
+    const { minBackoffMs, maxBackoffMs, backoffFactor, jitterRatio, random } = this.options;
+    const base = Math.min(maxBackoffMs, minBackoffMs * backoffFactor ** this.attempt);
+    return Math.round(base * (1 + (random() * 2 - 1) * jitterRatio));
   }
 
   /** Detaches handlers before closing so the old socket cannot schedule work. */

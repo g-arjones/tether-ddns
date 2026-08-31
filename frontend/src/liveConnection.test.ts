@@ -129,3 +129,115 @@ describe('LiveConnection lifecycle', () => {
     expect(FakeWS.instances).toHaveLength(1);
   });
 });
+
+describe('LiveConnection backoff', () => {
+  it('reconnects after a close, at the minimum delay first', () => {
+    const conn = new LiveConnection({ random: () => 0.5 });
+    conn.start();
+    last().fireOpen();
+    last().fireClose();
+    vi.advanceTimersByTime(499);
+    expect(FakeWS.instances).toHaveLength(1);
+    vi.advanceTimersByTime(1);
+    expect(FakeWS.instances).toHaveLength(2);
+    conn.stop();
+  });
+
+  it('grows the delay by the backoff factor on repeated failures', () => {
+    const conn = new LiveConnection({ random: () => 0.5 });
+    conn.start();
+    last().fireOpen();
+
+    last().fireClose();
+    vi.advanceTimersByTime(500);
+    expect(FakeWS.instances).toHaveLength(2);
+
+    last().fireClose();
+    vi.advanceTimersByTime(849);
+    expect(FakeWS.instances).toHaveLength(2);
+    vi.advanceTimersByTime(1);
+    expect(FakeWS.instances).toHaveLength(3);
+    conn.stop();
+  });
+
+  it('caps the delay at the maximum', () => {
+    const conn = new LiveConnection({ random: () => 0.5 });
+    conn.start();
+    last().fireOpen();
+    for (let i = 0; i < 20; i++) {
+      last().fireClose();
+      vi.advanceTimersByTime(15_000);
+    }
+    const before = FakeWS.instances.length;
+    last().fireClose();
+    vi.advanceTimersByTime(15_000);
+    expect(FakeWS.instances).toHaveLength(before + 1);
+    conn.stop();
+  });
+
+  it('applies jitter within the configured ratio', () => {
+    const low = new LiveConnection({ random: () => 0 });
+    low.start();
+    last().fireOpen();
+    last().fireClose();
+    vi.advanceTimersByTime(399);
+    expect(FakeWS.instances).toHaveLength(1);
+    vi.advanceTimersByTime(1);
+    expect(FakeWS.instances).toHaveLength(2);
+    low.stop();
+
+    FakeWS.instances = [];
+    const high = new LiveConnection({ random: () => 1 });
+    high.start();
+    last().fireOpen();
+    last().fireClose();
+    vi.advanceTimersByTime(599);
+    expect(FakeWS.instances).toHaveLength(1);
+    vi.advanceTimersByTime(1);
+    expect(FakeWS.instances).toHaveLength(2);
+    high.stop();
+  });
+
+  it('resets the delay after a successful open', () => {
+    const conn = new LiveConnection({ random: () => 0.5 });
+    conn.start();
+    last().fireOpen();
+    last().fireClose();
+    vi.advanceTimersByTime(500);
+    last().fireClose();
+    vi.advanceTimersByTime(850);
+    expect(FakeWS.instances).toHaveLength(3);
+
+    last().fireOpen();
+    last().fireClose();
+    vi.advanceTimersByTime(500);
+    expect(FakeWS.instances).toHaveLength(4);
+    conn.stop();
+  });
+
+  it('stays in connecting status until the first open, then reconnecting', () => {
+    const conn = new LiveConnection({ random: () => 0.5 });
+    conn.start();
+    last().fireClose();
+    expect(conn.status).toBe('connecting');
+    vi.advanceTimersByTime(500);
+    last().fireOpen();
+    last().fireClose();
+    expect(conn.status).toBe('reconnecting');
+    conn.stop();
+  });
+
+  it('increments generation on every reopen after the first', () => {
+    const seen: number[] = [];
+    const conn = new LiveConnection({ random: () => 0.5 });
+    conn.on('connected', (g) => seen.push(g));
+    conn.start();
+    last().fireOpen();
+    last().fireClose();
+    vi.advanceTimersByTime(500);
+    last().fireOpen();
+    expect(seen).toEqual([0, 1]);
+    expect(conn.generation).toBe(1);
+    conn.stop();
+  });
+});
