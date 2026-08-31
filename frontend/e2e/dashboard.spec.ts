@@ -76,3 +76,21 @@ test('about view shows backend and frontend panels', async ({ page }) => {
   await expect(page.getByText('Backend')).toBeVisible();
   await expect(page.getByText('Frontend')).toBeVisible();
 });
+
+test('clicking a day bar opens the incident modal', async ({ page }) => {
+  await page.goto('/');
+  const bars = page.locator('.day-strip button');
+  await expect(bars).toHaveCount(30);
+  await bars.last().click();
+  await expect(page.locator('.modal-overlay.open')).toBeVisible();
+  await expect(page.getByText(/Day timeline/)).toBeVisible();
+});
+
+test('the day strip is keyboard reachable', async ({ page }) => {
+  await page.goto('/');
+  const first = page.locator('.day-strip button').first();
+  await first.focus();
+  await expect(first).toBeFocused();
+  await page.keyboard.press('Enter');
+  await expect(page.locator('.modal-overlay.open')).toBeVisible();
+});
