@@ -9,8 +9,7 @@ from uuid import uuid4
 
 from pydantic import BaseModel, Field
 
-ENV_VAR = 'TETHER_DDNS_CONFIG_PATH'
-DEFAULT_FILENAME = 'tether-ddns.config.json'
+from tether_ddns import paths
 
 
 class AppSettings(BaseModel):
@@ -58,18 +57,12 @@ class ConfigStore:
 
     def __init__(self, path: Path | None = None) -> None:
         """Create a store bound to a path (resolved if omitted)."""
-        self._path = path if path is not None else self.resolve_path()
+        self._path = path if path is not None else paths.config_path()
 
     @property
     def path(self) -> Path:
         """Return the configuration file path."""
         return self._path
-
-    @staticmethod
-    def resolve_path() -> Path:
-        """Resolve the config path from the env var or cwd fallback."""
-        env = os.environ.get(ENV_VAR)
-        return Path(env) if env else Path.cwd() / DEFAULT_FILENAME
 
     def load(self) -> AppConfig:
         """Load configuration, returning defaults when absent."""

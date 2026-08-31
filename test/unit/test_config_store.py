@@ -6,22 +6,12 @@ import pytest
 from tether_ddns.config_store import AppConfig, ConfigStore, DomainConfig
 
 
-def test_resolve_path_uses_env(
+def test_default_path_sits_in_the_home_dir(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    """resolve_path honours TETHER_DDNS_CONFIG_PATH."""
-    target = tmp_path / 'cfg.json'
-    monkeypatch.setenv('TETHER_DDNS_CONFIG_PATH', str(target))
-    assert ConfigStore.resolve_path() == target
-
-
-def test_resolve_path_falls_back_to_cwd(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    """Without the env var, the default file in cwd is used."""
-    monkeypatch.delenv('TETHER_DDNS_CONFIG_PATH', raising=False)
-    monkeypatch.chdir(tmp_path)
-    assert ConfigStore.resolve_path() == tmp_path / 'tether-ddns.config.json'
+    """A default-constructed store writes into TETHER_DDNS_HOME_PATH."""
+    monkeypatch.setenv('TETHER_DDNS_HOME_PATH', str(tmp_path))
+    assert ConfigStore().path == tmp_path / 'tether-ddns.config.json'
 
 
 def test_load_missing_returns_defaults(tmp_path: Path) -> None:
