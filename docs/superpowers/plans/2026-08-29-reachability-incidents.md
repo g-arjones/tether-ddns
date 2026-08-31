@@ -16,7 +16,7 @@
 - **Coverage gate:** `pytest test/ --cov=tether_ddns --cov-fail-under=90`.
 - **Docstrings are mandatory** (flake8-docstrings). Every module, class, function, and **every test function** needs a one-line docstring ending with a period (D103).
 - **Single quotes** for Python strings. **Max line length 99.**
-- **Imports strictly alphabetical** (flake8 I101).
+- **Imports strictly alphabetical** (flake8 I101). Within a parenthesised `from` import, flake8-import-order sorts names with `Incident` < `WINDOW_SECONDS` < `classify` — verified empirically; an `ALL_CAPS`-first ordering fails `I101`.
 - **Pyright strict.** Never use a blanket `# type: ignore` — `reportUnnecessaryTypeIgnoreComment` is an error. Use narrow `# pyright: ignore[ruleName]` only when unavoidable.
 - **Async tests** use `@pytest.mark.asyncio` + `async def` + `await`, never `asyncio.run`.
 - **Access protected members in tests** via `patch.object(obj, '_name')` to avoid `reportPrivateUsage`.
@@ -535,9 +535,9 @@ from unittest.mock import patch
 
 from tether_ddns.incident_store import IncidentStore
 from tether_ddns.incidents import (
-    WINDOW_SECONDS,
     Incident,
     IncidentWindow,
+    WINDOW_SECONDS,
 )
 from tether_ddns.reachability import ReachabilityResult
 from tether_ddns.services.incidents import IncidentRecorder
@@ -807,11 +807,11 @@ import time
 
 from tether_ddns.incident_store import IncidentStore
 from tether_ddns.incidents import (
-    WINDOW_SECONDS,
     Incident,
     IncidentView,
     IncidentWindow,
     Severity,
+    WINDOW_SECONDS,
     classify,
     failed_ips,
     prune,
