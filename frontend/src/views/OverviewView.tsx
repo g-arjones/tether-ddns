@@ -5,6 +5,7 @@ import { IpReadoutPanel } from '../components/IpReadoutPanel';
 import { ReachabilityPanel } from '../components/ReachabilityPanel';
 import { RecordHealthPanel } from '../components/RecordHealthPanel';
 import { formatInterval } from '../utils';
+import { useIncidents } from '../useIncidents';
 
 export interface OverviewViewProps {
   snapshot: StateSnapshot | null;
@@ -14,8 +15,8 @@ export interface OverviewViewProps {
 
 export function OverviewView({ snapshot, domains, settings }: OverviewViewProps): JSX.Element {
   // Null-safe defaults
-  // TEMPORARY: Tasks 8-10 will use incidents; for now keep fallback minimal.
   const reachability = snapshot?.reachability ?? { since: 0, rev: 0, ongoing: null, history: [], latest: [] };
+  const incidentWindow = useIncidents(reachability.rev);
   const ipv4 = snapshot?.public_ipv4 ?? null;
   const ipv6 = snapshot?.public_ipv6 ?? null;
   const ipv4ChangedAt = snapshot?.ipv4_changed_at ?? null;
@@ -86,7 +87,7 @@ export function OverviewView({ snapshot, domains, settings }: OverviewViewProps)
         <div>
           <IpReadoutPanel ipv4={ipv4} ipv6={ipv6} ipv4ChangedAt={ipv4ChangedAt} ipv6ChangedAt={ipv6ChangedAt} ipSource={ipSource} />
           <div className="panel" style={{ marginTop: '16px' }}>
-            <ReachabilityPanel reachability={reachability} />
+            <ReachabilityPanel reachability={reachability} incidentWindow={incidentWindow} />
           </div>
         </div>
         <RecordHealthPanel domains={runtimeDomains} enabledById={enabledById} nextCheckAt={nextCheckAt} checkInterval={checkInterval} />

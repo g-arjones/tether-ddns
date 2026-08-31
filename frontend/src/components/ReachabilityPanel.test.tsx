@@ -1,52 +1,78 @@
-import { render, screen } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
-import { ReachabilityPanel } from './ReachabilityPanel';
-import type { Reachability } from '../types';
+import { fireEvent, render, screen } from '@testing-library/react';
+import { describe, expect, test } from 'vitest';
+import { ReachabilityPanel, DAY_BARS } from './ReachabilityPanel';
+import type { IncidentWindow, Reachability } from '../types';
+
+const NOW = Date.now() / 1000;
 
 const reach: Reachability = {
-  since: 0, rev: 0, ongoing: null,
-  // 50 records: 49 with 3/3, 1 with 0/3 = 147 successes / 150 checks = 98.0%
-  // Failed record in the middle to keep last record online
-  history: [
-    ...Array.from({ length: 25 }, (_, i) => ({ ts: i, successes: 3, total: 3 })),
-    { ts: 25, successes: 0, total: 3 },
-    ...Array.from({ length: 24 }, (_, i) => ({ ts: 26 + i, successes: 3, total: 3 })),
-  ],
-  latest: [
-    { ip: '1.1.1.1', ok: true, latency_ms: 11.2 },
-    { ip: '8.8.8.8', ok: false, latency_ms: null },
-  ],
+  since: NOW - 3600,
+  rev: 1,
+  ongoing: null,
+  history: Array.from({ length: 30 }, (_, i) => ({ ts: i, successes: 3, total: 3 })),
+  latest: [{ ip: '1.1.1.1', ok: true, latency_ms: 20 }],
+};
+
+const emptyWindow: IncidentWindow = {
+  monitoring_since: NOW - 86400 * 10, rev: 1, incidents: [], ongoing: null,
 };
 
 describe('ReachabilityPanel', () => {
-  it('renders uptime percentage', () => {
-    render(<ReachabilityPanel reachability={reach} />);
-    expect(screen.getByText('98.0%')).toBeInTheDocument();
+  test('renders one bar per day in the history strip', () => {
+    const { container } = render(
+      <ReachabilityPanel reachability={reach} incidentWindow={emptyWindow} />);
+    expect(container.querySelectorAll('.day-strip button')).toHaveLength(DAY_BARS);
   });
-  it('renders resolver rows with latency and timeout', () => {
-    render(<ReachabilityPanel reachability={reach} />);
-    expect(screen.getByText('1.1.1.1')).toBeInTheDocument();
-    expect(screen.getByText('11 ms')).toBeInTheDocument();
-    expect(screen.getByText('timeout')).toBeInTheDocument();
+
+  test('day bars are buttons with descriptive labels', () => {
+    const { container } = render(
+      <ReachabilityPanel reachability={reach} incidentWindow={emptyWindow} />);
+    const first = container.querySelector('.day-strip button');
+    expect(first?.getAttribute('aria-label')).toMatch(/no incidents/i);
   });
-  it('caps quorum bars at QUORUM_BARS', () => {
-    const { container } = render(<ReachabilityPanel reachability={reach} />);
-    expect(container.querySelectorAll('.quorum span').length).toBe(24);
-  });
-  it('handles zero checks with a dash', () => {
-    render(<ReachabilityPanel reachability={{ ...reach, rev: 0, ongoing: null, history: [], latest: [] }} />);
-    expect(screen.getByText('—')).toBeInTheDocument();
-  });
-  it('shows "up" when the latest check is online', () => {
-    render(<ReachabilityPanel reachability={reach} />);
-    expect(screen.getByText(/up \d/)).toBeInTheDocument();
-  });
-  it('shows "down" when the latest check is offline', () => {
-    const offline: Reachability = {
-      ...reach,
-      history: Array.from({ length: 30 }, (_, i) => ({ ts: i, successes: 0, total: 3 })),
+
+  test('marks a day with an outage', () => {
+    const withOutage: IncidentWindow = {
+      ...emptyWindow,
+      incidents: [{
+        start: NOW - 3600, end: NOW - 3000, severity: 'outage',
+        min_successes: 0, total: 3, failed: ['1.1.1.1'],
+      }],
     };
-    render(<ReachabilityPanel reachability={offline} />);
-    expect(screen.getByText(/down \d/)).toBeInTheDocument();
+    const { container } = render(
+      <ReachabilityPanel reachability={reach} incidentWindow={withOutage} />);
+    expect(container.querySelectorAll('.day-strip button.outage')).toHaveLength(1);
+  });
+
+  test('opens the modal when a day bar is clicked', () => {
+    const { container } = render(
+      <ReachabilityPanel reachability={reach} incidentWindow={emptyWindow} />);
+    const bars = container.querySelectorAll('.day-strip button');
+    fireEvent.click(bars[bars.length - 1]);
+    expect(container.querySelector('.modal-overlay.open')).not.toBeNull();
+  });
+
+  test('renders the clamped uptime percentage', () => {
+    render(<ReachabilityPanel reachability={reach} incidentWindow={emptyWindow} />);
+    expect(screen.getByText('100.0%')).toBeTruthy();
+  });
+
+  test('notes the observed span while under thirty days', () => {
+    render(<ReachabilityPanel reachability={reach} incidentWindow={emptyWindow} />);
+    expect(screen.getByText(/10d observed/)).toBeTruthy();
+  });
+
+  test('live strip bars are constant height', () => {
+    const { container } = render(
+      <ReachabilityPanel reachability={reach} incidentWindow={emptyWindow} />);
+    for (const bar of container.querySelectorAll('.quorum span')) {
+      expect((bar as HTMLElement).style.height).toBe('');
+    }
+  });
+
+  test('renders without an incident window', () => {
+    const { container } = render(
+      <ReachabilityPanel reachability={reach} incidentWindow={null} />);
+    expect(container.querySelectorAll('.day-strip button')).toHaveLength(DAY_BARS);
   });
 });

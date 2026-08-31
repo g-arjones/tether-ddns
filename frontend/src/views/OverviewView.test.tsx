@@ -5,6 +5,12 @@ import type { StateSnapshot } from '../types';
 
 vi.useFakeTimers();
 
+vi.mock('../api', () => ({
+  getIncidents: () => Promise.resolve({
+    monitoring_since: 0, rev: 0, incidents: [], ongoing: null,
+  }),
+}));
+
 const snapshot: StateSnapshot = {
   public_ipv4: '203.0.113.5', public_ipv6: null,
   ipv4_changed_at: 0, ipv6_changed_at: null,

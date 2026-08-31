@@ -277,11 +277,21 @@ header.topbar {
 .reach-badge.down { background: var(--err-soft); color: var(--err); } .reach-badge.down .rb-dot { background: var(--err); }
 
 .quorum { display: flex; align-items: flex-end; gap: 3px; height: 46px; }
-.quorum span { flex: 1; border-radius: 3px 3px 0 0; min-height: 3px; background: var(--accent); opacity: .9; transition: var(--transition); }
+.quorum span { flex: 1; height: 100%; border-radius: 3px; min-height: 3px; background: var(--accent); opacity: .9; transition: var(--transition); }
+.quorum span.empty { background: var(--surface-2); }
 .quorum span.degraded { background: var(--warn); }
 .quorum span.down { background: var(--err); }
 .quorum span.live { box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--accent) 55%, transparent); }
 .quorum-scale { display: flex; justify-content: space-between; font-size: 10.5px; color: var(--text-3); margin-top: 5px; }
+
+.reach-label { font-size: 10.5px; color: var(--text-3); font-weight: 600; text-transform: uppercase; letter-spacing: .6px; margin-bottom: 8px; }
+
+.day-strip { display: flex; align-items: stretch; gap: 2px; height: 34px; }
+.day-strip button { flex: 1; border-radius: 2px; background: color-mix(in srgb, var(--ok) 50%, transparent); transition: var(--transition); cursor: pointer; padding: 0; border: none; }
+.day-strip button.degraded { background: var(--warn); }
+.day-strip button.outage { background: var(--err); }
+.day-strip button:hover { filter: brightness(1.25); }
+.day-strip button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 .resolvers { display: flex; flex-direction: column; gap: 9px; margin-top: 16px; }
 .res-row { display: grid; grid-template-columns: 84px 1fr auto; align-items: center; gap: 11px; }
