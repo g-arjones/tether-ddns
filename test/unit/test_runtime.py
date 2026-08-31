@@ -484,7 +484,12 @@ def test_snapshot_omits_the_since_boot_counters() -> None:
 def test_incident_fields_are_not_persisted() -> None:
     """Incident view fields are excluded from the persisted payload."""
     state = RuntimeState()
+    ongoing = Incident(
+        start=100.0, end=None, severity='outage',
+        min_successes=0, total=3, failed=['1.1.1.1'])
     result = ReachabilityResult(
-        online=True, successes=3, total=3, details={}, probes=[])
-    state.record_reachability(result, IncidentView(None, 12))
-    assert 'incident_rev' not in state.model_dump()
+        online=False, successes=0, total=3, details={}, probes=[])
+    state.record_reachability(result, IncidentView(ongoing, 12))
+    dumped = state.model_dump()
+    assert 'incident_rev' not in dumped
+    assert 'incident_ongoing' not in dumped
