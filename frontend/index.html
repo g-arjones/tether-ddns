@@ -15,6 +15,20 @@
     <!-- Runs the web view under the status bar so the app background fills it. -->
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <title>Tether — Dynamic DNS</title>
+    <script>
+      // Applies the saved theme before first paint: Safari samples theme-color
+      // early and does not reliably re-read it, so React's effect is too late.
+      // Values mirror --bg in styles.css, which is not yet parsed at this point.
+      (function () {
+        try {
+          var saved = localStorage.getItem('tether-theme');
+          var theme = saved === 'light' || saved === 'dark' ? saved : 'dark';
+          document.documentElement.setAttribute('data-theme', theme);
+          var meta = document.querySelector('meta[name="theme-color"]');
+          if (meta) meta.setAttribute('content', theme === 'light' ? '#f4f6fb' : '#0b0f1a');
+        } catch (e) { /* private mode */ }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
