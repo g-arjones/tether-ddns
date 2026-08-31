@@ -1,15 +1,18 @@
 import { render, screen } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { OverviewView } from './OverviewView';
 import type { StateSnapshot } from '../types';
+import * as api from '../api';
 
 vi.useFakeTimers();
 
-vi.mock('../api', () => ({
-  getIncidents: () => Promise.resolve({
+vi.mock('../api');
+
+beforeEach(() => {
+  vi.mocked(api.getIncidents).mockResolvedValue({
     monitoring_since: 0, rev: 0, incidents: [], ongoing: null,
-  }),
-}));
+  } as never);
+});
 
 const snapshot: StateSnapshot = {
   public_ipv4: '203.0.113.5', public_ipv6: null,

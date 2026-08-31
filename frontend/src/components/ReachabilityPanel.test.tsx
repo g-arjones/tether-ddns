@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, test } from 'vitest';
-import { ReachabilityPanel, DAY_BARS } from './ReachabilityPanel';
+import { ReachabilityPanel, DAY_BARS, QUORUM_BARS } from './ReachabilityPanel';
 import type { IncidentWindow, Reachability } from '../types';
 
 const NOW = Date.now() / 1000;
@@ -65,7 +65,9 @@ describe('ReachabilityPanel', () => {
   test('live strip bars are constant height', () => {
     const { container } = render(
       <ReachabilityPanel reachability={reach} incidentWindow={emptyWindow} />);
-    for (const bar of container.querySelectorAll('.quorum span')) {
+    const bars = container.querySelectorAll('.quorum span');
+    expect(bars).toHaveLength(QUORUM_BARS);
+    for (const bar of bars) {
       expect((bar as HTMLElement).style.height).toBe('');
     }
   });
