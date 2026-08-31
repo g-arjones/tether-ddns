@@ -103,12 +103,13 @@ through `act()`. As a plain class it is tested directly.
 to each computed delay. Jitter matters because a restarted daemon would
 otherwise be hit simultaneously by every open tab. Retries continue forever.
 
-**Heartbeat.** Every 20s the client sends the text frame `"ping"`. Every
+**Heartbeat.** Every 10s the client sends the text frame `"ping"`. Every
 inbound frame — of any kind — stamps `lastMessageAt` before it is parsed.
 
-**Watchdog.** Every 5s, if `now - lastMessageAt > 45s` (two missed pongs plus
-slack), the socket is treated as dead regardless of what `readyState` claims:
-force-close it and reconnect immediately.
+**Watchdog.** Every 5s, if `now - lastMessageAt > 25s` (two missed pongs plus
+5s slack), the socket is treated as dead regardless of what `readyState`
+claims: force-close it and reconnect immediately. Worst-case detection of a
+silently-dead foreground connection is therefore ~30s.
 
 The heartbeat and watchdog run only while the socket is open. Both are stopped
 when it closes and restarted on the next open, and `lastMessageAt` is stamped
@@ -235,8 +236,8 @@ involved:
 - reconnects after `close`;
 - backoff grows and caps at 15s;
 - jitter stays within ±20%;
-- a ping is sent every 20s;
-- the watchdog force-reconnects after 45s of silence **while `readyState` still
+- a ping is sent every 10s;
+- the watchdog force-reconnects after 25s of silence **while `readyState` still
   reports `OPEN`** — the zombie case, and the test that proves the reported bug
   is fixed;
 - `visibilitychange` to visible resets backoff and reconnects immediately;
