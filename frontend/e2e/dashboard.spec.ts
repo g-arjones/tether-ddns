@@ -194,3 +194,13 @@ test('recovers from a dropped connection and does not duplicate logs', async ({ 
   await expect(page.getByRole('heading', { name: 'Logs', level: 2 })).toBeVisible();
   await expect.poll(async () => lines.count()).toBeLessThanOrEqual(before * 2 - 1);
 });
+
+test('the modal close button keeps its 34px hit target', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: /Domains/ }).click();
+  await page.getByRole('main').getByRole('button', { name: 'Add Domain' }).click();
+
+  const box = await page.locator('.modal-overlay.open .modal-head button').boundingBox();
+  expect(box?.width).toBeCloseTo(34, 0);
+  expect(box?.height).toBeCloseTo(34, 0);
+});
