@@ -5,7 +5,7 @@ import pytest
 
 from tether_ddns.reachability import ReachabilityResult, ResolverProbe
 
-QUORUM = 2
+QUORUM = 1
 
 
 @pytest.fixture

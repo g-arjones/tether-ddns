@@ -12,6 +12,7 @@ Severity = Literal['degraded', 'outage']
 
 WINDOW_DAYS = 30
 WINDOW_SECONDS = WINDOW_DAYS * 24 * 60 * 60
+HEALTHY_QUORUM = 2
 
 
 class Incident(BaseModel):
@@ -47,9 +48,11 @@ def classify(result: ReachabilityResult) -> Severity | None:
     ``ReachabilityResult.online`` already encodes ``successes >= quorum``, so
     this needs no access to the probe's configuration.
     """
-    if result.successes >= result.total:
-        return None
-    return 'degraded' if result.online else 'outage'
+    if not result.online:
+        return 'outage'
+    if result.successes < HEALTHY_QUORUM:
+        return 'degraded'
+    return None
 
 
 def failed_ips(result: ReachabilityResult) -> list[str]:

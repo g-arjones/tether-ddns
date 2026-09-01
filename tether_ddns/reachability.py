@@ -41,14 +41,16 @@ class ReachabilityProbe:
         self,
         resolvers: list[str] | None = None,
         query_host: str = DEFAULT_QUERY_HOST,
-        per_query_timeout: float = 2.0,
-        quorum: int = 2,
+        per_query_timeout: float = 1.5,
+        quorum: int = 1,
         warn_throttle_seconds: float = 300.0,
+        per_query_tries: int = 2
     ) -> None:
         """Configure resolvers, query host, timeout and quorum."""
         self._resolver_ips = resolvers or DEFAULT_RESOLVERS
         self._query_host = query_host
         self._timeout = per_query_timeout
+        self._tries = per_query_tries
         self._quorum = quorum
         self._warn_throttle_seconds = warn_throttle_seconds
         self._last_online = True
@@ -56,13 +58,13 @@ class ReachabilityProbe:
 
     async def _query_one(self, resolver_ip: str) -> ResolverProbe:
         """Resolve against one resolver, returning a timed probe."""
-        async with aiodns.DNSResolver(nameservers=[resolver_ip]) as resolver:
+        async with aiodns.DNSResolver(
+                nameservers=[resolver_ip],
+                timeout=self._timeout,
+                tries=self._tries) as resolver:
             start = time.perf_counter()
             try:
-                await asyncio.wait_for(
-                    resolver.query_dns(self._query_host, 'A'), timeout=self._timeout)
-            except asyncio.TimeoutError:
-                return ResolverProbe(ip=resolver_ip, ok=False)
+                await resolver.query_dns(self._query_host, 'A')
             except aiodns.error.DNSError:
                 return ResolverProbe(ip=resolver_ip, ok=False)
             except Exception:  # noqa: BLE001 - one bad resolver must not kill the check

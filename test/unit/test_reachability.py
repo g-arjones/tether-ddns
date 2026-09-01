@@ -50,8 +50,10 @@ async def test_check_uses_query_dns(monkeypatch: pytest.MonkeyPatch) -> None:
 
     class _FakeResolver:
 
-        def __init__(self, nameservers: list[str]) -> None:
+        def __init__(self, nameservers: list[str], timeout: float, tries: int) -> None:
             self.nameservers = nameservers
+            self.timeout = timeout
+            self.tries = tries
 
         async def __aenter__(self) -> '_FakeResolver':
             return self
@@ -66,6 +68,38 @@ async def test_check_uses_query_dns(monkeypatch: pytest.MonkeyPatch) -> None:
     result = await service.check()
     assert result.online is True
     assert result.details == {'1.1.1.1': 'ok'}
+
+
+@pytest.mark.asyncio
+async def test_query_one_forwards_timeout_and_tries(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Verify that _query_one forwards the timeout and tries parameters to the resolver."""
+    timeout = 0.0
+    tries = 0
+    service = ReachabilityProbe(per_query_timeout=2.5, per_query_tries=3)
+
+    class _FakeResolver:
+
+        def __init__(self, nameservers: list[str], timeout: float, tries: int) -> None:
+            self.nameservers = nameservers
+            self.timeout = timeout
+            self.tries = tries
+
+        async def __aenter__(self) -> '_FakeResolver':
+            return self
+
+        async def __aexit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+            return None
+
+        async def query_dns(self, host: str, qtype: str) -> object:
+            nonlocal timeout, tries
+            timeout = self.timeout
+            tries = self.tries
+            return object()
+
+    monkeypatch.setattr('tether_ddns.reachability.aiodns.DNSResolver', _FakeResolver)
+    await service.check()
+    assert timeout == 2.5
+    assert tries == 3
 
 
 def test_resolver_probe_defaults() -> None:
@@ -95,14 +129,12 @@ def test_query_one_success_has_latency(monkeypatch: pytest.MonkeyPatch) -> None:
     assert probe.latency_ms >= 0
 
 
-def test_query_one_timeout_has_no_latency(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Timeout leaves latency_ms as None."""
-    async def fake_wait_for(coro: Any, timeout: Any) -> None:  # noqa: ARG001
-        if asyncio.iscoroutine(coro):
-            coro.close()
-        raise asyncio.TimeoutError
+def test_query_one_exception_has_no_latency(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Exception leaves latency_ms as None."""
+    async def fake_query_dns(self: Any, resolver_ip: str) -> ResolverProbe:  # noqa: ARG001
+        raise Exception('query failed')
 
-    monkeypatch.setattr('tether_ddns.reachability.asyncio.wait_for', fake_wait_for)
+    monkeypatch.setattr('aiodns.DNSResolver.query_dns', fake_query_dns)
     svc = ReachabilityProbe(resolvers=['1.1.1.1'])
     probe = asyncio.run(
         svc._query_one('1.1.1.1')  # noqa: SLF001  # pyright: ignore[reportPrivateUsage]
