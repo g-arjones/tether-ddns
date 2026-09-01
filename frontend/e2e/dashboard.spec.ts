@@ -200,6 +200,12 @@ test('the modal close button keeps its 34px hit target', async ({ page }) => {
   await page.getByRole('button', { name: /Domains/ }).click();
   await page.getByRole('main').getByRole('button', { name: 'Add Domain' }).click();
 
+  // Wait for the open transition to settle: `.modal` animates transform from
+  // `translateY(12px) scale(.98)` to `none`, and every descendant's bounding box
+  // is scaled down while it runs. Poll the computed transform until it reads
+  // "none" (Playwright's retrying assertion) instead of an arbitrary sleep.
+  await expect(page.locator('.modal-overlay.open .modal')).toHaveCSS('transform', 'none');
+
   const box = await page.locator('.modal-overlay.open .modal-head button').boundingBox();
   expect(box?.width).toBeCloseTo(34, 0);
   expect(box?.height).toBeCloseTo(34, 0);
