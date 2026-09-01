@@ -1,7 +1,7 @@
 import type { JSX } from 'react';
 import type { Incident } from '../types';
 import { formatDuration, type DayBucket } from '../utils';
-import { IconClose } from './icons';
+import { Modal } from './Modal';
 
 export interface IncidentModalProps {
   bucket: DayBucket | null;
@@ -40,23 +40,10 @@ export function IncidentModal({ bucket, onClose }: IncidentModalProps): JSX.Elem
     : '100.0';
 
   return (
-    <div
-      className={`modal-overlay${bucket ? ' open' : ''}`}
-      inert={!bucket}
-      aria-hidden={bucket ? undefined : true}
-      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
-    >
-      <div className="modal">
-        <div className="modal-head">
-          <h3>{heading}</h3>
-          <button type="button" className="icon-btn" style={{ width: 34, height: 34 }} onClick={onClose} aria-label="Close">
-            <IconClose />
-          </button>
-        </div>
-        <div className="modal-body">
-          {bucket && (
-            <>
-              <div className="inc-summary">
+    <Modal open={bucket !== null} title={heading} onClose={onClose}>
+      {bucket && (
+        <>
+          <div className="inc-summary">
                 <div><span className="inc-k">Uptime</span><span className="inc-v">{pct}%</span></div>
                 <div><span className="inc-k">Offline</span><span className="inc-v">{formatDuration(bucket.offlineSeconds)}</span></div>
                 <div><span className="inc-k">Degraded</span><span className="inc-v">{formatDuration(bucket.degradedSeconds)}</span></div>
@@ -109,10 +96,8 @@ export function IncidentModal({ bucket, onClose }: IncidentModalProps): JSX.Elem
                   <span className="inc-dur">{formatDuration(spanSeconds(inc, bucket, nowSec))}</span>
                 </div>
               ))}
-            </>
-          )}
-        </div>
-      </div>
-    </div>
+        </>
+      )}
+    </Modal>
   );
 }

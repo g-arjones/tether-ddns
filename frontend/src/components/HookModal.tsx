@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import type { HookConfig, HookDef } from '../types';
 import { SchemaForm, type JsonSchema } from './SchemaForm';
 import { Select } from './Select';
-import { IconClose } from './icons';
+import { Modal } from './Modal';
 
 export interface HookModalProps {
   open: boolean;
@@ -45,56 +45,47 @@ export function HookModal({ open, hooks, editing, onClose, onSave }: HookModalPr
   };
 
   return (
-    <div
-      className={`modal-overlay${open ? ' open' : ''}`}
-      inert={!open}
-      aria-hidden={open ? undefined : true}
-      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
-    >
-      <div className="modal">
-        <div className="modal-head">
-          <h3>{editing ? 'Edit Hook' : 'Add Hook'}</h3>
-          <button type="button" className="icon-btn" style={{ width: 34, height: 34 }} onClick={onClose} aria-label="Close">
-            <IconClose />
-          </button>
-        </div>
-        <div className="modal-body">
-          <div className="field">
-            <label htmlFor="fHook">Hook</label>
-            <Select
-              id="fHook"
-              ariaLabel="Hook"
-              value={form.hook}
-              options={hooks.map((h) => ({ value: h.key, label: h.display_name }))}
-              onChange={(hook) => setForm({ ...form, hook, config: {}, events: [] })}
-            />
-          </div>
-          {schema.description ? <p className="modal-blurb">{schema.description}</p> : null}
-          <div className="field">
-            <label>Events</label>
-            <div className="chips">
-              {availableEvents.map((event) => (
-                <button
-                  type="button"
-                  key={event.key}
-                  className={`chip${form.events.includes(event.key) ? ' active' : ''}`}
-                  aria-pressed={form.events.includes(event.key)}
-                  onClick={() => toggleEvent(event.key)}
-                >
-                  {event.label}
-                </button>
-              ))}
-            </div>
-          </div>
-          <SchemaForm schema={schema} value={form.config} onChange={(config) => setForm({ ...form, config })} />
-        </div>
-        <div className="modal-foot">
+    <Modal
+      open={open}
+      title={editing ? 'Edit Hook' : 'Add Hook'}
+      onClose={onClose}
+      footer={(
+        <>
           <button type="button" className="btn btn-ghost" onClick={onClose}>Cancel</button>
           <button type="button" className="btn btn-primary" onClick={() => onSave(form)}>
             {editing ? 'Save Changes' : 'Add Hook'}
           </button>
+        </>
+      )}
+    >
+      <div className="field">
+        <label htmlFor="fHook">Hook</label>
+        <Select
+          id="fHook"
+          ariaLabel="Hook"
+          value={form.hook}
+          options={hooks.map((h) => ({ value: h.key, label: h.display_name }))}
+          onChange={(hook) => setForm({ ...form, hook, config: {}, events: [] })}
+        />
+      </div>
+      {schema.description ? <p className="modal-blurb">{schema.description}</p> : null}
+      <div className="field">
+        <label>Events</label>
+        <div className="chips">
+          {availableEvents.map((event) => (
+            <button
+              type="button"
+              key={event.key}
+              className={`chip${form.events.includes(event.key) ? ' active' : ''}`}
+              aria-pressed={form.events.includes(event.key)}
+              onClick={() => toggleEvent(event.key)}
+            >
+              {event.label}
+            </button>
+          ))}
         </div>
       </div>
-    </div>
+      <SchemaForm schema={schema} value={form.config} onChange={(config) => setForm({ ...form, config })} />
+    </Modal>
   );
 }
