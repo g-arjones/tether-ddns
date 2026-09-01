@@ -22,6 +22,7 @@
 - Backend coverage gate: `pytest test/ --cov=tether_ddns --cov-fail-under=90`.
 - Frontend coverage thresholds (from `vite.config.ts`): lines 70, statements 70, functions 50, branches 60. `src/App.tsx` is **excluded** from coverage; `src/liveConnection.ts` will **not** be.
 - Frontend lint is oxlint and runs automatically as `pretest`.
+- **Type-check gate:** `npm test` runs Vitest and oxlint, NEITHER of which type-checks. Any task that changes a prop, signature, or exported type MUST also run `npx tsc --noEmit -p tsconfig.app.json` from `frontend/` and it must exit 0. A type break otherwise rides through every gate undetected until `npm run build`.
 - Never introduce a new runtime dependency.
 
 ---
@@ -1568,10 +1569,10 @@ And render the overlay as the last child, after `<Toasts toasts={toasts} />`:
       <ConnectionOverlay status={status} visible={disconnected} />
 ```
 
-- [ ] **Step 10: Run the full frontend suite and lint**
+- [ ] **Step 10: Run the full frontend suite, lint and type-check**
 
-Run: `cd frontend && npm test`
-Expected: PASS, with coverage above the configured thresholds.
+Run: `cd frontend && npm test && npx tsc --noEmit -p tsconfig.app.json`
+Expected: PASS, with coverage above the configured thresholds, and `tsc` exiting 0 with no output.
 
 - [ ] **Step 11: Commit**
 
@@ -1642,7 +1643,7 @@ Set `live = false`, force a drop, assert the overlay, then set `live = true` and
 - [ ] **Step 4: Run every gate**
 
 ```bash
-cd frontend && npm test && npm run test:e2e
+cd frontend && npm test && npx tsc --noEmit -p tsconfig.app.json && npm run test:e2e
 cd .. && source .venv/bin/activate
 flake8 test/ tether_ddns/ && mypy . && pyright && ruff check
 pytest test/ --cov=tether_ddns --cov-fail-under=90
