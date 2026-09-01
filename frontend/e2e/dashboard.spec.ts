@@ -121,6 +121,24 @@ test('the live strip stays inside its box and does not starve the layout', async
   expect(geometry.healthWidth).toBeGreaterThan(300);
 });
 
+// Regression: `.modal` transitions `transform` between `translateY(12px) scale(.98)`
+// and its resting value, and the card lands on a fractional y (grid centring), so every
+// 1px border and glyph straddles a device pixel. Chromium composites the card onto its
+// own layer for the duration of the transform transition and demotes it at the end,
+// re-rasterising those hairlines in a single frame — a flick on open and on close.
+// A stable compositing hint pins the card to one layer so the raster mode never changes.
+test('the modal card stays on one compositing layer across the transition', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: /Domains/ }).click();
+  await page.getByRole('main').getByRole('button', { name: 'Add Domain' }).click();
+  await expect(page.locator('.modal-overlay.open')).toBeVisible();
+
+  const willChange = await page
+    .locator('.modal-overlay.open .modal')
+    .evaluate((el) => getComputedStyle(el).willChange);
+  expect(willChange).toContain('transform');
+});
+
 test('recovers from a dropped connection and does not duplicate logs', async ({ page }) => {
   let live = true;
   let activeRoute: WebSocketRoute | null = null;

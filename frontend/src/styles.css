@@ -537,6 +537,9 @@ header.topbar {
   background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
   width: 100%; max-width: 480px; max-height: 90vh; display: flex; flex-direction: column;
   box-shadow: var(--shadow); transform: translateY(12px) scale(.98); transition: transform var(--transition);
+  /* Without this the card is composited only while the transform transition runs; the
+     demote at the end re-rasterises every hairline border in one frame (a visible flick). */
+  will-change: transform;
 }
 .modal-overlay.open .modal { transform: none; }
 .modal-head { flex: none; display: flex; align-items: center; justify-content: space-between; padding: 20px 22px; border-bottom: 1px solid var(--border); }
