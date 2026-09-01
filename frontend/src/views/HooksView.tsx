@@ -1,5 +1,6 @@
 import type { JSX } from 'react';
 import type { HookConfig, HookDef } from '../types';
+import { IconEdit, IconHook, IconPlay, IconPlus, IconTrash } from '../components/icons';
 
 export interface HooksViewProps {
   hooks: HookConfig[];
@@ -27,21 +28,12 @@ export function HooksView(props: HooksViewProps): JSX.Element {
           <span className="count-badge">0 hooks</span>
           <div className="spacer"></div>
           <button className="btn btn-primary" onClick={onAdd}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M12 5v14M5 12h14" />
-            </svg>
+            <IconPlus strokeWidth={2.5} />
             Add Hook
           </button>
         </div>
         <div className="empty">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M4 10a10 10 0 0 1 10 10" />
-            <path d="M4 16a4 4 0 0 1 4 4" />
-            <circle cx="5" cy="19" r="1" />
-            <path d="m12 10 4-4a2.83 2.83 0 0 1 4 4l-4 4" />
-            <path d="m14 8 3 3" />
-            <path d="m9 15 3 3" />
-          </svg>
+          <IconHook strokeWidth={1.5} />
           <h3>No hooks configured</h3>
         </div>
       </>
@@ -55,9 +47,7 @@ export function HooksView(props: HooksViewProps): JSX.Element {
         <span className="count-badge">{hooks.length} {hooks.length === 1 ? 'hook' : 'hooks'}</span>
         <div className="spacer"></div>
         <button className="btn btn-primary" onClick={onAdd}>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M12 5v14M5 12h14" />
-          </svg>
+          <IconPlus strokeWidth={2.5} />
           Add Hook
         </button>
       </div>
@@ -65,12 +55,7 @@ export function HooksView(props: HooksViewProps): JSX.Element {
         {hooks.map((hook) => (
           <div key={hook.id} className="hook-row">
             <div className="hook-ico">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="m12 10 4-4a2.83 2.83 0 0 1 4 4l-4 4" />
-                <path d="m14 8 3 3" />
-                <path d="m9 15 3 3" />
-                <path d="M4 10a10 10 0 0 1 10 10" />
-              </svg>
+              <IconHook />
             </div>
             <div className="hook-main">
               <div className="hook-name">{getHookName(hook.hook)}</div>
@@ -93,9 +78,7 @@ export function HooksView(props: HooksViewProps): JSX.Element {
                 title="Run now"
                 aria-label="Run now"
               >
-                <svg viewBox="0 0 24 24" fill="currentColor" stroke="none">
-                  <path d="M8 5v14l11-7z" />
-                </svg>
+                <IconPlay />
               </button>
               <button
                 className="act-btn"
@@ -103,10 +86,7 @@ export function HooksView(props: HooksViewProps): JSX.Element {
                 title="Edit"
                 aria-label="Edit"
               >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                  <path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4z" />
-                </svg>
+                <IconEdit />
               </button>
               <button
                 className="act-btn danger"
@@ -114,9 +94,7 @@ export function HooksView(props: HooksViewProps): JSX.Element {
                 title="Delete"
                 aria-label="Delete"
               >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
-                </svg>
+                <IconTrash />
               </button>
             </div>
           </div>

@@ -1,6 +1,7 @@
 import type { JSX } from 'react';
 import type { DomainConfig, DomainState } from '../types';
 import { DomainCard } from '../components/DomainCard';
+import { IconGlobe, IconPlus } from '../components/icons';
 
 export interface DomainsViewProps {
   domains: DomainConfig[];
@@ -31,18 +32,13 @@ export function DomainsView({
         <span className="count-badge">{count} {recordLabel}</span>
         <div className="spacer"></div>
         <button className="btn btn-primary" onClick={onAdd}>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M12 5v14M5 12h14"/>
-          </svg>
+          <IconPlus strokeWidth={2.5} />
           Add Domain
         </button>
       </div>
       {domains.length === 0 ? (
         <div className="empty">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="12" cy="12" r="10"/>
-            <path d="M2 12h20M12 2a15 15 0 0 1 0 20 15 15 0 0 1 0-20z"/>
-          </svg>
+          <IconGlobe strokeWidth={1.5} />
           <h3>No domains yet</h3>
           <p>Add your first domain to get started.</p>
         </div>
