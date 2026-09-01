@@ -13,9 +13,9 @@ from tether_ddns.incidents import (
 from tether_ddns.reachability import ReachabilityResult
 from tether_ddns.services.incidents import IncidentRecorder
 
-HEALTHY = [True, True, True]
-DEGRADED = [True, True, False]
-OUTAGE = [True, False, False]
+HEALTHY = [True, True, False]
+DEGRADED = [True, False, False]
+OUTAGE = [False, False, False]
 
 ResultFactory = Callable[[list[bool]], ReachabilityResult]
 
@@ -78,11 +78,12 @@ def test_incident_records_worst_quorum_and_failed_resolvers(
 ) -> None:
     """An incident keeps the worst quorum and the union of failed resolvers."""
     recorder = IncidentRecorder(IncidentStore(tmp_path / 'i.json'))
+    # Severity pins the success count, so only the failed set differs across a span.
     recorder.record(make_result([True, False, False]), now=100.0)
-    recorder.record(make_result([False, False, False]), now=130.0)
+    recorder.record(make_result([False, True, False]), now=130.0)
     recorder.record(make_result(HEALTHY), now=160.0)
     incident = recorder.window(now=200.0).incidents[0]
-    assert incident.min_successes == 0
+    assert incident.min_successes == 1
     assert incident.failed == ['10.0.0.0', '10.0.0.1', '10.0.0.2']
 
 
@@ -231,11 +232,11 @@ def test_flush_persists_widening_of_a_steady_incident(
     path = tmp_path / 'i.json'
     recorder = IncidentRecorder(IncidentStore(path))
     recorder.record(make_result([True, False, False]), now=100.0)
-    recorder.record(make_result([False, False, False]), now=130.0)
+    recorder.record(make_result([False, True, False]), now=130.0)
     recorder.flush()
     ongoing = IncidentStore(path).load().ongoing
     assert ongoing is not None
-    assert ongoing.min_successes == 0
+    assert ongoing.failed == ['10.0.0.0', '10.0.0.1', '10.0.0.2']
 
 
 def test_flush_is_a_no_op_when_nothing_changed(

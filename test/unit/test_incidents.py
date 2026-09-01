@@ -19,13 +19,13 @@ def test_classify_all_ok_is_healthy(make_result: ResultFactory) -> None:
 
 
 def test_classify_partial_failure_is_degraded(make_result: ResultFactory) -> None:
-    """A check that lost a probe but held quorum is degraded."""
-    assert classify(make_result([True, True, False])) == 'degraded'
+    """A check that lost two probes but held quorum is degraded."""
+    assert classify(make_result([True, False, False])) == 'degraded'
 
 
-def test_classify_quorum_lost_is_outage(make_result: ResultFactory) -> None:
-    """A check that lost quorum is an outage."""
-    assert classify(make_result([True, False, False])) == 'outage'
+def test_classify_single_failure_is_healthy(make_result: ResultFactory) -> None:
+    """A check that lost only one probe but held quorum is healthy."""
+    assert classify(make_result([True, True, False])) is None
 
 
 def test_classify_total_failure_is_outage(make_result: ResultFactory) -> None:

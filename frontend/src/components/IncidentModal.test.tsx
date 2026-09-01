@@ -20,7 +20,7 @@ function inc(startOffset: number, endOffset: number | null, severity: 'degraded'
 
 function bucket(incidents: Incident[]): DayBucket {
   return {
-    start: DAY_START, end: DAY_END, worst: 'outage', incidents,
+    start: DAY_START, end: DAY_END, observedEnd: DAY_END, worst: 'outage', incidents,
     offlineSeconds: 16080, degradedSeconds: 1020,
   };
 }
@@ -62,7 +62,7 @@ describe('IncidentModal', () => {
 
   test('shows an empty state for a clean day', () => {
     const clean: DayBucket = {
-      start: DAY_START, end: DAY_END, worst: 'healthy', incidents: [],
+      start: DAY_START, end: DAY_END, observedEnd: DAY_END, worst: 'healthy', incidents: [],
       offlineSeconds: 0, degradedSeconds: 0,
     };
     render(<IncidentModal bucket={clean} onClose={vi.fn()} />);
@@ -72,5 +72,30 @@ describe('IncidentModal', () => {
   test('renders nothing open when the bucket is null', () => {
     const { container } = render(<IncidentModal bucket={null} onClose={vi.fn()} />);
     expect(container.querySelector('.modal-overlay.open')).toBeNull();
+  });
+
+  test('rates a partial day against the hours observed so far, not a full day', () => {
+    const partial: DayBucket = {
+      start: DAY_START, end: DAY_END, observedEnd: DAY_START + 43200, worst: 'outage',
+      incidents: [inc(3600, 7200, 'outage')], offlineSeconds: 3600, degradedSeconds: 0,
+    };
+    render(<IncidentModal bucket={partial} onClose={vi.fn()} />);
+    expect(screen.getByText('91.7%')).toBeTruthy();
+  });
+
+  test('marks the unobserved tail of a partial day on the timeline', () => {
+    const partial: DayBucket = {
+      start: DAY_START, end: DAY_END, observedEnd: DAY_START + 43200, worst: 'healthy',
+      incidents: [], offlineSeconds: 0, degradedSeconds: 0,
+    };
+    const { container } = render(<IncidentModal bucket={partial} onClose={vi.fn()} />);
+    const future = container.querySelector<HTMLElement>('.inc-track b.future');
+    expect(future?.style.left).toBe('50%');
+    expect(future?.style.width).toBe('50%');
+  });
+
+  test('marks no unobserved tail on a completed day', () => {
+    const { container } = render(<IncidentModal bucket={bucket([])} onClose={vi.fn()} />);
+    expect(container.querySelector('.inc-track b.future')).toBeNull();
   });
 });

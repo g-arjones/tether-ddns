@@ -113,6 +113,13 @@ test('bucketByDay treats an ongoing incident as running to now', () => {
   expect(buckets[29].offlineSeconds).toBe(300);
 });
 
+test('bucketByDay observes today only up to now', () => {
+  const buckets = bucketByDay([], null, NOW_MS, 30);
+  expect(buckets[29].end).toBe(new Date(2026, 7, 30, 0, 0, 0).getTime() / 1000);
+  expect(buckets[29].observedEnd).toBe(NOW);
+  expect(buckets[28].observedEnd).toBe(buckets[28].end);
+});
+
 test('bucketByDay ranks outage above degraded on the same day', () => {
   const buckets = bucketByDay(
     [incident(NOW - 7200, NOW - 7000, 'degraded'), incident(NOW - 3600, NOW - 3400, 'outage')],
