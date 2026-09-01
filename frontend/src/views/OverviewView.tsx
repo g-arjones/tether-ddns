@@ -11,12 +11,13 @@ export interface OverviewViewProps {
   snapshot: StateSnapshot | null;
   domains: DomainConfig[];
   settings: Settings | null;
+  generation: number;
 }
 
-export function OverviewView({ snapshot, domains, settings }: OverviewViewProps): JSX.Element {
+export function OverviewView({ snapshot, domains, settings, generation }: OverviewViewProps): JSX.Element {
   // Null-safe defaults
   const reachability = snapshot?.reachability ?? { since: 0, rev: 0, ongoing: null, history: [], latest: [] };
-  const incidentWindow = useIncidents(reachability.rev);
+  const incidentWindow = useIncidents(reachability.rev, generation);
   const ipv4 = snapshot?.public_ipv4 ?? null;
   const ipv6 = snapshot?.public_ipv6 ?? null;
   const ipv4ChangedAt = snapshot?.ipv4_changed_at ?? null;

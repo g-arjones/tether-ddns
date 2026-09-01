@@ -44,7 +44,7 @@ function initialTheme(): Theme {
 }
 
 export default function App() {
-  const { snapshot, logs } = useLiveState();
+  const { snapshot, logs, generation } = useLiveState();
 
   const [providers, setProviders] = useState<Provider[]>([]);
   const [hookDefs, setHookDefs] = useState<HookDef[]>([]);
@@ -139,7 +139,7 @@ export default function App() {
       api.getIpSources().then(setIpSources).catch(() => undefined),
     ]);
     void loadConfig();
-  }, [loadConfig]);
+  }, [loadConfig, generation]);
 
   const runtimeById = useMemo(() => {
     const map = new Map<string, DomainState>();
@@ -300,7 +300,12 @@ export default function App() {
           />
           <main className="page">
             {activeView === 'overview' && (
-              <OverviewView snapshot={snapshot} domains={domains} settings={settings} />
+              <OverviewView
+                snapshot={snapshot}
+                domains={domains}
+                settings={settings}
+                generation={generation}
+              />
             )}
             {activeView === 'domains' && (
               <DomainsView
