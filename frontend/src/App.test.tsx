@@ -1,9 +1,22 @@
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, act } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import App from './App';
 
+let socket: { onopen: (() => void) | null } | null = null;
+
 beforeEach(() => {
-  vi.stubGlobal('WebSocket', class { close() {} } as unknown as typeof WebSocket);
+  socket = null;
+  vi.stubGlobal('WebSocket', class {
+    readyState = 0;
+    onopen: (() => void) | null = null;
+    onclose: (() => void) | null = null;
+    onerror: (() => void) | null = null;
+    onmessage: ((e: { data: string }) => void) | null = null;
+    // oxlint-disable-next-line no-this-alias -- test fake needs to expose the instance
+    constructor() { socket = this; }
+    send(_data: string) {}
+    close() {}
+  } as unknown as typeof WebSocket);
   vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => [] })) as unknown as typeof fetch);
 });
 afterEach(() => vi.unstubAllGlobals());
@@ -33,5 +46,16 @@ describe('App shell', () => {
 
     meta.remove();
     document.documentElement.style.removeProperty('--bg');
+  });
+
+  it('refetches configuration after a websocket reconnect', async () => {
+    render(<App />);
+    await act(async () => { socket?.onopen?.(); });
+    const afterFirst = (globalThis.fetch as unknown as ReturnType<typeof vi.fn>).mock.calls.length;
+    expect(afterFirst).toBeGreaterThan(0);
+
+    await act(async () => { socket?.onopen?.(); });
+    const afterSecond = (globalThis.fetch as unknown as ReturnType<typeof vi.fn>).mock.calls.length;
+    expect(afterSecond).toBeGreaterThan(afterFirst);
   });
 });

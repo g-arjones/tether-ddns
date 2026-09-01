@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type WebSocketRoute } from '@playwright/test';
 
 test('app starts on Overview', async ({ page }) => {
   await page.goto('/');
@@ -119,4 +119,38 @@ test('the live strip stays inside its box and does not starve the layout', async
     expect(bar.y).toBeGreaterThanOrEqual(geometry.stripY);
   }
   expect(geometry.healthWidth).toBeGreaterThan(300);
+});
+
+test('recovers from a dropped connection and does not duplicate logs', async ({ page }) => {
+  let live = true;
+  let activeRoute: WebSocketRoute | null = null;
+
+  await page.routeWebSocket('**/api/ws', (route) => {
+    if (!live) {
+      route.close({ code: 1006 });
+      return;
+    }
+    activeRoute = route;
+    route.connectToServer();
+  });
+
+  await page.goto('/');
+  await expect(page.getByRole('heading', { name: 'Overview', level: 2 })).toBeVisible();
+
+  await page.getByRole('button', { name: /Logs/ }).click();
+  const lines = page.locator('.log-line');
+  await expect.poll(async () => lines.count()).toBeGreaterThan(0);
+  const before = await lines.count();
+
+  live = false;
+  if (activeRoute) {
+    activeRoute.close({ code: 1006 });
+  }
+  await expect(page.getByText('Reconnecting…')).toBeVisible({ timeout: 40_000 });
+
+  live = true;
+  await expect(page.getByText('Reconnecting…')).toBeHidden({ timeout: 40_000 });
+
+  await expect(page.getByRole('heading', { name: 'Logs', level: 2 })).toBeVisible();
+  await expect.poll(async () => lines.count()).toBeLessThanOrEqual(before * 2 - 1);
 });

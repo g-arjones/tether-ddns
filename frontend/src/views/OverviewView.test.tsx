@@ -31,6 +31,7 @@ describe('OverviewView', () => {
         snapshot={snapshot}
         domains={[{ id: 'a', hostname: 'h', provider: 'duckdns', record_type: 'A', enabled: true }]}
         settings={snapshot.settings ?? null}
+        generation={0}
       />,
     );
     expect(screen.getByText('Total Domains')).toBeInTheDocument();
@@ -39,7 +40,7 @@ describe('OverviewView', () => {
   });
 
   it('renders safely with a null snapshot', () => {
-    render(<OverviewView snapshot={null} domains={[]} settings={null} />);
+    render(<OverviewView snapshot={null} domains={[]} settings={null} generation={0} />);
     expect(screen.getByText('Total Domains')).toBeInTheDocument();
   });
 });

@@ -9,6 +9,9 @@ class FakeWS {
   url: string;
   onmessage: ((e: { data: string }) => void) | null = null;
   onopen: (() => void) | null = null;
+  readyState = 0;
+  onclose: (() => void) | null = null;
+  onerror: (() => void) | null = null;
   closed = false;
 
   constructor(url: string) {
@@ -17,10 +20,13 @@ class FakeWS {
     instance = this;
   }
 
-  send(): void {}
+  fireOpen(): void { this.readyState = 1; this.onopen?.(); }
+
+  send(_data: string): void {}
 
   close(): void {
     this.closed = true;
+    this.readyState = 3;
   }
 }
 
@@ -138,5 +144,37 @@ describe('useLiveState', () => {
     expect(ws?.closed).toBe(false);
     unmount();
     expect(ws?.closed).toBe(true);
+  });
+
+  it('reports connecting before the socket opens and open afterwards', () => {
+    const { result } = renderHook(() => useLiveState());
+    expect(result.current.status).toBe('connecting');
+    act(() => { instance?.fireOpen(); });
+    expect(result.current.status).toBe('open');
+  });
+
+  it('clears logs on every open so the server replay is not duplicated', () => {
+    const { result } = renderHook(() => useLiveState());
+    act(() => { instance?.fireOpen(); });
+    act(() => {
+      instance?.onmessage?.({ data: JSON.stringify({ kind: 'log', payload: logEntry }) });
+    });
+    expect(result.current.logs).toHaveLength(1);
+
+    act(() => { instance?.fireOpen(); });
+    expect(result.current.logs).toHaveLength(0);
+
+    act(() => {
+      instance?.onmessage?.({ data: JSON.stringify({ kind: 'log', payload: logEntry }) });
+    });
+    expect(result.current.logs).toHaveLength(1);
+  });
+
+  it('exposes a generation that increments on each reopen', () => {
+    const { result } = renderHook(() => useLiveState());
+    act(() => { instance?.fireOpen(); });
+    expect(result.current.generation).toBe(0);
+    act(() => { instance?.fireOpen(); });
+    expect(result.current.generation).toBe(1);
   });
 });

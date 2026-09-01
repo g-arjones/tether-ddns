@@ -421,6 +421,21 @@ def test_refresh_and_websocket(tmp_path: Path) -> None:
     assert first['kind'] == 'state'
 
 
+def test_websocket_answers_ping_with_pong(tmp_path: Path) -> None:
+    """The websocket replies to a client ping with a pong envelope."""
+    kinds: list[str] = []
+    with _client(tmp_path) as client:
+        with client.websocket_connect('/api/ws') as ws:
+            ws.send_text('ping')
+            while len(kinds) < 200:
+                message: dict[str, object] = ws.receive_json()
+                kinds.append(str(message['kind']))
+                if message['kind'] == 'pong':
+                    assert message['payload'] is None
+                    break
+    assert 'pong' in kinds
+
+
 def test_get_incidents_returns_the_window(tmp_path: Path) -> None:
     """The incidents endpoint returns the persisted window."""
     with _client(tmp_path) as client:
