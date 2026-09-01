@@ -1,6 +1,7 @@
 import type { DomainConfig, DomainState } from '../types';
 import { providerColor } from '../utils';
 import { IconEdit, IconRefresh, IconTrash } from './icons';
+import { IconButton } from './IconButton';
 
 export interface DomainCardProps {
   domain: DomainConfig;
@@ -62,15 +63,15 @@ export function DomainCard({ domain, runtime, onSync, onEdit, onDelete, onToggle
             <input type="checkbox" checked={domain.enabled} onChange={() => onToggle(domain.id)} />
             <span className="slider" />
           </label>
-          <button type="button" className="act-btn" title="Force update now" onClick={() => onSync(domain.id)}>
+          <IconButton label="Force update now" onClick={() => onSync(domain.id)} variant="act">
             <IconRefresh />
-          </button>
-          <button type="button" className="act-btn" title="Edit" onClick={() => onEdit(domain.id)}>
+          </IconButton>
+          <IconButton label="Edit" onClick={() => onEdit(domain.id)} variant="act">
             <IconEdit />
-          </button>
-          <button type="button" className="act-btn danger" title="Delete" onClick={() => onDelete(domain.id)}>
+          </IconButton>
+          <IconButton label="Delete" onClick={() => onDelete(domain.id)} variant="act" danger>
             <IconTrash />
-          </button>
+          </IconButton>
         </div>
       </div>
     </div>

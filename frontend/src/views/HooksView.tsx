@@ -1,6 +1,7 @@
 import type { JSX } from 'react';
 import type { HookConfig, HookDef } from '../types';
 import { IconEdit, IconHook, IconPlay, IconPlus, IconTrash } from '../components/icons';
+import { IconButton } from '../components/IconButton';
 
 export interface HooksViewProps {
   hooks: HookConfig[];
@@ -72,30 +73,15 @@ export function HooksView(props: HooksViewProps): JSX.Element {
               </div>
             </div>
             <div className="hook-actions">
-              <button
-                className="act-btn"
-                onClick={() => onRun(hook.id)}
-                title="Run now"
-                aria-label="Run now"
-              >
+              <IconButton label="Run now" onClick={() => onRun(hook.id)} variant="act">
                 <IconPlay />
-              </button>
-              <button
-                className="act-btn"
-                onClick={() => onEdit(hook)}
-                title="Edit"
-                aria-label="Edit"
-              >
+              </IconButton>
+              <IconButton label="Edit" onClick={() => onEdit(hook)} variant="act">
                 <IconEdit />
-              </button>
-              <button
-                className="act-btn danger"
-                onClick={() => onDelete(hook.id)}
-                title="Delete"
-                aria-label="Delete"
-              >
+              </IconButton>
+              <IconButton label="Delete" onClick={() => onDelete(hook.id)} variant="act" danger>
                 <IconTrash />
-              </button>
+              </IconButton>
             </div>
           </div>
         ))}

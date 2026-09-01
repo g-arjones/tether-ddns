@@ -1,5 +1,6 @@
 import type { JSX } from 'react';
 import { IconMoon, IconSun, IconMenu, IconRefresh } from '../components/icons';
+import { IconButton } from '../components/IconButton';
 
 export interface TopBarProps {
   title: string;
@@ -24,9 +25,9 @@ export function TopBar(props: TopBarProps): JSX.Element {
   return (
     <header className="topbar">
       <div className="topbar-inner">
-        <button className="icon-btn rail-toggle" type="button" title="Menu" aria-label="Toggle navigation" onClick={onToggleRail}>
+        <IconButton label="Toggle navigation" className="rail-toggle" onClick={onToggleRail}>
           <IconMenu />
-        </button>
+        </IconButton>
         <div className="page-title">
           <h2>{title}</h2>
           <p>{subtitle}</p>
@@ -43,12 +44,12 @@ export function TopBar(props: TopBarProps): JSX.Element {
             <span className="v">{ipv6 ?? '—'}</span>
           </span>
         </div>
-        <button className={`icon-btn${refreshing ? ' spin' : ''}`} type="button" title="Refresh all" aria-label="Refresh all" onClick={onRefresh}>
+        <IconButton label="Refresh all" className={refreshing ? 'spin' : undefined} onClick={onRefresh}>
           <IconRefresh />
-        </button>
-        <button className="icon-btn" type="button" title="Toggle theme" aria-label="Toggle theme" onClick={onToggleTheme}>
+        </IconButton>
+        <IconButton label="Toggle theme" onClick={onToggleTheme}>
           {theme === 'dark' ? moonSvg : sunSvg}
-        </button>
+        </IconButton>
       </div>
     </header>
   );
