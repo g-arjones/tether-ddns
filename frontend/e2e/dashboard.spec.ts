@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type WebSocketRoute } from '@playwright/test';
 
 test('app starts on Overview', async ({ page }) => {
   await page.goto('/');
@@ -123,7 +123,7 @@ test('the live strip stays inside its box and does not starve the layout', async
 
 test('recovers from a dropped connection and does not duplicate logs', async ({ page }) => {
   let live = true;
-  let activeRoute: any = null;
+  let activeRoute: WebSocketRoute | null = null;
 
   await page.routeWebSocket('**/api/ws', (route) => {
     if (!live) {

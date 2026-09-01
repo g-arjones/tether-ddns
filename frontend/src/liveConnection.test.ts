@@ -379,4 +379,25 @@ describe('LiveConnection resume', () => {
     window.dispatchEvent(new Event('online'));
     expect(FakeWS.instances).toHaveLength(count);
   });
+
+  it('cancels a pending retry timer and reconnects immediately on resume', () => {
+    const conn = new LiveConnection({ random: () => 0.5, maxBackoffMs: 60_000 });
+    conn.start();
+    last().fireOpen();
+    last().fireClose();
+    expect(FakeWS.instances).toHaveLength(1);
+
+    // A retry is now scheduled at ~500ms, but has not fired yet.
+    vi.advanceTimersByTime(300);
+    expect(FakeWS.instances).toHaveLength(1);
+
+    // Resume before the retry fires.
+    setVisibility('visible');
+    expect(FakeWS.instances).toHaveLength(2);
+
+    // Advance past the original delay and confirm no extra socket was created.
+    vi.advanceTimersByTime(300);
+    expect(FakeWS.instances).toHaveLength(2);
+    conn.stop();
+  });
 });
