@@ -1,9 +1,11 @@
 import { fireEvent, render, screen } from '@testing-library/react';
-import { describe, expect, test } from 'vitest';
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { ReachabilityPanel, DAY_BARS, QUORUM_BARS } from './ReachabilityPanel';
 import type { IncidentWindow, Reachability } from '../types';
 
-const NOW = Date.now() / 1000;
+// Frozen at local noon; with a real clock an hour-old incident crossed midnight near 00:00 UTC.
+const NOW_MS = new Date(2026, 7, 29, 12, 0, 0).getTime();
+const NOW = NOW_MS / 1000;
 
 const reach: Reachability = {
   since: NOW - 3600,
@@ -18,6 +20,16 @@ const emptyWindow: IncidentWindow = {
 };
 
 describe('ReachabilityPanel', () => {
+  beforeEach(() => {
+    // Only Date is faked so React Testing Library's own scheduling stays real.
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(NOW_MS);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   test('renders one bar per day in the history strip', () => {
     const { container } = render(
       <ReachabilityPanel reachability={reach} incidentWindow={emptyWindow} />);
