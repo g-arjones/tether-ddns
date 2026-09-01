@@ -1,5 +1,6 @@
 import type { Settings } from '../types';
 import { Select } from '../components/Select';
+import { SectionHeader } from '../components/SectionHeader';
 
 export interface SettingsViewProps {
   settings: Settings | null;
@@ -18,9 +19,7 @@ const INTERVALS = [
 export function SettingsView({ settings, ipSources, onSave }: SettingsViewProps) {
   return (
     <>
-      <div className="section-head">
-        <h3>Settings</h3>
-      </div>
+      <SectionHeader title="Settings" />
       {settings === null ? (
         <div className="empty"><p>Loading settings…</p></div>
       ) : (

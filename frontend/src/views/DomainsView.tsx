@@ -1,6 +1,8 @@
 import type { JSX } from 'react';
 import type { DomainConfig, DomainState } from '../types';
 import { DomainCard } from '../components/DomainCard';
+import { EmptyState } from '../components/EmptyState';
+import { SectionHeader } from '../components/SectionHeader';
 import { IconGlobe, IconPlus } from '../components/icons';
 
 export interface DomainsViewProps {
@@ -23,25 +25,23 @@ export function DomainsView({
   onToggle,
 }: DomainsViewProps): JSX.Element {
   const count = domains.length;
-  const recordLabel = count === 1 ? 'record' : 'records';
 
   return (
     <>
-      <div className="section-head">
-        <h3>Domains</h3>
-        <span className="count-badge">{count} {recordLabel}</span>
-        <div className="spacer"></div>
-        <button className="btn btn-primary" onClick={onAdd}>
-          <IconPlus strokeWidth={2.5} />
-          Add Domain
-        </button>
-      </div>
+      <SectionHeader
+        title="Domains"
+        count={{ n: count, noun: 'record' }}
+        action={(
+          <button className="btn btn-primary" onClick={onAdd}>
+            <IconPlus strokeWidth={2.5} />
+            Add Domain
+          </button>
+        )}
+      />
       {domains.length === 0 ? (
-        <div className="empty">
-          <IconGlobe strokeWidth={1.5} />
-          <h3>No domains yet</h3>
-          <p>Add your first domain to get started.</p>
-        </div>
+        <EmptyState icon={<IconGlobe strokeWidth={1.5} />} title="No domains yet">
+          Add your first domain to get started.
+        </EmptyState>
       ) : (
         <div className="domain-grid">
           {domains.map((domain) => {

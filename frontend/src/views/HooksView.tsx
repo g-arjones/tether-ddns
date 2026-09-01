@@ -1,7 +1,9 @@
 import type { JSX } from 'react';
 import type { HookConfig, HookDef } from '../types';
-import { IconEdit, IconHook, IconPlay, IconPlus, IconTrash } from '../components/icons';
+import { EmptyState } from '../components/EmptyState';
 import { IconButton } from '../components/IconButton';
+import { SectionHeader } from '../components/SectionHeader';
+import { IconEdit, IconHook, IconPlay, IconPlus, IconTrash } from '../components/icons';
 
 export interface HooksViewProps {
   hooks: HookConfig[];
@@ -21,37 +23,31 @@ export function HooksView(props: HooksViewProps): JSX.Element {
     return def ? def.display_name : hookKey;
   };
 
+  const header = (
+    <SectionHeader
+      title="Hooks"
+      count={{ n: hooks.length, noun: 'hook' }}
+      action={(
+        <button className="btn btn-primary" onClick={onAdd}>
+          <IconPlus strokeWidth={2.5} />
+          Add Hook
+        </button>
+      )}
+    />
+  );
+
   if (hooks.length === 0) {
     return (
       <>
-        <div className="section-head">
-          <h3>Hooks</h3>
-          <span className="count-badge">0 hooks</span>
-          <div className="spacer"></div>
-          <button className="btn btn-primary" onClick={onAdd}>
-            <IconPlus strokeWidth={2.5} />
-            Add Hook
-          </button>
-        </div>
-        <div className="empty">
-          <IconHook strokeWidth={1.5} />
-          <h3>No hooks configured</h3>
-        </div>
+        {header}
+        <EmptyState icon={<IconHook strokeWidth={1.5} />} title="No hooks configured" />
       </>
     );
   }
 
   return (
     <>
-      <div className="section-head">
-        <h3>Hooks</h3>
-        <span className="count-badge">{hooks.length} {hooks.length === 1 ? 'hook' : 'hooks'}</span>
-        <div className="spacer"></div>
-        <button className="btn btn-primary" onClick={onAdd}>
-          <IconPlus strokeWidth={2.5} />
-          Add Hook
-        </button>
-      </div>
+      {header}
       <div className="hook-list">
         {hooks.map((hook) => (
           <div key={hook.id} className="hook-row">
