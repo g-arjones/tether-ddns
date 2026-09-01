@@ -48,7 +48,12 @@ export function DomainModal({ open, providers, editing, onClose, onSave }: Domai
   const schema = (selected?.schema ?? {}) as JsonSchema;
 
   return (
-    <div className={`modal-overlay${open ? ' open' : ''}`} onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+    <div
+      className={`modal-overlay${open ? ' open' : ''}`}
+      inert={!open}
+      aria-hidden={open ? undefined : true}
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
       <div className="modal">
         <div className="modal-head">
           <h3>{editing ? 'Edit Domain' : 'Add Domain'}</h3>

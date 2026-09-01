@@ -74,6 +74,19 @@ describe('IncidentModal', () => {
     expect(container.querySelector('.modal-overlay.open')).toBeNull();
   });
 
+  // The overlay stays mounted while closed so the fade has something to animate,
+  // which otherwise leaves the close button in the tab order and the a11y tree.
+  test('withdraws the closed dialog from the tab order and the a11y tree', () => {
+    const { container, rerender } = render(<IncidentModal bucket={null} onClose={vi.fn()} />);
+    const overlay = container.querySelector('.modal-overlay');
+    expect(overlay).toHaveAttribute('inert');
+    expect(overlay).toHaveAttribute('aria-hidden', 'true');
+
+    rerender(<IncidentModal bucket={bucket([])} onClose={vi.fn()} />);
+    expect(overlay).not.toHaveAttribute('inert');
+    expect(overlay).not.toHaveAttribute('aria-hidden');
+  });
+
   test('rates a partial day against the hours observed so far, not a full day', () => {
     const partial: DayBucket = {
       start: DAY_START, end: DAY_END, observedEnd: DAY_START + 43200, worst: 'outage',

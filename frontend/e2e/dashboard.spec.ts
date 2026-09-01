@@ -139,6 +139,28 @@ test('the modal card stays on one compositing layer across the transition', asyn
   expect(willChange).toContain('transform');
 });
 
+// Regression: DomainModal and HookModal stay mounted while closed so their fade has
+// something to animate, which once left the 16 and 13 focusable controls of the two
+// invisible forms sitting in the tab order. jsdom does not implement `inert`, so only a
+// real browser can prove the keyboard is actually kept out.
+test('the keyboard cannot reach a closed modal', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: /Domains/ }).click();
+  await expect(page.getByRole('heading', { name: 'Domains', level: 2 })).toBeVisible();
+
+  const trapped: string[] = [];
+  for (let i = 0; i < 40; i++) {
+    await page.keyboard.press('Tab');
+    const hit = await page.evaluate(() => {
+      const overlay = document.activeElement?.closest('.modal-overlay');
+      if (!overlay || overlay.classList.contains('open')) return null;
+      return overlay.querySelector('h3')?.textContent ?? 'closed modal';
+    });
+    if (hit !== null && !trapped.includes(hit)) trapped.push(hit);
+  }
+  expect(trapped).toEqual([]);
+});
+
 test('recovers from a dropped connection and does not duplicate logs', async ({ page }) => {
   let live = true;
   let activeRoute: WebSocketRoute | null = null;

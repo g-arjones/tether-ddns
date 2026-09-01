@@ -44,7 +44,12 @@ export function HookModal({ open, hooks, editing, onClose, onSave }: HookModalPr
   };
 
   return (
-    <div className={`modal-overlay${open ? ' open' : ''}`} onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+    <div
+      className={`modal-overlay${open ? ' open' : ''}`}
+      inert={!open}
+      aria-hidden={open ? undefined : true}
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
       <div className="modal">
         <div className="modal-head">
           <h3>{editing ? 'Edit Hook' : 'Add Hook'}</h3>

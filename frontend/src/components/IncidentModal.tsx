@@ -41,6 +41,8 @@ export function IncidentModal({ bucket, onClose }: IncidentModalProps): JSX.Elem
   return (
     <div
       className={`modal-overlay${bucket ? ' open' : ''}`}
+      inert={!bucket}
+      aria-hidden={bucket ? undefined : true}
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
       <div className="modal">
