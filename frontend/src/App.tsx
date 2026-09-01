@@ -9,6 +9,8 @@ import type {
   Settings,
 } from './types';
 import { useLiveState } from './useLiveState';
+import { ConnectionOverlay } from './components/ConnectionOverlay';
+import { useDelayedFlag } from './useDelayedFlag';
 import { Rail, type ViewKey } from './layout/Rail';
 import { TopBar } from './layout/TopBar';
 import { OverviewView } from './views/OverviewView';
@@ -44,7 +46,8 @@ function initialTheme(): Theme {
 }
 
 export default function App() {
-  const { snapshot, logs, generation } = useLiveState();
+  const { snapshot, logs, status, generation } = useLiveState();
+  const disconnected = useDelayedFlag(status !== 'open', 1500);
 
   const [providers, setProviders] = useState<Provider[]>([]);
   const [hookDefs, setHookDefs] = useState<HookDef[]>([]);
@@ -273,7 +276,7 @@ export default function App() {
 
   return (
     <>
-      <div className="shell">
+      <div className="shell" inert={disconnected}>
         <Rail
           active={activeView}
           onSelect={setActiveView}
@@ -375,6 +378,7 @@ export default function App() {
       />
 
       <Toasts toasts={toasts} />
+      <ConnectionOverlay status={status} visible={disconnected} />
     </>
   );
 }

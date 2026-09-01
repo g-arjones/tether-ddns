@@ -35,6 +35,7 @@
   --z-sticky: 40;
   --z-backdrop: 90;
   --z-modal: 100;
+  --z-conn: 150;
   --z-toast: 200;
 }
 
@@ -607,3 +608,26 @@ header.topbar {
 .about-name { font-size: 14px; color: var(--text); }
 .about-ver { font-family: var(--mono); font-size: 13px; font-weight: 650; color: var(--text-2); }
 .about-error { color: var(--warn); font-size: 13px; margin-bottom: 8px; }
+
+/* ---------- Connection overlay ---------- */
+.conn-overlay {
+  position: fixed; inset: 0; background: rgba(5, 8, 16, .6); backdrop-filter: blur(4px);
+  display: grid; place-items: center; z-index: var(--z-conn);
+  padding: calc(20px + var(--sa-top)) calc(20px + var(--sa-right))
+           calc(20px + var(--sa-bottom)) calc(20px + var(--sa-left));
+  opacity: 0; pointer-events: none; transition: opacity var(--transition);
+}
+.conn-overlay.conn-open { opacity: 1; pointer-events: auto; }
+.conn-card {
+  display: flex; align-items: center; gap: 14px; padding: 20px 24px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); box-shadow: var(--shadow);
+}
+.conn-spinner {
+  width: 18px; height: 18px; flex: none; border-radius: 50%;
+  border: 2px solid var(--border-strong); border-top-color: var(--accent);
+  animation: conn-spin .8s linear infinite;
+}
+.conn-label { font-size: 14px; font-weight: 600; color: var(--text); }
+@keyframes conn-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .conn-spinner { animation: none; } }

@@ -12,6 +12,7 @@ beforeEach(() => {
     onclose: (() => void) | null = null;
     onerror: (() => void) | null = null;
     onmessage: ((e: { data: string }) => void) | null = null;
+    // oxlint-disable-next-line no-this-alias -- test fake needs to expose the instance
     constructor() { socket = this; }
     send(_data: string) {}
     close() {}
