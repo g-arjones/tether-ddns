@@ -1,6 +1,7 @@
 import type { JSX } from 'react';
 import type { Incident } from '../types';
 import { formatDuration, type DayBucket } from '../utils';
+import { IconClose } from './icons';
 
 export interface IncidentModalProps {
   bucket: DayBucket | null;
@@ -49,7 +50,7 @@ export function IncidentModal({ bucket, onClose }: IncidentModalProps): JSX.Elem
         <div className="modal-head">
           <h3>{heading}</h3>
           <button type="button" className="icon-btn" style={{ width: 34, height: 34 }} onClick={onClose} aria-label="Close">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18M6 6l12 12" /></svg>
+            <IconClose />
           </button>
         </div>
         <div className="modal-body">

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import type { HookConfig, HookDef } from '../types';
 import { SchemaForm, type JsonSchema } from './SchemaForm';
 import { Select } from './Select';
+import { IconClose } from './icons';
 
 export interface HookModalProps {
   open: boolean;
@@ -54,7 +55,7 @@ export function HookModal({ open, hooks, editing, onClose, onSave }: HookModalPr
         <div className="modal-head">
           <h3>{editing ? 'Edit Hook' : 'Add Hook'}</h3>
           <button type="button" className="icon-btn" style={{ width: 34, height: 34 }} onClick={onClose} aria-label="Close">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18M6 6l12 12" /></svg>
+            <IconClose />
           </button>
         </div>
         <div className="modal-body">
