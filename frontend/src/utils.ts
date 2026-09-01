@@ -5,6 +5,8 @@ export type DaySeverity = 'healthy' | 'degraded' | 'outage';
 export interface DayBucket {
   start: number;
   end: number;
+  /** `end`, or now for a day still in progress — the denominator for uptime. */
+  observedEnd: number;
   worst: DaySeverity;
   incidents: Incident[];
   offlineSeconds: number;
@@ -61,6 +63,7 @@ export function bucketByDay(
     to.setDate(to.getDate() + 1);
     const start = from.getTime() / 1000;
     const end = to.getTime() / 1000;
+    const observedEnd = Math.min(nowSec, end);
 
     const hits: Incident[] = [];
     let offlineSeconds = 0;
@@ -75,7 +78,9 @@ export function bucketByDay(
     const worst: DaySeverity = offlineSeconds > 0
       ? 'outage'
       : (degradedSeconds > 0 ? 'degraded' : 'healthy');
-    buckets.push({ start, end, worst, incidents: hits, offlineSeconds, degradedSeconds });
+    buckets.push({
+      start, end, observedEnd, worst, incidents: hits, offlineSeconds, degradedSeconds,
+    });
   }
   return buckets;
 }

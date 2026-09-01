@@ -33,8 +33,9 @@ export function IncidentModal({ bucket, onClose }: IncidentModalProps): JSX.Elem
     })
     : '';
   const span = bucket ? bucket.end - bucket.start : 1;
-  const pct = bucket && span > 0
-    ? (((span - bucket.offlineSeconds) / span) * 100).toFixed(1)
+  const observed = bucket ? bucket.observedEnd - bucket.start : 0;
+  const pct = bucket && observed > 0
+    ? (((observed - bucket.offlineSeconds) / observed) * 100).toFixed(1)
     : '100.0';
 
   return (
@@ -60,6 +61,15 @@ export function IncidentModal({ bucket, onClose }: IncidentModalProps): JSX.Elem
               <div>
                 <div className="inc-label">Day timeline</div>
                 <div className="inc-track">
+                  {bucket.observedEnd < bucket.end && (
+                    <b
+                      className="future"
+                      style={{
+                        left: `${((bucket.observedEnd - bucket.start) / span) * 100}%`,
+                        width: `${((bucket.end - bucket.observedEnd) / span) * 100}%`,
+                      }}
+                    />
+                  )}
                   {bucket.incidents.map((inc, i) => {
                     const from = Math.max(inc.start, bucket.start);
                     const to = Math.min(inc.end ?? nowSec, bucket.end);
