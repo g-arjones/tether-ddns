@@ -8,6 +8,7 @@ describe('IconButton', () => {
     render(<IconButton label="Delete" onClick={vi.fn()}><IconTrash /></IconButton>);
     const button = screen.getByRole('button', { name: 'Delete' });
     expect(button).toHaveAttribute('title', 'Delete');
+    expect(button).toHaveAttribute('aria-label', 'Delete');
     expect(button).toHaveAttribute('type', 'button');
   });
 
