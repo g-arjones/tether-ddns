@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { LogEntry } from '../types';
 import { LogViewer } from '../components/LogViewer';
+import { SectionHeader } from '../components/SectionHeader';
 import { IconSearch } from '../components/icons';
 
 export interface LogsViewProps {
@@ -28,10 +29,7 @@ export function LogsView({ logs }: LogsViewProps) {
 
   return (
     <div className="view-logs">
-      <div className="section-head">
-        <h3>Logs</h3>
-        <span className="count-badge">{filtered.length}</span>
-      </div>
+      <SectionHeader title="Logs" count={{ n: filtered.length, noun: 'line' }} />
       <div className="log-toolbar">
         <div className="log-search">
           <IconSearch />
