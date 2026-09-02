@@ -1,18 +1,14 @@
 import { render, screen } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { OverviewView } from './OverviewView';
 import type { StateSnapshot } from '../types';
-import * as api from '../api';
+import { bucketByDay } from '../utils';
+import { DAY_BARS } from '../components/ReachabilityPanel';
 
 vi.useFakeTimers();
 
-vi.mock('../api');
-
-beforeEach(() => {
-  vi.mocked(api.getIncidents).mockResolvedValue({
-    monitoring_since: 0, rev: 0, incidents: [], ongoing: null,
-  } as never);
-});
+const NOW_MS = new Date(2026, 7, 29, 12, 0, 0).getTime();
+const buckets = bucketByDay([], null, NOW_MS, DAY_BARS);
 
 const snapshot: StateSnapshot = {
   public_ipv4: '203.0.113.5', public_ipv6: null,
@@ -31,7 +27,10 @@ describe('OverviewView', () => {
         snapshot={snapshot}
         domains={[{ id: 'a', hostname: 'h', provider: 'duckdns', record_type: 'A', enabled: true }]}
         settings={snapshot.settings ?? null}
-        generation={0}
+        incidentWindow={null}
+        dayBuckets={buckets}
+        nowMs={NOW_MS}
+        onSelectDay={vi.fn()}
       />,
     );
     expect(screen.getByText('Total Domains')).toBeInTheDocument();
@@ -40,7 +39,17 @@ describe('OverviewView', () => {
   });
 
   it('renders safely with a null snapshot', () => {
-    render(<OverviewView snapshot={null} domains={[]} settings={null} generation={0} />);
+    render(
+      <OverviewView
+        snapshot={null}
+        domains={[]}
+        settings={null}
+        incidentWindow={null}
+        dayBuckets={buckets}
+        nowMs={NOW_MS}
+        onSelectDay={vi.fn()}
+      />,
+    );
     expect(screen.getByText('Total Domains')).toBeInTheDocument();
   });
 });

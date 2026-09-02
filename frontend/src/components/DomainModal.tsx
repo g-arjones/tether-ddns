@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import type { DomainConfig, Provider } from '../types';
 import { SchemaForm, type JsonSchema } from './SchemaForm';
 import { Select } from './Select';
+import { Modal } from './Modal';
 
 export interface DomainModalProps {
   open: boolean;
@@ -48,71 +49,67 @@ export function DomainModal({ open, providers, editing, onClose, onSave }: Domai
   const schema = (selected?.schema ?? {}) as JsonSchema;
 
   return (
-    <div className={`modal-overlay${open ? ' open' : ''}`} onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="modal">
-        <div className="modal-head">
-          <h3>{editing ? 'Edit Domain' : 'Add Domain'}</h3>
-          <button type="button" className="icon-btn" style={{ width: 34, height: 34 }} onClick={onClose} aria-label="Close">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18M6 6l12 12" /></svg>
-          </button>
-        </div>
-        <div className="modal-body">
-          <div className="field">
-            <label htmlFor="fHostname">Hostname / FQDN</label>
-            <input
-              id="fHostname"
-              type="text"
-              placeholder="home.example.com"
-              autoComplete="off"
-              value={form.hostname}
-              onChange={(e) => setForm({ ...form, hostname: e.target.value })}
-            />
-          </div>
-          <div className="field-row">
-            <div className="field">
-              <label htmlFor="fProvider">DNS Provider</label>
-              <Select
-                id="fProvider"
-                ariaLabel="DNS Provider"
-                value={form.provider}
-                options={providers.map((p) => ({ value: p.key, label: p.display_name }))}
-                onChange={(provider) => setForm({ ...form, provider, provider_config: {} })}
-              />
-            </div>
-            <div className="field">
-              <label htmlFor="fType">Record Type</label>
-              <Select
-                id="fType"
-                ariaLabel="Record Type"
-                value={form.record_type}
-                options={[
-                  { value: 'A', label: 'A (IPv4)' },
-                  { value: 'AAAA', label: 'AAAA (IPv6)' },
-                ]}
-                onChange={(record_type) => setForm({ ...form, record_type })}
-              />
-            </div>
-          </div>
-          {schema.description ? <p className="modal-blurb">{schema.description}</p> : null}
-          <SchemaForm schema={schema} value={form.provider_config} onChange={(provider_config) => setForm({ ...form, provider_config })} />
-          <div className="switch-row">
-            <div className="sr-text">
-              <div className="t">Enable auto-update</div>
-              <div className="d">Automatically sync this record on IP change</div>
-            </div>
-            <label className="switch">
-              <input type="checkbox" checked={form.enabled} onChange={(e) => setForm({ ...form, enabled: e.target.checked })} />
-              <span className="slider" />
-            </label>
-          </div>
-        </div>
-        <div className="modal-foot">
+    <Modal
+      open={open}
+      title={editing ? 'Edit Domain' : 'Add Domain'}
+      onClose={onClose}
+      footer={(
+        <>
           <button type="button" className="btn btn-ghost" onClick={onClose}>Cancel</button>
           <button type="button" className="btn btn-primary" onClick={() => onSave(form)}>
             {editing ? 'Save Changes' : 'Add Domain'}
           </button>
+        </>
+      )}
+    >
+      <div className="field">
+        <label htmlFor="fHostname">Hostname / FQDN</label>
+        <input
+          id="fHostname"
+          type="text"
+          placeholder="home.example.com"
+          autoComplete="off"
+          value={form.hostname}
+          onChange={(e) => setForm({ ...form, hostname: e.target.value })}
+        />
+      </div>
+      <div className="field-row">
+        <div className="field">
+          <label htmlFor="fProvider">DNS Provider</label>
+          <Select
+            id="fProvider"
+            ariaLabel="DNS Provider"
+            value={form.provider}
+            options={providers.map((p) => ({ value: p.key, label: p.display_name }))}
+            onChange={(provider) => setForm({ ...form, provider, provider_config: {} })}
+          />
+        </div>
+        <div className="field">
+          <label htmlFor="fType">Record Type</label>
+          <Select
+            id="fType"
+            ariaLabel="Record Type"
+            value={form.record_type}
+            options={[
+              { value: 'A', label: 'A (IPv4)' },
+              { value: 'AAAA', label: 'AAAA (IPv6)' },
+            ]}
+            onChange={(record_type) => setForm({ ...form, record_type })}
+          />
         </div>
       </div>
-    </div>
+      {schema.description ? <p className="modal-blurb">{schema.description}</p> : null}
+      <SchemaForm schema={schema} value={form.provider_config} onChange={(provider_config) => setForm({ ...form, provider_config })} />
+      <div className="switch-row">
+        <div className="sr-text">
+          <div className="t">Enable auto-update</div>
+          <div className="d">Automatically sync this record on IP change</div>
+        </div>
+        <label className="switch">
+          <input type="checkbox" checked={form.enabled} onChange={(e) => setForm({ ...form, enabled: e.target.checked })} />
+          <span className="slider" />
+        </label>
+      </div>
+    </Modal>
   );
 }

@@ -121,6 +121,69 @@ test('the live strip stays inside its box and does not starve the layout', async
   expect(geometry.healthWidth).toBeGreaterThan(300);
 });
 
+// Regression: `.modal` transitions `transform` between `translateY(12px) scale(.98)`
+// and its resting value, and the card lands on a fractional y (grid centring), so every
+// 1px border and glyph straddles a device pixel. Chromium composites the card onto its
+// own layer for the duration of the transform transition and demotes it at the end,
+// re-rasterising those hairlines in a single frame — a flick on open and on close.
+// A stable compositing hint pins the card to one layer so the raster mode never changes.
+test('the modal card stays on one compositing layer across the transition', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: /Domains/ }).click();
+  await page.getByRole('main').getByRole('button', { name: 'Add Domain' }).click();
+  await expect(page.locator('.modal-overlay.open')).toBeVisible();
+
+  const willChange = await page
+    .locator('.modal-overlay.open .modal')
+    .evaluate((el) => getComputedStyle(el).willChange);
+  expect(willChange).toContain('transform');
+});
+
+// Regression: DomainModal and HookModal stay mounted while closed so their fade has
+// something to animate, which once left the 16 and 13 focusable controls of the two
+// invisible forms sitting in the tab order. jsdom does not implement `inert`, so only a
+// real browser can prove the keyboard is actually kept out.
+test('the keyboard cannot reach a closed modal', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: /Domains/ }).click();
+  await expect(page.getByRole('heading', { name: 'Domains', level: 2 })).toBeVisible();
+
+  const trapped: string[] = [];
+  for (let i = 0; i < 40; i++) {
+    await page.keyboard.press('Tab');
+    const hit = await page.evaluate(() => {
+      const overlay = document.activeElement?.closest('.modal-overlay');
+      if (!overlay || overlay.classList.contains('open')) return null;
+      return overlay.querySelector('h3')?.textContent ?? 'closed modal';
+    });
+    if (hit !== null && !trapped.includes(hit)) trapped.push(hit);
+  }
+  expect(trapped).toEqual([]);
+});
+
+// F1: `.modal` claims `aria-modal="true"`, which tells assistive tech to ignore
+// everything outside the dialog. That claim is only true if the rest of the app
+// is actually unreachable — `.shell` goes `inert` whenever a modal is open.
+test('the keyboard cannot escape an open modal into the rail or topbar', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: /Domains/ }).click();
+  await page.getByRole('main').getByRole('button', { name: 'Add Domain' }).click();
+  await expect(page.locator('.modal-overlay.open')).toBeVisible();
+
+  const escaped: string[] = [];
+  for (let i = 0; i < 40; i++) {
+    await page.keyboard.press('Tab');
+    const outsideModal = await page.evaluate(() => {
+      const el = document.activeElement;
+      if (!el || el === document.body) return null;
+      if (el.closest('.modal-overlay.open')) return null;
+      return el.tagName + (el.className ? `.${el.className}` : '');
+    });
+    if (outsideModal !== null && !escaped.includes(outsideModal)) escaped.push(outsideModal);
+  }
+  expect(escaped).toEqual([]);
+});
+
 test('recovers from a dropped connection and does not duplicate logs', async ({ page }) => {
   let live = true;
   let activeRoute: WebSocketRoute | null = null;
@@ -153,4 +216,20 @@ test('recovers from a dropped connection and does not duplicate logs', async ({ 
 
   await expect(page.getByRole('heading', { name: 'Logs', level: 2 })).toBeVisible();
   await expect.poll(async () => lines.count()).toBeLessThanOrEqual(before * 2 - 1);
+});
+
+test('the modal close button keeps its 34px hit target', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: /Domains/ }).click();
+  await page.getByRole('main').getByRole('button', { name: 'Add Domain' }).click();
+
+  // Wait for the open transition to settle: `.modal` animates transform from
+  // `translateY(12px) scale(.98)` to `none`, and every descendant's bounding box
+  // is scaled down while it runs. Poll the computed transform until it reads
+  // "none" (Playwright's retrying assertion) instead of an arbitrary sleep.
+  await expect(page.locator('.modal-overlay.open .modal')).toHaveCSS('transform', 'none');
+
+  const box = await page.locator('.modal-overlay.open .modal-head button').boundingBox();
+  expect(box?.width).toBeCloseTo(34, 0);
+  expect(box?.height).toBeCloseTo(34, 0);
 });

@@ -11,6 +11,8 @@ import type {
 import { useLiveState } from './useLiveState';
 import { ConnectionOverlay } from './components/ConnectionOverlay';
 import { useDelayedFlag } from './useDelayedFlag';
+import { useIncidents } from './useIncidents';
+import { bucketByDay } from './utils';
 import { Rail, type ViewKey } from './layout/Rail';
 import { TopBar } from './layout/TopBar';
 import { OverviewView } from './views/OverviewView';
@@ -21,6 +23,8 @@ import { SettingsView } from './views/SettingsView';
 import { AboutView } from './views/AboutView';
 import { DomainModal, type DomainFormValue } from './components/DomainModal';
 import { HookModal, type HookFormValue } from './components/HookModal';
+import { IncidentModal } from './components/IncidentModal';
+import { DAY_BARS } from './components/ReachabilityPanel';
 import { Toasts, type ToastItem, type ToastKind } from './components/Toasts';
 import './styles.css';
 
@@ -74,6 +78,23 @@ export default function App() {
   const [editingDomain, setEditingDomain] = useState<DomainConfig | null>(null);
   const [hookModalOpen, setHookModalOpen] = useState(false);
   const [editingHook, setEditingHook] = useState<HookConfig | null>(null);
+  const [selectedDayStart, setSelectedDayStart] = useState<number | null>(null);
+
+  const incidentWindow = useIncidents(snapshot?.reachability?.rev ?? 0, generation);
+  // Derived every render, never stored: a day's observed span grows in real time,
+  // so a bucket captured when the modal opened would freeze its timeline and uptime.
+  const nowMs = Date.now();
+  const dayBuckets = bucketByDay(
+    incidentWindow?.incidents ?? [],
+    incidentWindow?.ongoing ?? snapshot?.reachability?.ongoing ?? null,
+    nowMs,
+    DAY_BARS,
+  );
+  const selectedDay = dayBuckets.find((b) => b.start === selectedDayStart) ?? null;
+
+  // aria-modal on any open modal claims the rest of the app is inert to assistive
+  // tech, so the shell must actually become inert whenever one is open.
+  const anyModalOpen = domainModalOpen || hookModalOpen || selectedDay !== null;
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
@@ -276,7 +297,7 @@ export default function App() {
 
   return (
     <>
-      <div className="shell" inert={disconnected}>
+      <div className="shell" inert={disconnected || anyModalOpen}>
         <Rail
           active={activeView}
           onSelect={setActiveView}
@@ -307,7 +328,10 @@ export default function App() {
                 snapshot={snapshot}
                 domains={domains}
                 settings={settings}
-                generation={generation}
+                incidentWindow={incidentWindow}
+                dayBuckets={dayBuckets}
+                nowMs={nowMs}
+                onSelectDay={setSelectedDayStart}
               />
             )}
             {activeView === 'domains' && (
@@ -375,6 +399,12 @@ export default function App() {
           setEditingHook(null);
         }}
         onSave={handleSaveHook}
+      />
+
+      <IncidentModal
+        bucket={selectedDay}
+        nowMs={nowMs}
+        onClose={() => setSelectedDayStart(null)}
       />
 
       <Toasts toasts={toasts} />

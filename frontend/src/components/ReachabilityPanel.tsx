@@ -1,9 +1,8 @@
-import { useState, type JSX } from 'react';
+import type { JSX } from 'react';
 import type { IncidentWindow, Reachability } from '../types';
 import {
-  bucketByDay, formatDuration, formatUptime, humanTime, uptimeStats, type DayBucket,
+  formatDuration, formatUptime, humanTime, uptimeStats, type DayBucket,
 } from '../utils';
-import { IncidentModal } from './IncidentModal';
 
 export const QUORUM_BARS = 24;
 export const QUORUM = 2;
@@ -15,6 +14,9 @@ const THIRTY_DAYS = DAY_BARS * 86400;
 export interface ReachabilityPanelProps {
   reachability: Reachability;
   incidentWindow: IncidentWindow | null;
+  buckets: DayBucket[];
+  nowMs: number;
+  onSelectDay: (dayStart: number) => void;
 }
 
 function dayLabel(bucket: DayBucket): string {
@@ -27,10 +29,8 @@ function dayLabel(bucket: DayBucket): string {
 }
 
 export function ReachabilityPanel(
-  { reachability: r, incidentWindow }: ReachabilityPanelProps,
+  { reachability: r, incidentWindow, buckets, nowMs, onSelectDay }: ReachabilityPanelProps,
 ): JSX.Element {
-  const [selected, setSelected] = useState<DayBucket | null>(null);
-
   const incidents = incidentWindow?.incidents ?? [];
   const ongoing = incidentWindow?.ongoing ?? r.ongoing;
   const monitoringSince = incidentWindow?.monitoring_since ?? 0;
@@ -39,8 +39,7 @@ export function ReachabilityPanel(
   const last = bars.length ? bars[bars.length - 1] : null;
   const online = last ? last.successes >= QUORUM : true;
 
-  const buckets = bucketByDay(incidents, ongoing, Date.now(), DAY_BARS);
-  const stats = uptimeStats(incidents, ongoing, monitoringSince, Date.now(), DAY_BARS);
+  const stats = uptimeStats(incidents, ongoing, monitoringSince, nowMs, DAY_BARS);
   const partial = stats.observedSeconds < THIRTY_DAYS - 1;
 
   return (
@@ -80,7 +79,7 @@ export function ReachabilityPanel(
             className={b.worst}
             aria-label={dayLabel(b)}
             title={dayLabel(b)}
-            onClick={() => setSelected(b)}
+            onClick={() => onSelectDay(b.start)}
           />
         ))}
       </div>
@@ -111,8 +110,6 @@ export function ReachabilityPanel(
           );
         })}
       </div>
-
-      <IncidentModal bucket={selected} onClose={() => setSelected(null)} />
     </>
   );
 }

@@ -1,5 +1,9 @@
 import type { JSX } from 'react';
 import type { HookConfig, HookDef } from '../types';
+import { EmptyState } from '../components/EmptyState';
+import { IconButton } from '../components/IconButton';
+import { SectionHeader } from '../components/SectionHeader';
+import { IconEdit, IconHook, IconPlay, IconPlus, IconTrash } from '../components/icons';
 
 export interface HooksViewProps {
   hooks: HookConfig[];
@@ -19,58 +23,36 @@ export function HooksView(props: HooksViewProps): JSX.Element {
     return def ? def.display_name : hookKey;
   };
 
+  const header = (
+    <SectionHeader
+      title="Hooks"
+      count={{ n: hooks.length, noun: 'hook' }}
+      action={(
+        <button className="btn btn-primary" onClick={onAdd}>
+          <IconPlus strokeWidth={2.5} />
+          Add Hook
+        </button>
+      )}
+    />
+  );
+
   if (hooks.length === 0) {
     return (
       <>
-        <div className="section-head">
-          <h3>Hooks</h3>
-          <span className="count-badge">0 hooks</span>
-          <div className="spacer"></div>
-          <button className="btn btn-primary" onClick={onAdd}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M12 5v14M5 12h14" />
-            </svg>
-            Add Hook
-          </button>
-        </div>
-        <div className="empty">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M4 10a10 10 0 0 1 10 10" />
-            <path d="M4 16a4 4 0 0 1 4 4" />
-            <circle cx="5" cy="19" r="1" />
-            <path d="m12 10 4-4a2.83 2.83 0 0 1 4 4l-4 4" />
-            <path d="m14 8 3 3" />
-            <path d="m9 15 3 3" />
-          </svg>
-          <h3>No hooks configured</h3>
-        </div>
+        {header}
+        <EmptyState icon={<IconHook strokeWidth={1.5} />} title="No hooks configured" />
       </>
     );
   }
 
   return (
     <>
-      <div className="section-head">
-        <h3>Hooks</h3>
-        <span className="count-badge">{hooks.length} {hooks.length === 1 ? 'hook' : 'hooks'}</span>
-        <div className="spacer"></div>
-        <button className="btn btn-primary" onClick={onAdd}>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M12 5v14M5 12h14" />
-          </svg>
-          Add Hook
-        </button>
-      </div>
+      {header}
       <div className="hook-list">
         {hooks.map((hook) => (
           <div key={hook.id} className="hook-row">
             <div className="hook-ico">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="m12 10 4-4a2.83 2.83 0 0 1 4 4l-4 4" />
-                <path d="m14 8 3 3" />
-                <path d="m9 15 3 3" />
-                <path d="M4 10a10 10 0 0 1 10 10" />
-              </svg>
+              <IconHook />
             </div>
             <div className="hook-main">
               <div className="hook-name">{getHookName(hook.hook)}</div>
@@ -87,37 +69,15 @@ export function HooksView(props: HooksViewProps): JSX.Element {
               </div>
             </div>
             <div className="hook-actions">
-              <button
-                className="act-btn"
-                onClick={() => onRun(hook.id)}
-                title="Run now"
-                aria-label="Run now"
-              >
-                <svg viewBox="0 0 24 24" fill="currentColor" stroke="none">
-                  <path d="M8 5v14l11-7z" />
-                </svg>
-              </button>
-              <button
-                className="act-btn"
-                onClick={() => onEdit(hook)}
-                title="Edit"
-                aria-label="Edit"
-              >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                  <path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4z" />
-                </svg>
-              </button>
-              <button
-                className="act-btn danger"
-                onClick={() => onDelete(hook.id)}
-                title="Delete"
-                aria-label="Delete"
-              >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
-                </svg>
-              </button>
+              <IconButton label="Run now" onClick={() => onRun(hook.id)} variant="act">
+                <IconPlay />
+              </IconButton>
+              <IconButton label="Edit" onClick={() => onEdit(hook)} variant="act">
+                <IconEdit />
+              </IconButton>
+              <IconButton label="Delete" onClick={() => onDelete(hook.id)} variant="act" danger>
+                <IconTrash />
+              </IconButton>
             </div>
           </div>
         ))}

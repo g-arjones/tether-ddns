@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { IconChevronDown, IconCheck } from './icons';
 
 export interface SelectOption {
   value: string;
@@ -61,9 +62,7 @@ export function Select({ id, value, options, onChange, ariaLabel }: SelectProps)
         onClick={() => setOpen((o) => !o)}
       >
         <span className="cs-label">{selected?.label ?? ''}</span>
-        <svg className="cs-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="m6 9 6 6 6-6" />
-        </svg>
+        <span className="cs-caret"><IconChevronDown /></span>
       </button>
       <div className="cs-menu" role="listbox" aria-hidden="true">
         {options.map((o) => (
@@ -74,9 +73,7 @@ export function Select({ id, value, options, onChange, ariaLabel }: SelectProps)
             onClick={() => choose(o.value)}
           >
             <span>{o.label}</span>
-            <svg className="cs-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <path d="m5 12 5 5L20 7" />
-            </svg>
+            <span className="cs-check"><IconCheck strokeWidth={2.5} /></span>
           </button>
         ))}
       </div>

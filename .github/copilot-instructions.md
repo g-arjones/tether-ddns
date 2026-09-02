@@ -2,7 +2,7 @@
 
 ## Design Context
 
-This project has captured design context for the [impeccable](.github/skills/impeccable/SKILL.md) frontend workflow. Read these before working on UI:
+This project has captured design context for the [impeccable](./skills/impeccable/SKILL.md) frontend workflow. Read these before working on UI:
 
 - [PRODUCT.md](../PRODUCT.md) — strategic context: **product** register, **web** platform, users (self-hosters, homelab enthusiasts, small-org sysadmins), purpose, positioning, brand personality, and design principles.
 - [DESIGN.md](../DESIGN.md) — visual system: color tokens, typography, elevation, and components. North Star: **"The Instrument Panel."**

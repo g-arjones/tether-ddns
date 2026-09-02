@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import type { LogEntry } from '../types';
 import { LogViewer } from '../components/LogViewer';
+import { SectionHeader } from '../components/SectionHeader';
+import { IconSearch } from '../components/icons';
 
 export interface LogsViewProps {
   logs: LogEntry[];
@@ -27,16 +29,10 @@ export function LogsView({ logs }: LogsViewProps) {
 
   return (
     <div className="view-logs">
-      <div className="section-head">
-        <h3>Logs</h3>
-        <span className="count-badge">{filtered.length}</span>
-      </div>
+      <SectionHeader title="Logs" count={{ n: filtered.length, noun: 'line' }} />
       <div className="log-toolbar">
         <div className="log-search">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="11" cy="11" r="8" />
-            <path d="m21 21-4.3-4.3" />
-          </svg>
+          <IconSearch />
           <input
             type="text"
             placeholder="Filter log messages…"

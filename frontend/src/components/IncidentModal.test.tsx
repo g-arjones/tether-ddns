@@ -6,6 +6,8 @@ import type { Incident } from '../types';
 
 const DAY_START = new Date(2026, 7, 29, 0, 0, 0).getTime() / 1000;
 const DAY_END = new Date(2026, 7, 30, 0, 0, 0).getTime() / 1000;
+const DONE_MS = DAY_END * 1000;
+const NOON_MS = (DAY_START + 43200) * 1000;
 
 function inc(startOffset: number, endOffset: number | null, severity: 'degraded' | 'outage'): Incident {
   return {
@@ -28,7 +30,7 @@ function bucket(incidents: Incident[]): DayBucket {
 describe('IncidentModal', () => {
   test('renders the day heading and summary', () => {
     const { container } = render(
-      <IncidentModal bucket={bucket([inc(3600, 5000, 'outage')])} onClose={vi.fn()} />);
+      <IncidentModal bucket={bucket([inc(3600, 5000, 'outage')])} nowMs={DONE_MS} onClose={vi.fn()} />);
     // Heading format is locale-dependent; assert only that it names the day.
     expect(container.querySelector('.modal-head h3')?.textContent).toMatch(/29/);
     expect(screen.getByText('4h 28m')).toBeTruthy();
@@ -37,25 +39,27 @@ describe('IncidentModal', () => {
   test('renders a severity tag for each incident', () => {
     render(<IncidentModal
       bucket={bucket([inc(3600, 5000, 'outage'), inc(40000, 41020, 'degraded')])}
-      onClose={vi.fn()} />);
+      nowMs={DONE_MS} onClose={vi.fn()} />);
     expect(screen.getByText('outage')).toBeTruthy();
     expect(screen.getByText('degraded')).toBeTruthy();
   });
 
   test('renders an ongoing incident as running to now', () => {
-    render(<IncidentModal bucket={bucket([inc(3600, null, 'outage')])} onClose={vi.fn()} />);
+    render(
+      <IncidentModal bucket={bucket([inc(3600, null, 'outage')])} nowMs={DONE_MS} onClose={vi.fn()} />);
     expect(screen.getByText(/→ now/)).toBeTruthy();
     expect(screen.queryByText('ongoing')).toBeNull();
   });
 
   test('notes an incident inherited from the previous day', () => {
     const carried: Incident = { ...inc(0, 5000, 'outage'), start: DAY_START - 1140 };
-    render(<IncidentModal bucket={bucket([carried])} onClose={vi.fn()} />);
+    render(<IncidentModal bucket={bucket([carried])} nowMs={DONE_MS} onClose={vi.fn()} />);
     expect(screen.getByText(/previous day/)).toBeTruthy();
   });
 
   test('lists the resolvers that failed', () => {
-    render(<IncidentModal bucket={bucket([inc(3600, 5000, 'outage')])} onClose={vi.fn()} />);
+    render(
+      <IncidentModal bucket={bucket([inc(3600, 5000, 'outage')])} nowMs={DONE_MS} onClose={vi.fn()} />);
     expect(screen.getByText('1.1.1.1')).toBeTruthy();
     expect(screen.getByText('8.8.8.8')).toBeTruthy();
   });
@@ -65,13 +69,28 @@ describe('IncidentModal', () => {
       start: DAY_START, end: DAY_END, observedEnd: DAY_END, worst: 'healthy', incidents: [],
       offlineSeconds: 0, degradedSeconds: 0,
     };
-    render(<IncidentModal bucket={clean} onClose={vi.fn()} />);
+    render(<IncidentModal bucket={clean} nowMs={DONE_MS} onClose={vi.fn()} />);
     expect(screen.getByText(/No incidents/)).toBeTruthy();
   });
 
   test('renders nothing open when the bucket is null', () => {
-    const { container } = render(<IncidentModal bucket={null} onClose={vi.fn()} />);
+    const { container } = render(
+      <IncidentModal bucket={null} nowMs={DONE_MS} onClose={vi.fn()} />);
     expect(container.querySelector('.modal-overlay.open')).toBeNull();
+  });
+
+  // The overlay stays mounted while closed so the fade has something to animate,
+  // which otherwise leaves the close button in the tab order and the a11y tree.
+  test('withdraws the closed dialog from the tab order and the a11y tree', () => {
+    const { container, rerender } = render(
+      <IncidentModal bucket={null} nowMs={DONE_MS} onClose={vi.fn()} />);
+    const overlay = container.querySelector('.modal-overlay');
+    expect(overlay).toHaveAttribute('inert');
+    expect(overlay).toHaveAttribute('aria-hidden', 'true');
+
+    rerender(<IncidentModal bucket={bucket([])} nowMs={DONE_MS} onClose={vi.fn()} />);
+    expect(overlay).not.toHaveAttribute('inert');
+    expect(overlay).not.toHaveAttribute('aria-hidden');
   });
 
   test('rates a partial day against the hours observed so far, not a full day', () => {
@@ -79,7 +98,7 @@ describe('IncidentModal', () => {
       start: DAY_START, end: DAY_END, observedEnd: DAY_START + 43200, worst: 'outage',
       incidents: [inc(3600, 7200, 'outage')], offlineSeconds: 3600, degradedSeconds: 0,
     };
-    render(<IncidentModal bucket={partial} onClose={vi.fn()} />);
+    render(<IncidentModal bucket={partial} nowMs={NOON_MS} onClose={vi.fn()} />);
     expect(screen.getByText('91.7%')).toBeTruthy();
   });
 
@@ -88,14 +107,31 @@ describe('IncidentModal', () => {
       start: DAY_START, end: DAY_END, observedEnd: DAY_START + 43200, worst: 'healthy',
       incidents: [], offlineSeconds: 0, degradedSeconds: 0,
     };
-    const { container } = render(<IncidentModal bucket={partial} onClose={vi.fn()} />);
+    const { container } = render(
+      <IncidentModal bucket={partial} nowMs={NOON_MS} onClose={vi.fn()} />);
     const future = container.querySelector<HTMLElement>('.inc-track b.future');
     expect(future?.style.left).toBe('50%');
     expect(future?.style.width).toBe('50%');
   });
 
   test('marks no unobserved tail on a completed day', () => {
-    const { container } = render(<IncidentModal bucket={bucket([])} onClose={vi.fn()} />);
+    const { container } = render(
+      <IncidentModal bucket={bucket([])} nowMs={DONE_MS} onClose={vi.fn()} />);
     expect(container.querySelector('.inc-track b.future')).toBeNull();
+  });
+
+  // The bucket and the running incident must be measured against the same instant,
+  // or an ongoing outage grows into the gray tail the bucket says is unobserved.
+  test('measures an ongoing incident against the supplied clock, not its own', () => {
+    const partial: DayBucket = {
+      start: DAY_START, end: DAY_END, observedEnd: DAY_START + 43200, worst: 'outage',
+      incidents: [inc(21600, null, 'outage')], offlineSeconds: 21600, degradedSeconds: 0,
+    };
+    const { container } = render(
+      <IncidentModal bucket={partial} nowMs={NOON_MS} onClose={vi.fn()} />);
+    const bar = container.querySelector<HTMLElement>('.inc-track b.outage');
+    expect(bar?.style.left).toBe('25%');
+    expect(bar?.style.width).toBe('25%');
+    expect(container.querySelector('.inc-dur')?.textContent).toBe('6h');
   });
 });

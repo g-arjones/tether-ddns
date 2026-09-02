@@ -53,4 +53,21 @@ describe('HookModal', () => {
     expect(onSave).toHaveBeenCalledWith(
       expect.objectContaining({ events: ['ip_changed'] }));
   });
+
+  // The overlay stays mounted while closed so the fade has something to animate,
+  // which otherwise leaves the whole form in the tab order and the a11y tree.
+  it('withdraws the closed form from the tab order and the a11y tree', () => {
+    const { container, rerender } = render(<HookModal
+      open={false} hooks={hooks} editing={null}
+      onClose={vi.fn()} onSave={vi.fn()} />);
+    const overlay = container.querySelector('.modal-overlay');
+    expect(overlay).toHaveAttribute('inert');
+    expect(overlay).toHaveAttribute('aria-hidden', 'true');
+
+    rerender(<HookModal
+      open hooks={hooks} editing={null}
+      onClose={vi.fn()} onSave={vi.fn()} />);
+    expect(overlay).not.toHaveAttribute('inert');
+    expect(overlay).not.toHaveAttribute('aria-hidden');
+  });
 });

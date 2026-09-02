@@ -1,3 +1,5 @@
+import { IconSuccess, IconError, IconInfo } from './icons';
+
 export type ToastKind = 'success' | 'error' | 'info';
 
 export interface ToastItem {
@@ -18,12 +20,12 @@ const TINT: Record<ToastKind, string> = {
 
 function Icon({ kind }: { kind: ToastKind }) {
   if (kind === 'success') {
-    return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5" /></svg>;
+    return <IconSuccess strokeWidth={2.5} />;
   }
   if (kind === 'error') {
-    return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><path d="M15 9l-6 6M9 9l6 6" /></svg>;
+    return <IconError strokeWidth={2.5} />;
   }
-  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><path d="M12 16v-4M12 8h.01" /></svg>;
+  return <IconInfo strokeWidth={2.5} />;
 }
 
 export function Toasts({ toasts }: ToastsProps) {

@@ -382,7 +382,6 @@ header.topbar {
 .st-synced { background: var(--ok-soft); color: var(--ok); } .st-synced .s-dot { background: var(--ok); }
 .st-pending { background: var(--warn-soft); color: var(--warn); } .st-pending .s-dot { background: var(--warn); }
 .st-error { background: var(--err-soft); color: var(--err); } .st-error .s-dot { background: var(--err); }
-.st-paused { background: var(--muted-soft); color: var(--muted-status); } .st-paused .s-dot { background: var(--muted-status); }
 .st-updating { background: rgba(59,130,246,.14); color: var(--accent); } .st-updating .s-dot { background: var(--accent); animation: pulse 1s infinite; }
 @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .3; } }
 
@@ -537,13 +536,14 @@ header.topbar {
   background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
   width: 100%; max-width: 480px; max-height: 90vh; display: flex; flex-direction: column;
   box-shadow: var(--shadow); transform: translateY(12px) scale(.98); transition: transform var(--transition);
+  /* Without this the card is composited only while the transform transition runs; the
+     demote at the end re-rasterises every hairline border in one frame (a visible flick). */
+  will-change: transform;
 }
 .modal-overlay.open .modal { transform: none; }
 .modal-head { flex: none; display: flex; align-items: center; justify-content: space-between; padding: 20px 22px; border-bottom: 1px solid var(--border); }
 .modal-head h3 { font-size: 17px; font-weight: 700; }
-.modal-close { width: 32px; height: 32px; border-radius: 8px; display: grid; place-items: center; color: var(--text-3); transition: var(--transition); }
-.modal-close:hover { color: var(--text); background: var(--surface-2); }
-.modal-close svg { width: 18px; height: 18px; }
+.modal-head .icon-btn { width: 34px; height: 34px; }
 .modal-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 22px; display: flex; flex-direction: column; gap: 16px; }
 .modal-blurb { font-size: 12.5px; color: var(--text-3); margin: -4px 0 4px; }
 .modal-foot { flex: none; padding: 16px 22px; border-top: 1px solid var(--border); display: flex; gap: 10px; justify-content: flex-end; }

@@ -22,4 +22,10 @@ describe('LogsView', () => {
     expect(screen.queryByText('started up')).not.toBeInTheDocument();
     expect(screen.getByText('boom failed')).toBeInTheDocument();
   });
+  it('counts the visible lines in the header badge', () => {
+    render(<LogsView logs={logs} />);
+    expect(screen.getByText('2 lines')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Error' }));
+    expect(screen.getByText('1 line')).toBeInTheDocument();
+  });
 });
