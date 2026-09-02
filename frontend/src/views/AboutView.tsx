@@ -1,6 +1,7 @@
 import { useEffect, useState, type JSX } from 'react';
 import type { AboutInfo } from '../types';
 import { getAbout } from '../api';
+import { SectionHeader } from '../components/SectionHeader';
 
 const FRONTEND_ROWS: [string, string][] = [
   ['React', __REACT_VERSION__],
@@ -31,7 +32,7 @@ export function AboutView(): JSX.Element {
 
   return (
     <>
-      <div className="section-head"><h3>About</h3></div>
+      <SectionHeader title="About" />
       <div className="panel about-header">
         <h2>{about?.app.name ?? 'Tether'}</h2>
         <span className="about-ver">v{about?.app.version ?? '—'}</span>
