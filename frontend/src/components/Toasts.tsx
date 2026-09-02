@@ -1,6 +1,6 @@
-export type ToastKind = 'success' | 'error' | 'info';
-
 import { IconSuccess, IconError, IconInfo } from './icons';
+
+export type ToastKind = 'success' | 'error' | 'info';
 
 export interface ToastItem {
   id: string;
