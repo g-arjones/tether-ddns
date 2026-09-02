@@ -5,6 +5,7 @@ import { Modal } from './Modal';
 
 export interface IncidentModalProps {
   bucket: DayBucket | null;
+  nowMs: number;
   onClose: () => void;
 }
 
@@ -26,8 +27,8 @@ function spanSeconds(inc: Incident, bucket: DayBucket, nowSec: number): number {
   return Math.max(0, end - start);
 }
 
-export function IncidentModal({ bucket, onClose }: IncidentModalProps): JSX.Element {
-  const nowSec = Date.now() / 1000;
+export function IncidentModal({ bucket, nowMs, onClose }: IncidentModalProps): JSX.Element {
+  const nowSec = nowMs / 1000;
   const heading = bucket
     ? new Date(bucket.start * 1000).toLocaleDateString(undefined, {
       weekday: 'long', day: 'numeric', month: 'long',

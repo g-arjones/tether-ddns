@@ -1,8 +1,20 @@
 import { render, screen, fireEvent, act, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import App from './App';
+import type { StateSnapshot } from './types';
 
-let socket: { onopen: (() => void) | null } | null = null;
+let socket: {
+  onopen: (() => void) | null;
+  onmessage: ((e: { data: string }) => void) | null;
+} | null = null;
+
+const stateFrame: StateSnapshot = {
+  public_ipv4: '203.0.113.5', public_ipv6: null,
+  ipv4_changed_at: 0, ipv6_changed_at: null,
+  online: true, next_check_at: null,
+  reachability: { since: 0, rev: 0, ongoing: null, history: [], latest: [] },
+  domains: [],
+};
 
 beforeEach(() => {
   socket = null;
@@ -74,5 +86,31 @@ describe('App shell', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
     expect(shell).not.toHaveAttribute('inert');
+  });
+
+  // The modal's timeline and uptime are derived from `now`, so a bucket captured at
+  // click time freezes the day's observed span for as long as the modal stays open.
+  it('keeps the open incident modal in step with the observed day', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    const noon = new Date(2026, 7, 29, 12, 0, 0).getTime();
+    vi.setSystemTime(noon);
+    try {
+      render(<App />);
+      await act(async () => { socket?.onopen?.(); });
+
+      const bars = document.querySelectorAll('.day-strip button');
+      fireEvent.click(bars[bars.length - 1]);
+      const tail = () => document.querySelector<HTMLElement>('.inc-track b.future');
+      expect(tail()?.style.width).toBe('50%');
+
+      vi.setSystemTime(noon + 6 * 3600 * 1000);
+      await act(async () => {
+        socket?.onmessage?.({ data: JSON.stringify({ kind: 'state', payload: stateFrame }) });
+      });
+
+      expect(tail()?.style.width).toBe('25%');
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

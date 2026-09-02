@@ -1,7 +1,7 @@
 import type { JSX } from 'react';
 import type { IncidentWindow, Reachability } from '../types';
 import {
-  bucketByDay, formatDuration, formatUptime, humanTime, uptimeStats, type DayBucket,
+  formatDuration, formatUptime, humanTime, uptimeStats, type DayBucket,
 } from '../utils';
 
 export const QUORUM_BARS = 24;
@@ -14,7 +14,9 @@ const THIRTY_DAYS = DAY_BARS * 86400;
 export interface ReachabilityPanelProps {
   reachability: Reachability;
   incidentWindow: IncidentWindow | null;
-  onSelectDay: (bucket: DayBucket) => void;
+  buckets: DayBucket[];
+  nowMs: number;
+  onSelectDay: (dayStart: number) => void;
 }
 
 function dayLabel(bucket: DayBucket): string {
@@ -27,7 +29,7 @@ function dayLabel(bucket: DayBucket): string {
 }
 
 export function ReachabilityPanel(
-  { reachability: r, incidentWindow, onSelectDay }: ReachabilityPanelProps,
+  { reachability: r, incidentWindow, buckets, nowMs, onSelectDay }: ReachabilityPanelProps,
 ): JSX.Element {
   const incidents = incidentWindow?.incidents ?? [];
   const ongoing = incidentWindow?.ongoing ?? r.ongoing;
@@ -37,8 +39,7 @@ export function ReachabilityPanel(
   const last = bars.length ? bars[bars.length - 1] : null;
   const online = last ? last.successes >= QUORUM : true;
 
-  const buckets = bucketByDay(incidents, ongoing, Date.now(), DAY_BARS);
-  const stats = uptimeStats(incidents, ongoing, monitoringSince, Date.now(), DAY_BARS);
+  const stats = uptimeStats(incidents, ongoing, monitoringSince, nowMs, DAY_BARS);
   const partial = stats.observedSeconds < THIRTY_DAYS - 1;
 
   return (
@@ -78,7 +79,7 @@ export function ReachabilityPanel(
             className={b.worst}
             aria-label={dayLabel(b)}
             title={dayLabel(b)}
-            onClick={() => onSelectDay(b)}
+            onClick={() => onSelectDay(b.start)}
           />
         ))}
       </div>

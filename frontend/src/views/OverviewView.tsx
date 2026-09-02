@@ -1,27 +1,29 @@
 import type { JSX } from 'react';
-import type { StateSnapshot, Settings, DomainConfig } from '../types';
+import type { StateSnapshot, Settings, DomainConfig, IncidentWindow } from '../types';
 import { StatCard } from '../components/StatCard';
 import { IpReadoutPanel } from '../components/IpReadoutPanel';
 import { ReachabilityPanel } from '../components/ReachabilityPanel';
 import { RecordHealthPanel } from '../components/RecordHealthPanel';
 import { formatInterval, type DayBucket } from '../utils';
-import { useIncidents } from '../useIncidents';
 import { IconGlobe, IconCheckCircle, IconAlertTriangle, IconClock } from '../components/icons';
 
 export interface OverviewViewProps {
   snapshot: StateSnapshot | null;
   domains: DomainConfig[];
   settings: Settings | null;
-  generation: number;
-  onSelectDay: (bucket: DayBucket) => void;
+  incidentWindow: IncidentWindow | null;
+  dayBuckets: DayBucket[];
+  nowMs: number;
+  onSelectDay: (dayStart: number) => void;
 }
 
 export function OverviewView(
-  { snapshot, domains, settings, generation, onSelectDay }: OverviewViewProps,
+  {
+    snapshot, domains, settings, incidentWindow, dayBuckets, nowMs, onSelectDay,
+  }: OverviewViewProps,
 ): JSX.Element {
   // Null-safe defaults
   const reachability = snapshot?.reachability ?? { since: 0, rev: 0, ongoing: null, history: [], latest: [] };
-  const incidentWindow = useIncidents(reachability.rev, generation);
   const ipv4 = snapshot?.public_ipv4 ?? null;
   const ipv6 = snapshot?.public_ipv6 ?? null;
   const ipv4ChangedAt = snapshot?.ipv4_changed_at ?? null;
@@ -75,6 +77,8 @@ export function OverviewView(
           <ReachabilityPanel
             reachability={reachability}
             incidentWindow={incidentWindow}
+            buckets={dayBuckets}
+            nowMs={nowMs}
             onSelectDay={onSelectDay}
           />
         </div>
