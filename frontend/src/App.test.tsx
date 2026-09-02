@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, act } from '@testing-library/react';
+import { render, screen, fireEvent, act, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import App from './App';
 
@@ -57,5 +57,22 @@ describe('App shell', () => {
     await act(async () => { socket?.onopen?.(); });
     const afterSecond = (globalThis.fetch as unknown as ReturnType<typeof vi.fn>).mock.calls.length;
     expect(afterSecond).toBeGreaterThan(afterFirst);
+  });
+
+  // F1: aria-modal="true" on Modal claims the rest of the app is inert to
+  // assistive tech, so .shell must actually go inert whenever a modal is open.
+  it('makes the shell inert while a modal is open and un-inert once it closes', async () => {
+    render(<App />);
+    const shell = document.querySelector('.shell');
+    expect(shell).not.toHaveAttribute('inert');
+
+    fireEvent.click(screen.getByRole('button', { name: /Domains/ }));
+    await screen.findByRole('heading', { name: 'Domains', level: 2 });
+
+    fireEvent.click(within(screen.getByRole('main')).getByRole('button', { name: 'Add Domain' }));
+    expect(shell).toHaveAttribute('inert');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(shell).not.toHaveAttribute('inert');
   });
 });

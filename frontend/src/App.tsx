@@ -11,6 +11,7 @@ import type {
 import { useLiveState } from './useLiveState';
 import { ConnectionOverlay } from './components/ConnectionOverlay';
 import { useDelayedFlag } from './useDelayedFlag';
+import type { DayBucket } from './utils';
 import { Rail, type ViewKey } from './layout/Rail';
 import { TopBar } from './layout/TopBar';
 import { OverviewView } from './views/OverviewView';
@@ -21,6 +22,7 @@ import { SettingsView } from './views/SettingsView';
 import { AboutView } from './views/AboutView';
 import { DomainModal, type DomainFormValue } from './components/DomainModal';
 import { HookModal, type HookFormValue } from './components/HookModal';
+import { IncidentModal } from './components/IncidentModal';
 import { Toasts, type ToastItem, type ToastKind } from './components/Toasts';
 import './styles.css';
 
@@ -74,6 +76,11 @@ export default function App() {
   const [editingDomain, setEditingDomain] = useState<DomainConfig | null>(null);
   const [hookModalOpen, setHookModalOpen] = useState(false);
   const [editingHook, setEditingHook] = useState<HookConfig | null>(null);
+  const [selectedDay, setSelectedDay] = useState<DayBucket | null>(null);
+
+  // aria-modal on any open modal claims the rest of the app is inert to assistive
+  // tech, so the shell must actually become inert whenever one is open.
+  const anyModalOpen = domainModalOpen || hookModalOpen || selectedDay !== null;
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
@@ -276,7 +283,7 @@ export default function App() {
 
   return (
     <>
-      <div className="shell" inert={disconnected}>
+      <div className="shell" inert={disconnected || anyModalOpen}>
         <Rail
           active={activeView}
           onSelect={setActiveView}
@@ -308,6 +315,7 @@ export default function App() {
                 domains={domains}
                 settings={settings}
                 generation={generation}
+                onSelectDay={setSelectedDay}
               />
             )}
             {activeView === 'domains' && (
@@ -376,6 +384,8 @@ export default function App() {
         }}
         onSave={handleSaveHook}
       />
+
+      <IncidentModal bucket={selectedDay} onClose={() => setSelectedDay(null)} />
 
       <Toasts toasts={toasts} />
       <ConnectionOverlay status={status} visible={disconnected} />

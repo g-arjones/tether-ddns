@@ -1,9 +1,8 @@
-import { useState, type JSX } from 'react';
+import type { JSX } from 'react';
 import type { IncidentWindow, Reachability } from '../types';
 import {
   bucketByDay, formatDuration, formatUptime, humanTime, uptimeStats, type DayBucket,
 } from '../utils';
-import { IncidentModal } from './IncidentModal';
 
 export const QUORUM_BARS = 24;
 export const QUORUM = 2;
@@ -15,6 +14,7 @@ const THIRTY_DAYS = DAY_BARS * 86400;
 export interface ReachabilityPanelProps {
   reachability: Reachability;
   incidentWindow: IncidentWindow | null;
+  onSelectDay: (bucket: DayBucket) => void;
 }
 
 function dayLabel(bucket: DayBucket): string {
@@ -27,10 +27,8 @@ function dayLabel(bucket: DayBucket): string {
 }
 
 export function ReachabilityPanel(
-  { reachability: r, incidentWindow }: ReachabilityPanelProps,
+  { reachability: r, incidentWindow, onSelectDay }: ReachabilityPanelProps,
 ): JSX.Element {
-  const [selected, setSelected] = useState<DayBucket | null>(null);
-
   const incidents = incidentWindow?.incidents ?? [];
   const ongoing = incidentWindow?.ongoing ?? r.ongoing;
   const monitoringSince = incidentWindow?.monitoring_since ?? 0;
@@ -80,7 +78,7 @@ export function ReachabilityPanel(
             className={b.worst}
             aria-label={dayLabel(b)}
             title={dayLabel(b)}
-            onClick={() => setSelected(b)}
+            onClick={() => onSelectDay(b)}
           />
         ))}
       </div>
@@ -111,8 +109,6 @@ export function ReachabilityPanel(
           );
         })}
       </div>
-
-      <IncidentModal bucket={selected} onClose={() => setSelected(null)} />
     </>
   );
 }

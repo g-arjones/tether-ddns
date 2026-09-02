@@ -161,6 +161,29 @@ test('the keyboard cannot reach a closed modal', async ({ page }) => {
   expect(trapped).toEqual([]);
 });
 
+// F1: `.modal` claims `aria-modal="true"`, which tells assistive tech to ignore
+// everything outside the dialog. That claim is only true if the rest of the app
+// is actually unreachable — `.shell` goes `inert` whenever a modal is open.
+test('the keyboard cannot escape an open modal into the rail or topbar', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: /Domains/ }).click();
+  await page.getByRole('main').getByRole('button', { name: 'Add Domain' }).click();
+  await expect(page.locator('.modal-overlay.open')).toBeVisible();
+
+  const escaped: string[] = [];
+  for (let i = 0; i < 40; i++) {
+    await page.keyboard.press('Tab');
+    const outsideModal = await page.evaluate(() => {
+      const el = document.activeElement;
+      if (!el || el === document.body) return null;
+      if (el.closest('.modal-overlay.open')) return null;
+      return el.tagName + (el.className ? `.${el.className}` : '');
+    });
+    if (outsideModal !== null && !escaped.includes(outsideModal)) escaped.push(outsideModal);
+  }
+  expect(escaped).toEqual([]);
+});
+
 test('recovers from a dropped connection and does not duplicate logs', async ({ page }) => {
   let live = true;
   let activeRoute: WebSocketRoute | null = null;

@@ -32,13 +32,13 @@ describe('ReachabilityPanel', () => {
 
   test('renders one bar per day in the history strip', () => {
     const { container } = render(
-      <ReachabilityPanel reachability={reach} incidentWindow={emptyWindow} />);
+      <ReachabilityPanel reachability={reach} incidentWindow={emptyWindow} onSelectDay={vi.fn()} />);
     expect(container.querySelectorAll('.day-strip button')).toHaveLength(DAY_BARS);
   });
 
   test('day bars are buttons with descriptive labels', () => {
     const { container } = render(
-      <ReachabilityPanel reachability={reach} incidentWindow={emptyWindow} />);
+      <ReachabilityPanel reachability={reach} incidentWindow={emptyWindow} onSelectDay={vi.fn()} />);
     const first = container.querySelector('.day-strip button');
     expect(first?.getAttribute('aria-label')).toMatch(/no incidents/i);
   });
@@ -52,31 +52,36 @@ describe('ReachabilityPanel', () => {
       }],
     };
     const { container } = render(
-      <ReachabilityPanel reachability={reach} incidentWindow={withOutage} />);
+      <ReachabilityPanel reachability={reach} incidentWindow={withOutage} onSelectDay={vi.fn()} />);
     expect(container.querySelectorAll('.day-strip button.outage')).toHaveLength(1);
   });
 
-  test('opens the modal when a day bar is clicked', () => {
+  // F1: ReachabilityPanel no longer owns the incident modal's open state; it
+  // just reports which day bucket was clicked and lets App render the modal.
+  test('calls onSelectDay with the clicked bucket instead of opening its own modal', () => {
+    const onSelectDay = vi.fn();
     const { container } = render(
-      <ReachabilityPanel reachability={reach} incidentWindow={emptyWindow} />);
+      <ReachabilityPanel reachability={reach} incidentWindow={emptyWindow} onSelectDay={onSelectDay} />);
     const bars = container.querySelectorAll('.day-strip button');
     fireEvent.click(bars[bars.length - 1]);
-    expect(container.querySelector('.modal-overlay.open')).not.toBeNull();
+    expect(onSelectDay).toHaveBeenCalledTimes(1);
+    expect(onSelectDay).toHaveBeenCalledWith(expect.objectContaining({ start: expect.any(Number) }));
+    expect(container.querySelector('.modal-overlay')).toBeNull();
   });
 
   test('renders the clamped uptime percentage', () => {
-    render(<ReachabilityPanel reachability={reach} incidentWindow={emptyWindow} />);
+    render(<ReachabilityPanel reachability={reach} incidentWindow={emptyWindow} onSelectDay={vi.fn()} />);
     expect(screen.getByText('100.0%')).toBeTruthy();
   });
 
   test('notes the observed span while under thirty days', () => {
-    render(<ReachabilityPanel reachability={reach} incidentWindow={emptyWindow} />);
+    render(<ReachabilityPanel reachability={reach} incidentWindow={emptyWindow} onSelectDay={vi.fn()} />);
     expect(screen.getByText(/10d observed/)).toBeTruthy();
   });
 
   test('live strip bars are constant height', () => {
     const { container } = render(
-      <ReachabilityPanel reachability={reach} incidentWindow={emptyWindow} />);
+      <ReachabilityPanel reachability={reach} incidentWindow={emptyWindow} onSelectDay={vi.fn()} />);
     const bars = container.querySelectorAll('.quorum span');
     expect(bars).toHaveLength(QUORUM_BARS);
     for (const bar of bars) {
@@ -86,7 +91,7 @@ describe('ReachabilityPanel', () => {
 
   test('renders without an incident window', () => {
     const { container } = render(
-      <ReachabilityPanel reachability={reach} incidentWindow={null} />);
+      <ReachabilityPanel reachability={reach} incidentWindow={null} onSelectDay={vi.fn()} />);
     expect(container.querySelectorAll('.day-strip button')).toHaveLength(DAY_BARS);
   });
 });

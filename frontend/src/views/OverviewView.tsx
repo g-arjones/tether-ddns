@@ -4,7 +4,7 @@ import { StatCard } from '../components/StatCard';
 import { IpReadoutPanel } from '../components/IpReadoutPanel';
 import { ReachabilityPanel } from '../components/ReachabilityPanel';
 import { RecordHealthPanel } from '../components/RecordHealthPanel';
-import { formatInterval } from '../utils';
+import { formatInterval, type DayBucket } from '../utils';
 import { useIncidents } from '../useIncidents';
 import { IconGlobe, IconCheckCircle, IconAlertTriangle, IconClock } from '../components/icons';
 
@@ -13,9 +13,12 @@ export interface OverviewViewProps {
   domains: DomainConfig[];
   settings: Settings | null;
   generation: number;
+  onSelectDay: (bucket: DayBucket) => void;
 }
 
-export function OverviewView({ snapshot, domains, settings, generation }: OverviewViewProps): JSX.Element {
+export function OverviewView(
+  { snapshot, domains, settings, generation, onSelectDay }: OverviewViewProps,
+): JSX.Element {
   // Null-safe defaults
   const reachability = snapshot?.reachability ?? { since: 0, rev: 0, ongoing: null, history: [], latest: [] };
   const incidentWindow = useIncidents(reachability.rev, generation);
@@ -69,7 +72,11 @@ export function OverviewView({ snapshot, domains, settings, generation }: Overvi
         <IpReadoutPanel ipv4={ipv4} ipv6={ipv6} ipv4ChangedAt={ipv4ChangedAt} ipv6ChangedAt={ipv6ChangedAt} ipSource={ipSource} />
         <RecordHealthPanel domains={runtimeDomains} enabledById={enabledById} nextCheckAt={nextCheckAt} checkInterval={checkInterval} />
         <div className="panel ov-wide">
-          <ReachabilityPanel reachability={reachability} incidentWindow={incidentWindow} />
+          <ReachabilityPanel
+            reachability={reachability}
+            incidentWindow={incidentWindow}
+            onSelectDay={onSelectDay}
+          />
         </div>
       </div>
     </>

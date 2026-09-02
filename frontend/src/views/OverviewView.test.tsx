@@ -32,6 +32,7 @@ describe('OverviewView', () => {
         domains={[{ id: 'a', hostname: 'h', provider: 'duckdns', record_type: 'A', enabled: true }]}
         settings={snapshot.settings ?? null}
         generation={0}
+        onSelectDay={vi.fn()}
       />,
     );
     expect(screen.getByText('Total Domains')).toBeInTheDocument();
@@ -40,7 +41,15 @@ describe('OverviewView', () => {
   });
 
   it('renders safely with a null snapshot', () => {
-    render(<OverviewView snapshot={null} domains={[]} settings={null} generation={0} />);
+    render(
+      <OverviewView
+        snapshot={null}
+        domains={[]}
+        settings={null}
+        generation={0}
+        onSelectDay={vi.fn()}
+      />,
+    );
     expect(screen.getByText('Total Domains')).toBeInTheDocument();
   });
 });
