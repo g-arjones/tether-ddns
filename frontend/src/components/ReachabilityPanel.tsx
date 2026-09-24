@@ -25,6 +25,11 @@ function formatPct(p: number): string {
   return `${p.toFixed(1)}%`;
 }
 
+// humanTime rolls a full window over to `1mo`; the panel speaks in days.
+function windowTime(seconds: number): string {
+  return seconds >= THIRTY_DAYS - 1 ? `${DAY_BARS}d` : humanTime(seconds);
+}
+
 export interface ReachabilityPanelProps {
   reachability: Reachability;
   incidentWindow: IncidentWindow | null;
@@ -54,7 +59,6 @@ export function ReachabilityPanel(
   const online = last ? last.successes >= QUORUM : true;
 
   const stats = uptimeStats(incidents, ongoing, monitoringSince, nowMs, DAY_BARS);
-  const partial = stats.observedSeconds < THIRTY_DAYS - 1;
 
   const seconds = {
     healthy: Math.max(0, stats.observedSeconds - stats.offlineSeconds - stats.degradedSeconds),
@@ -64,11 +68,11 @@ export function ReachabilityPanel(
   const segments: HealthSegment[] = SEVERITIES.map(([key, label, color]) => {
     const s = seconds[key];
     const pct = formatPct(stats.observedSeconds > 0 ? (s / stats.observedSeconds) * 100 : 0);
-    const dur = humanTime(s);
+    const dur = windowTime(s);
     return {
       key, label, color, value: s,
       title: `${label} · ${dur} (${pct})`,
-      legend: <><span className="hl-dur">{dur}</span><span className="hl-pct">{pct}</span></>,
+      legend: <><span className="hl-dur">{dur}</span>{' '}<span className="hl-pct">{pct}</span></>,
     };
   });
 
@@ -76,10 +80,8 @@ export function ReachabilityPanel(
     <>
       <div className="reach-head">
         <div className="reach-uptime">
-          <span className={`up-val${online ? '' : ' down'}`}>{stats.pct.toFixed(1)}%</span>
-          <span className="up-sub">
-            {partial ? `${humanTime(stats.observedSeconds)} observed` : `${DAY_BARS}d observed`}
-          </span>
+          <span className={`up-val${online ? '' : ' down'}`}>{formatPct(stats.pct)}</span>
+          <span className="up-sub">{`${windowTime(stats.observedSeconds)} observed`}</span>
         </div>
         <span className={`reach-badge ${online ? 'up' : 'down'}`}><span className="rb-dot" />{online ? 'Online' : 'Offline'}</span>
       </div>

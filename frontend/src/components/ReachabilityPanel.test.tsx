@@ -165,4 +165,47 @@ describe('ReachabilityPanel', () => {
     const { container } = renderPanel({ ...emptyWindow, monitoring_since: NOW - 40 * 86400 });
     expect(container.querySelector('.up-sub')?.textContent).toBe('30d observed');
   });
+
+  // F1: humanTime rolls a full 30-day span over to `1mo`, which contradicted the `30d observed` subtitle.
+  test('labels the full-window healthy segment in days, not months', () => {
+    const { container } = renderPanel({ ...emptyWindow, monitoring_since: NOW - 40 * 86400 });
+    expect(legend(container).Healthy).toEqual(['30d', '100.0%']);
+  });
+
+  // F2: the headline must use the same guard as the legend so a tiny outage can't read 100.0%.
+  test('guards the headline percentage against rounding up to 100%', () => {
+    const { container } = renderPanel({ ...emptyWindow, incidents: [tenMinuteOutage] });
+    expect(container.querySelector('.up-val')?.textContent).toBe('>99.9%');
+  });
+
+  // F3: a space between duration and percentage keeps `.hl-count` legible for screen readers/copy-paste.
+  test('separates the segment duration and percentage with a space', () => {
+    const { container } = renderPanel(emptyWindow);
+    expect(legend(container).Healthy).toEqual(['10d', '100.0%']);
+    const healthy = [...container.querySelectorAll('.hl-item')]
+      .find((item) => item.querySelector('.hl-label')?.textContent === 'Healthy');
+    expect(healthy?.querySelector('.hl-count')?.textContent).toBe('10d 100.0%');
+  });
+
+  // F5: an ongoing incident has `end: null` and must still count toward the observed window.
+  test('counts an ongoing outage in the legend', () => {
+    const ongoingOutage: Incident = {
+      start: NOW - 600, end: null, severity: 'outage', min_successes: 0, total: 3, failed: ['1.1.1.1'],
+    };
+    const { container } = renderPanel({ ...emptyWindow, ongoing: ongoingOutage });
+    expect(legend(container).Outage).toEqual(['10m', '<0.1%']);
+  });
+
+  // F5: monitoring_since === now means a zero-length observed window; must not divide by zero.
+  test('renders a zero-observed window without dividing by zero', () => {
+    const { container } = renderPanel({ ...emptyWindow, monitoring_since: NOW });
+    expect(legend(container)).toEqual({
+      Healthy: ['0s', '0.0%'],
+      Degraded: ['0s', '0.0%'],
+      Outage: ['0s', '0.0%'],
+    });
+    const spans = container.querySelectorAll('.health-bar span');
+    expect(spans).toHaveLength(1);
+    expect(spans[0].hasAttribute('title')).toBe(false);
+  });
 });

@@ -242,7 +242,7 @@ test('the reachability legend drops durations on mobile but keeps percentages', 
   const pct = page.locator('.ov-wide .hl-pct').first();
   await expect(dur).toBeVisible();
   await expect(pct).toBeVisible();
-  await expect(pct).toHaveCSS('margin-left', '6px');
+  await expect(pct).toHaveCSS('margin-left', '2px');
 
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(dur).toBeHidden();
