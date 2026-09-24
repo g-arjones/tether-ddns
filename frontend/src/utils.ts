@@ -145,10 +145,6 @@ export function humanTime(totalSeconds: number): string {
   return `${seconds}s`;
 }
 
-export function formatUptime(startedAt: number, now: number = Date.now()): string {
-  return humanTime(now / 1000 - startedAt);
-}
-
 export function relStable(changedAt: number | null, now: number = Date.now()): string {
   if (changedAt == null) return '—';
   return humanTime(now / 1000 - changedAt);

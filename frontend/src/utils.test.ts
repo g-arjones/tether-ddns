@@ -1,6 +1,6 @@
 import { describe, expect, it, test } from 'vitest';
 import {
-  deriveHue, providerColor, formatUptime, formatCountdown, relStable,
+  deriveHue, providerColor, formatCountdown, relStable,
   bucketByDay, uptimeStats, formatDuration,
 } from './utils';
 import type { Incident } from './types';
@@ -20,31 +20,6 @@ describe('deriveHue', () => {
 describe('providerColor', () => {
   it('wraps the hue in hsl', () => {
     expect(providerColor('duckdns')).toBe(`hsl(${deriveHue('duckdns')} 65% 55%)`);
-  });
-});
-
-describe('formatUptime', () => {
-  it('formats months and days', () => {
-    const now = 10_000 + (2 * 30 * 24 * 3600 + 5 * 24 * 3600) * 1000;
-    expect(formatUptime(10, now)).toBe('2mo 5d');
-    expect(formatUptime(10, now - 5 * 24 * 3600 * 1000)).toBe('2mo');
-  });
-  it('formats days and hours', () => {
-    const now = 10_000 + (2 * 24 * 3600 + 5 * 3600) * 1000;
-    expect(formatUptime(10, now)).toBe('2d 5h');
-    expect(formatUptime(10, now - 5 * 3600 * 1000)).toBe('2d');
-  });
-  it('formats hours and minutes', () => {
-    const now = 10_000 + (3 * 3600 + 14 * 60) * 1000;
-    expect(formatUptime(10, now)).toBe('3h 14m');
-    expect(formatUptime(10, now - 14 * 60 * 1000)).toBe('3h');
-  });
-  it('formats minutes and seconds', () => {
-    expect(formatUptime(0, 5 * 60 * 1000 + 7 * 1000)).toBe('5m 7s');
-    expect(formatUptime(0, 5 * 60 * 1000)).toBe('5m');
-  });
-  it('formats seconds only', () => {
-    expect(formatUptime(0, 45 * 1000)).toBe('45s');
   });
 });
 
