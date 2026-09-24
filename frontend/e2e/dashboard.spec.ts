@@ -233,3 +233,19 @@ test('the modal close button keeps its 34px hit target', async ({ page }) => {
   expect(box?.width).toBeCloseTo(34, 0);
   expect(box?.height).toBeCloseTo(34, 0);
 });
+
+// jsdom cannot evaluate media queries; only a real browser can prove the mobile legend.
+test('the reachability legend drops durations on mobile but keeps percentages', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto('/');
+  const dur = page.locator('.ov-wide .hl-dur').first();
+  const pct = page.locator('.ov-wide .hl-pct').first();
+  await expect(dur).toBeVisible();
+  await expect(pct).toBeVisible();
+  await expect(pct).toHaveCSS('margin-left', '6px');
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(dur).toBeHidden();
+  await expect(pct).toBeVisible();
+  await expect(pct).toHaveCSS('margin-left', '0px');
+});
