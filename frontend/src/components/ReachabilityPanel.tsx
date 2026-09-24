@@ -1,8 +1,9 @@
 import type { JSX } from 'react';
 import type { IncidentWindow, Reachability } from '../types';
 import {
-  formatDuration, formatUptime, humanTime, uptimeStats, type DayBucket,
+  formatDuration, humanTime, uptimeStats, type DayBucket,
 } from '../utils';
+import { HealthBar, type HealthSegment } from './HealthBar';
 
 export const QUORUM_BARS = 24;
 export const QUORUM = 2;
@@ -10,6 +11,19 @@ export const DAY_BARS = 30;
 const MAX_LAT_MS = 120;
 const SLOW_LAT_MS = 80;
 const THIRTY_DAYS = DAY_BARS * 86400;
+
+const SEVERITIES = [
+  ['healthy', 'Healthy', 'var(--ok)'],
+  ['degraded', 'Degraded', 'var(--warn)'],
+  ['outage', 'Outage', 'var(--err)'],
+] as const;
+
+// Never let a non-zero share round to 0.0% or a non-full share round to 100.0%.
+function formatPct(p: number): string {
+  if (p > 0 && p < 0.1) return '<0.1%';
+  if (p > 99.9 && p < 100) return '>99.9%';
+  return `${p.toFixed(1)}%`;
+}
 
 export interface ReachabilityPanelProps {
   reachability: Reachability;
@@ -42,19 +56,37 @@ export function ReachabilityPanel(
   const stats = uptimeStats(incidents, ongoing, monitoringSince, nowMs, DAY_BARS);
   const partial = stats.observedSeconds < THIRTY_DAYS - 1;
 
+  const seconds = {
+    healthy: Math.max(0, stats.observedSeconds - stats.offlineSeconds - stats.degradedSeconds),
+    degraded: stats.degradedSeconds,
+    outage: stats.offlineSeconds,
+  };
+  const segments: HealthSegment[] = SEVERITIES.map(([key, label, color]) => {
+    const s = seconds[key];
+    const pct = formatPct(stats.observedSeconds > 0 ? (s / stats.observedSeconds) * 100 : 0);
+    const dur = humanTime(s);
+    return {
+      key, label, color, value: s,
+      title: `${label} · ${dur} (${pct})`,
+      legend: <><span className="hl-dur">{dur}</span><span className="hl-pct">{pct}</span></>,
+    };
+  });
+
   return (
     <>
       <div className="reach-head">
         <div className="reach-uptime">
           <span className={`up-val${online ? '' : ' down'}`}>{stats.pct.toFixed(1)}%</span>
           <span className="up-sub">
-            {partial ? `${humanTime(stats.observedSeconds)} observed` : `${DAY_BARS} days`}
-            {stats.degradedSeconds > 0 ? ` · ${formatDuration(stats.degradedSeconds)} degraded` : ''}
-            {` · ${online ? 'up' : 'down'} ${formatUptime(r.since)}`}
+            {partial ? `${humanTime(stats.observedSeconds)} observed` : `${DAY_BARS}d observed`}
           </span>
         </div>
         <span className={`reach-badge ${online ? 'up' : 'down'}`}><span className="rb-dot" />{online ? 'Online' : 'Offline'}</span>
       </div>
+
+      <HealthBar segments={segments} />
+
+      <div className="panel-divider" />
 
       <div className="reach-label">Live · last {QUORUM_BARS} checks</div>
       <div className="quorum">

@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { ReachabilityPanel, DAY_BARS, QUORUM_BARS } from './ReachabilityPanel';
-import type { IncidentWindow, Reachability } from '../types';
+import type { Incident, IncidentWindow, Reachability } from '../types';
 import { bucketByDay } from '../utils';
 
 // Frozen at local noon; with a real clock an hour-old incident crossed midnight near 00:00 UTC.
@@ -19,6 +19,26 @@ const reach: Reachability = {
 const emptyWindow: IncidentWindow = {
   monitoring_since: NOW - 86400 * 10, rev: 1, incidents: [], ongoing: null,
 };
+
+const tenMinuteOutage: Incident = {
+  start: NOW - 3600, end: NOW - 3000, severity: 'outage',
+  min_successes: 0, total: 3, failed: ['1.1.1.1', '8.8.8.8', '9.9.9.9'],
+};
+const oneDayDegraded: Incident = {
+  start: NOW - 3 * 86400, end: NOW - 2 * 86400, severity: 'degraded',
+  min_successes: 1, total: 3, failed: ['8.8.8.8', '9.9.9.9'],
+};
+
+function legend(container: HTMLElement): Record<string, [string, string]> {
+  const out: Record<string, [string, string]> = {};
+  for (const item of container.querySelectorAll('.hl-item')) {
+    out[item.querySelector('.hl-label')?.textContent ?? ''] = [
+      item.querySelector('.hl-dur')?.textContent ?? '',
+      item.querySelector('.hl-pct')?.textContent ?? '',
+    ];
+  }
+  return out;
+}
 
 // App owns the strip now, so the panel is rendered against buckets it did not build.
 function renderPanel(win: IncidentWindow | null, onSelectDay: (dayStart: number) => void = vi.fn()) {
@@ -84,8 +104,8 @@ describe('ReachabilityPanel', () => {
   });
 
   test('renders the clamped uptime percentage', () => {
-    renderPanel(emptyWindow);
-    expect(screen.getByText('100.0%')).toBeTruthy();
+    const { container } = renderPanel(emptyWindow);
+    expect(container.querySelector('.up-val')?.textContent).toBe('100.0%');
   });
 
   test('notes the observed span while under thirty days', () => {
@@ -105,5 +125,44 @@ describe('ReachabilityPanel', () => {
   test('renders without an incident window', () => {
     const { container } = renderPanel(null);
     expect(container.querySelectorAll('.day-strip button')).toHaveLength(DAY_BARS);
+  });
+
+  test('breaks the observed window into healthy, degraded and outage time', () => {
+    const { container } = renderPanel({ ...emptyWindow, incidents: [oneDayDegraded, tenMinuteOutage] });
+    expect(legend(container)).toEqual({
+      Healthy: ['8d 23h', '89.9%'],
+      Degraded: ['1d', '10.0%'],
+      Outage: ['10m', '<0.1%'],
+    });
+  });
+
+  test('never rounds a tiny outage away from the healthy share', () => {
+    const { container } = renderPanel({ ...emptyWindow, incidents: [tenMinuteOutage] });
+    expect(legend(container).Healthy).toEqual(['9d 23h', '>99.9%']);
+  });
+
+  test('shows an all-healthy window with empty degraded and outage entries', () => {
+    const { container } = renderPanel(emptyWindow);
+    expect(legend(container)).toEqual({
+      Healthy: ['10d', '100.0%'],
+      Degraded: ['0s', '0.0%'],
+      Outage: ['0s', '0.0%'],
+    });
+  });
+
+  test('gives each drawn health segment a human-readable tooltip', () => {
+    const { container } = renderPanel({ ...emptyWindow, incidents: [tenMinuteOutage] });
+    const titles = [...container.querySelectorAll<HTMLElement>('.health-bar span')].map((s) => s.title);
+    expect(titles).toEqual(['Healthy · 9d 23h (>99.9%)', 'Outage · 10m (<0.1%)']);
+  });
+
+  test('keeps the subtitle to the observed span only', () => {
+    const { container } = renderPanel({ ...emptyWindow, incidents: [oneDayDegraded] });
+    expect(container.querySelector('.up-sub')?.textContent).toBe('10d observed');
+  });
+
+  test('labels a full window as thirty days observed', () => {
+    const { container } = renderPanel({ ...emptyWindow, monitoring_since: NOW - 40 * 86400 });
+    expect(container.querySelector('.up-sub')?.textContent).toBe('30d observed');
   });
 });
