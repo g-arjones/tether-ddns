@@ -325,6 +325,7 @@ header.topbar {
 .hl-dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
 .hl-label { color: var(--text-2); }
 .hl-count { font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; }
+.hl-dur + .hl-pct { margin-left: 2px; color: var(--text-3); font-weight: 500; }
 .panel-divider { height: 1px; background: var(--border); margin: 18px 0; }
 .nc-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 9px; }
 .nc-label { font-size: 12px; color: var(--text-3); font-weight: 600; text-transform: uppercase; letter-spacing: .5px; }
@@ -594,6 +595,8 @@ header.topbar {
   .toast-wrap { left: max(16px, var(--sa-left)); right: max(16px, var(--sa-right)); bottom: calc(16px + var(--sa-bottom)); }
   .toast { max-width: none; }
   .page-title p { display: none; }
+  .hl-dur { display: none; }
+  .hl-dur + .hl-pct { margin-left: 0; color: var(--text); font-weight: 700; }
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -1,6 +1,7 @@
 import { useEffect, useState, type JSX } from 'react';
 import type { DomainState } from '../types';
 import { formatCountdown } from '../utils';
+import { HealthBar } from './HealthBar';
 
 export interface RecordHealthPanelProps {
   domains: DomainState[];
@@ -30,27 +31,16 @@ export function RecordHealthPanel(p: RecordHealthPanelProps): JSX.Element {
     counts[s in counts ? s : 'pending'] += 1;
   }
   const n = p.domains.length;
-  const segs = ORDER.filter(([k]) => counts[k] > 0);
+  const segments = ORDER.map(([k, label, color]) => ({
+    key: k, label, color, value: counts[k], title: `${counts[k]} ${k}`, legend: counts[k],
+  }));
   const remain = p.nextCheckAt == null ? 0 : Math.max(0, p.nextCheckAt - now / 1000);
   const fillPct = p.checkInterval ? Math.min(100, (remain / p.checkInterval) * 100) : 0;
 
   return (
     <div className="panel">
       <div className="panel-head"><h4>Record health</h4><span className="sub">{n} {n === 1 ? 'domain' : 'domains'}</span></div>
-      <div className="health-bar">
-        {segs.length ? segs.map(([k, , c]) => (
-          <span key={k} style={{ flex: counts[k], background: c }} title={`${counts[k]} ${k}`} />
-        )) : <span style={{ flex: 1, background: 'var(--surface-2)' }} />}
-      </div>
-      <div className="health-legend">
-        {ORDER.map(([k, label, c]) => (
-          <div className="hl-item" key={k}>
-            <span className="hl-dot" style={{ background: c }} />
-            <span className="hl-label">{label}</span>
-            <span className="hl-count">{counts[k]}</span>
-          </div>
-        ))}
-      </div>
+      <HealthBar segments={segments} />
       <div className="panel-divider" />
       <div className="next-check">
         <div className="nc-top"><span className="nc-label">Next check</span><span className="nc-time">{formatCountdown(p.nextCheckAt, now)}</span></div>

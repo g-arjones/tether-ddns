@@ -30,4 +30,18 @@ describe('RecordHealthPanel', () => {
     act(() => { vi.advanceTimersByTime(1000); });
     expect(screen.getByText('1:04')).toBeInTheDocument();
   });
+
+  it('renders one bar segment per non-empty status and every legend entry', () => {
+    const { container } = render(
+      <RecordHealthPanel domains={domains} enabledById={{ a: true, b: true }} nextCheckAt={null} checkInterval={300} />,
+    );
+    const bar = [...container.querySelectorAll<HTMLElement>('.health-bar span')];
+    expect(bar.map((s) => s.title)).toEqual(['1 synced', '1 error']);
+    expect(bar.map((s) => s.style.background)).toEqual(['var(--ok)', 'var(--err)']);
+    const legend = [...container.querySelectorAll('.hl-item')].map((el) => [
+      el.querySelector('.hl-label')?.textContent,
+      el.querySelector('.hl-count')?.textContent,
+    ]);
+    expect(legend).toEqual([['Synced', '1'], ['Pending', '0'], ['Error', '1'], ['Paused', '0']]);
+  });
 });
