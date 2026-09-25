@@ -62,6 +62,8 @@ class HealthchecksService:
         try:
             remote = await list_checks(str(project.base_url), project.api_key)
         except HealthchecksError as exc:
+            if self._project(project_id) is not project:
+                return
             previous = runtime.healthchecks.get(project_id)
             if previous is None:
                 previous = ProjectRuntime()
@@ -69,6 +71,8 @@ class HealthchecksService:
                 polled_at=time.time(), ok=False, error=str(exc), checks=previous.checks))
             if previous.error is None:
                 _log.warning('Healthchecks "%s": %s', project.name, exc)
+            return
+        if self._project(project_id) is not project:
             return
         self.record_success(project, remote)
 
@@ -78,6 +82,8 @@ class HealthchecksService:
         if project is None:
             raise LookupError(project_id)
         remote = await list_checks(str(project.base_url), project.api_key)
+        if self._project(project_id) is not project:
+            raise HealthchecksError('Project changed during fetch — try again')
         project.checks = merge_refs(project.checks, remote)
         project.fetched_at = time.time()
         self._ctx.persist()
@@ -88,8 +94,3 @@ class HealthchecksService:
         """Flag every project as paused by an outage."""
         self._ctx.runtime.set_healthchecks_offline(
             [p.id for p in self._ctx.config.healthchecks])
-
-    async def poll_all(self) -> None:
-        """Poll every configured project once (used when the link comes back)."""
-        for project in list(self._ctx.config.healthchecks):
-            await self.poll(project.id)

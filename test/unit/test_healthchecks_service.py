@@ -182,10 +182,65 @@ def test_mark_offline_flags_every_project() -> None:
 
 
 @pytest.mark.asyncio
-async def test_poll_all_polls_every_project() -> None:
-    """poll_all polls each configured project once."""
-    service, ctx, _ = _setup()
-    ctx.config.healthchecks.append(HealthchecksProject(id='p2', name='VPS', api_key='k'))
-    with patch.object(service, 'poll', new=AsyncMock()) as poll:
-        await service.poll_all()
-    assert [c.args[0] for c in poll.await_args_list] == ['p1', 'p2']
+async def test_poll_dropped_when_project_deleted_during_await() -> None:
+    """A poll whose project is deleted mid-flight writes nothing to runtime."""
+    service, ctx, project = _setup(_ref('k1'))
+
+    async def _delete_project(*_args: object, **_kwargs: object) -> list[RemoteCheck]:
+        ctx.config.healthchecks.remove(project)
+        return [_remote('k1')]
+
+    with patch(LIST, new=AsyncMock(side_effect=_delete_project)):
+        await service.poll('p1')
+    assert 'p1' not in ctx.runtime.healthchecks
+
+
+@pytest.mark.asyncio
+async def test_poll_dropped_when_project_replaced_during_await() -> None:
+    """A poll whose project is replaced (e.g. by a PUT) mid-flight drops its result."""
+    service, ctx, _ = _setup(_ref('k1'))
+
+    async def _replace_project(*_args: object, **_kwargs: object) -> list[RemoteCheck]:
+        ctx.config.healthchecks[0] = HealthchecksProject(id='p1', name='Homelab', api_key='new')
+        return [_remote('k1')]
+
+    with patch(LIST, new=AsyncMock(side_effect=_replace_project)):
+        await service.poll('p1')
+    assert 'p1' not in ctx.runtime.healthchecks
+
+
+@pytest.mark.asyncio
+async def test_poll_failure_dropped_when_project_replaced_during_await(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A failed poll whose project changed mid-flight writes and logs nothing."""
+    service, ctx, _ = _setup(_ref('k1'))
+
+    async def _replace_and_fail(*_args: object, **_kwargs: object) -> list[RemoteCheck]:
+        ctx.config.healthchecks[0] = HealthchecksProject(id='p1', name='Homelab', api_key='new')
+        raise HealthchecksError('429 Rate limited')
+
+    with caplog.at_level(logging.DEBUG, logger='tether_ddns'):
+        with patch(LIST, new=AsyncMock(side_effect=_replace_and_fail)):
+            await service.poll('p1')
+    assert 'p1' not in ctx.runtime.healthchecks
+    assert caplog.records == []
+
+
+@pytest.mark.asyncio
+async def test_fetch_raises_when_project_replaced_during_await() -> None:
+    """A fetch whose project is replaced mid-flight raises and leaves the new object alone."""
+    service, ctx, _ = _setup(_ref('k1'))
+
+    async def _replace_project(*_args: object, **_kwargs: object) -> list[RemoteCheck]:
+        ctx.config.healthchecks[0] = HealthchecksProject(
+            id='p1', name='Renamed', api_key='new', checks=[_ref('k1')])
+        return [_remote('k1'), _remote('k2')]
+
+    with patch(LIST, new=AsyncMock(side_effect=_replace_project)):
+        with pytest.raises(HealthchecksError, match='Project changed during fetch'):
+            await service.fetch('p1')
+    fresh = ctx.config.healthchecks[0]
+    assert fresh.name == 'Renamed'
+    assert [c.key for c in fresh.checks] == ['k1']
+    assert 'p1' not in ctx.runtime.healthchecks
