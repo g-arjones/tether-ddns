@@ -7,6 +7,7 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from apscheduler.jobstores.base import JobLookupError  # pyright: ignore[reportMissingTypeStubs]
+from apscheduler.util import undefined  # pyright: ignore[reportMissingTypeStubs]
 
 import pytest
 
@@ -1156,7 +1157,7 @@ def test_schedule_healthchecks_without_run_now_omits_next_run_time() -> None:
     with patch.object(sched, '_scheduler', fake):
         sched.schedule_healthchecks(HealthchecksProject(id='a', name='A', api_key='k'))
     [call] = _hc_calls(fake)
-    assert 'next_run_time' not in call.kwargs
+    assert call.kwargs['next_run_time'] is undefined
     assert call.kwargs['seconds'] == 300
 
 

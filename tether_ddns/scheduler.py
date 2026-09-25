@@ -8,6 +8,7 @@ from apscheduler.jobstores.base import JobLookupError  # pyright: ignore[reportM
 from apscheduler.schedulers.asyncio import (  # pyright: ignore[reportMissingTypeStubs]
     AsyncIOScheduler,
 )
+from apscheduler.util import undefined  # pyright: ignore[reportMissingTypeStubs]
 
 from tether_ddns.config_store import HealthchecksProject
 from tether_ddns.context import AppContext
@@ -104,19 +105,12 @@ class Scheduler:
         self, project: HealthchecksProject, *, run_now: bool = False,
     ) -> None:
         """(Re-)add a project's poll job; ``run_now`` fires the first tick at once."""
-        if run_now:
-            self._scheduler.add_job(  # pyright: ignore[reportUnknownMemberType]
-                self._healthchecks.poll, 'interval',
-                seconds=project.poll_interval, args=[project.id],
-                id=healthchecks_job_id(project.id), replace_existing=True,
-                next_run_time=datetime.now(timezone.utc),
-            )
-        else:
-            self._scheduler.add_job(  # pyright: ignore[reportUnknownMemberType]
-                self._healthchecks.poll, 'interval',
-                seconds=project.poll_interval, args=[project.id],
-                id=healthchecks_job_id(project.id), replace_existing=True,
-            )
+        self._scheduler.add_job(  # pyright: ignore[reportUnknownMemberType]
+            self._healthchecks.poll, 'interval',
+            seconds=project.poll_interval, args=[project.id],
+            id=healthchecks_job_id(project.id), replace_existing=True,
+            next_run_time=datetime.now(timezone.utc) if run_now else undefined,
+        )
 
     def unschedule_healthchecks(self, project_id: str) -> None:
         """Remove a project's poll job if it exists."""
