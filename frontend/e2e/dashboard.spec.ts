@@ -266,3 +266,19 @@ test('overview shows the heartbeat card as Off by default', async ({ page }) => 
   await expect(card).toContainText('Off');
   await expect(card.getByRole('button', { name: 'Ping now' })).toHaveCount(0);
 });
+
+test('all four stat cards share one row geometry', async ({ page }) => {
+  await page.setViewportSize({ width: 1400, height: 900 });
+  await page.goto('/');
+  await expect(page.locator('.stat')).toHaveCount(4);
+  for (const part of ['.stat-label', '.stat-ico', '.stat-value', '.stat-sub']) {
+    const boxes = await page.locator(`.stat ${part}`).evaluateAll(
+      (els) => els.map((el) => el.getBoundingClientRect()).map((r) => ({ top: r.top, height: r.height })),
+    );
+    expect(boxes, part).toHaveLength(4);
+    for (const box of boxes) {
+      expect(box.top, `${part} top`).toBeCloseTo(boxes[0].top, 0);
+      expect(box.height, `${part} height`).toBeCloseTo(boxes[0].height, 0);
+    }
+  }
+});

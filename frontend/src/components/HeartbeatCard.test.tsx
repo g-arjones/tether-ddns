@@ -13,11 +13,12 @@ describe('HeartbeatCard', () => {
   });
   afterEach(() => { vi.useRealTimers(); });
 
-  it('reads Off with no ping button when no URL is set', () => {
-    render(<HeartbeatCard status={null} url={null} interval={300} onPing={vi.fn()} />);
+  it('reads Off with a gray icon and no ping button when no URL is set', () => {
+    const { container } = render(<HeartbeatCard status={null} url={null} interval={300} onPing={vi.fn()} />);
     expect(screen.getByText('Off')).toBeInTheDocument();
     expect(screen.getByText('Set a URL in Settings')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Ping now' })).toBeNull();
+    expect(container.querySelector('.stat-ico.tint-muted')).toBeTruthy();
   });
 
   it('shows a dash and the cadence before the first attempt', () => {
@@ -25,31 +26,34 @@ describe('HeartbeatCard', () => {
     expect(screen.getByText('—')).toBeInTheDocument();
     expect(screen.getByText('hc-ping.com')).toBeInTheDocument();
     expect(screen.getByText(/every 5 min/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Ping now' })).toHaveClass('tint-muted');
   });
 
-  it('shows the age and OK after a successful ping', () => {
+  it('shows the age and OK with a green icon after a successful ping', () => {
     const status = { at: at(42), ok: true, skipped: false, error: null };
-    const { container } = render(<HeartbeatCard status={status} url={URL} interval={300} onPing={vi.fn()} />);
+    render(<HeartbeatCard status={status} url={URL} interval={300} onPing={vi.fn()} />);
     expect(screen.getByText('42s ago')).toBeInTheDocument();
     expect(screen.getByText('OK')).toBeInTheDocument();
-    expect(container.querySelector('.stat')).toHaveClass('hb-ok');
+    expect(screen.getByRole('button', { name: 'Ping now' })).toHaveClass('tint-ok');
   });
 
-  it('shows Skipped while the link is offline', () => {
+  it('shows Skipped with a yellow icon while the link is offline', () => {
     const status = { at: at(5), ok: false, skipped: true, error: null };
     render(<HeartbeatCard status={status} url={URL} interval={300} onPing={vi.fn()} />);
     expect(screen.getByText('Skipped')).toBeInTheDocument();
     expect(screen.getByText('Link offline')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Ping now' })).toHaveClass('tint-warn');
   });
 
-  it('shows Failed with the full error in the tooltip', () => {
+  it('shows Failed with a red icon and the full error in the tooltip', () => {
     const error = "ClientResponseError: 404, message='Not Found'";
     const status = { at: at(12), ok: false, skipped: false, error };
     const { container } = render(<HeartbeatCard status={status} url={URL} interval={300} onPing={vi.fn()} />);
     expect(screen.getByText('Failed')).toBeInTheDocument();
     expect(screen.getByText(error)).toBeInTheDocument();
-    expect(container.querySelector('.hb-sub')).toHaveAttribute('title', error);
+    expect(container.querySelector('.stat-sub')).toHaveAttribute('title', error);
     expect(container.querySelector('.stat')).toHaveClass('hb-err');
+    expect(screen.getByRole('button', { name: 'Ping now' })).toHaveClass('tint-err');
   });
 
   it('calls onPing and spins until it settles', async () => {

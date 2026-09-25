@@ -258,15 +258,20 @@ header.topbar {
 .tint-ok { background: var(--ok-soft); color: var(--ok); }
 .tint-warn { background: var(--warn-soft); color: var(--warn); }
 .tint-err { background: var(--err-soft); color: var(--err); }
+.tint-muted { background: var(--muted-soft); color: var(--muted-status); }
+.stat-sub-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.stat-ico-btn { transition: var(--transition); }
+.stat-ico-btn:hover:not(:disabled) { box-shadow: 0 0 0 1px currentColor; }
+.stat-ico-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.stat-ico-btn:disabled { cursor: progress; }
+.stat-ico-btn.spin svg { animation: spin .8s linear infinite; }
 
-/* heartbeat stat card: ages like "5m 12s ago" are wider than a count */
-.hb-value { font-size: 24px; }
-.hb-sub { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.hb-host { font-family: var(--mono); }
+/* heartbeat stat card */
+.hb-mono { font-family: var(--mono); }
 .hb-flag { color: var(--ok); font-weight: 650; }
 .hb-muted .stat-value { color: var(--text-3); }
 .hb-err { border-color: color-mix(in srgb, var(--err) 45%, transparent); }
-.hb-err .stat-value, .hb-err .hb-sub { color: var(--err); }
+.hb-err .stat-value, .hb-err .stat-sub { color: var(--err); }
 
 /* ---------- Overview: two-column panels ---------- */
 .ov-grid { display: grid; grid-template-columns: 1.4fr 1fr; gap: 16px; margin-bottom: 26px; }
