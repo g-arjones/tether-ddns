@@ -131,7 +131,9 @@ The backend does not need this function because it never renders.
 
 - `GET {str(base_url).rstrip('/')}/api/v3/checks/`. Pydantic normalises `HttpUrl` with a
   trailing `/`, so strip it before joining. The path is joined on the backend and
-  nothing the client sends becomes a path. Header `X-Api-Key`. `aiohttp` with a 10s total timeout.
+  nothing the client sends becomes a path. Header `X-Api-Key`. `aiohttp` with a 10s total
+  timeout and `allow_redirects=False` (aiohttp only strips `Authorization`, not `X-Api-Key`,
+  on a cross-origin redirect); a 3xx is reported as `HTTP <code>` via the normal error path.
 - `RemoteCheck` is a Pydantic model that ignores extra fields.
 - Raises `HealthchecksError(message)`. The message never contains the key:
 
@@ -169,11 +171,22 @@ A project with zero checks cannot be verified as read-only this way. Its key is 
   - On error it raises with **no config or runtime change**.
 - **`validate(base_url, api_key) -> list[RemoteCheck]`** is a thin wrapper used by
   create and edit.
+- **Race safety**: both `poll` and `fetch` re-check `self._project(project_id) is project`
+  right after their `await`. If the project was deleted or replaced (e.g. by a concurrent
+  PUT) while the request was in flight, `poll` silently drops the result (no runtime write,
+  no log) and `fetch` raises `HealthchecksError('Project changed during fetch — try again')`
+  instead of mutating the detached old object.
 - **Reachability transitions**, hooked where `Scheduler.check_reachability` already
-  detects them:
-  - Going offline marks every project `offline=True` and emits, so the Overview goes
-    stateless at once.
-  - Coming back online polls every project immediately.
+  detects them, dispatch `reachability_changed` first so a slow or raising Healthchecks
+  instance never delays or aborts the core hooks:
+  - Going offline marks every project `offline=True` (`mark_offline`) so the Overview goes
+    stateless at once. `HealthchecksService.poll_all` does not exist; there is nothing to
+    poll while offline.
+  - Coming back online does not poll directly. `Scheduler.nudge_healthchecks()` brings
+    every project's existing poll job forward with
+    `modify_job(job_id, next_run_time=datetime.now(timezone.utc))`, tolerating
+    `JobLookupError`, so each project polls on its own job rather than sequentially
+    blocking the transition.
 
 ### 6. Scheduler — `tether_ddns/scheduler.py`
 
@@ -192,7 +205,7 @@ A project with zero checks cannot be verified as read-only this way. Its key is 
 |------------------------------------------------|-----------|
 | `GET /api/healthchecks`                        | List projects (key masked). |
 | `POST /api/healthchecks`                       | Body: `name, base_url, api_key, poll_interval, show_on_overview`. Calls `validate`, builds `checks` from the result (all visible), sets `fetched_at`, persists, seeds the runtime as a successful poll, and schedules the job **without** `run_now` (the first poll comes one interval later). Returns the masked project (200, like `POST /domains`). On `HealthchecksError` it returns **422** with nothing saved. The error goes on `api_key` for 401 and read-write keys, and on `base_url` for all other failures. |
-| `PUT /api/healthchecks/{id}`                   | Partial update (`extra='forbid'`). The result is merged and re-validated as a `HealthchecksProject`; an explicit `null` becomes a FastAPI-shaped 422, like `put_settings`. If `base_url` or `api_key` changed, it calls `validate` first and returns **422** on failure with nothing saved. The check list is **not** changed. It reschedules with `run_now` when the URL, key or interval changed. Returns the masked project. |
+| `PUT /api/healthchecks/{id}`                   | Partial update (`extra='forbid'`). The result is merged and re-validated as a `HealthchecksProject`; an explicit `null` becomes a FastAPI-shaped 422, like `put_settings`. If `base_url` or `api_key` changed, it calls `validate` first (**422** on failure, nothing saved), then re-fetches the project (**404** if it was deleted meanwhile) before merging, refreshes `checks` via `merge_refs` from the validation result, stamps `fetched_at`, and reschedules the poll job **without** `run_now` (the fresh runtime was just recorded). If only `poll_interval` changed, it reschedules **with** `run_now` and the check list is untouched. Returns the masked project. |
 | `DELETE /api/healthchecks/{id}`                | Removes the project, its job and its runtime entry. Returns `{"ok": true}`, like `DELETE /domains`. |
 | `POST /api/healthchecks/{id}/fetch`            | `service.fetch`. Returns the masked project. On `HealthchecksError` it returns **502** `{detail: msg}`. |
 | `PUT /api/healthchecks/{id}/checks/{key}`      | Body `{visible: bool}`. Persists and returns the masked project. **404** for an unknown project or key. |

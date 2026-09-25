@@ -156,11 +156,13 @@ Healthchecks) checks next to your DNS records. Add projects in **Healthchecks �
 Behaviour:
 
 - Adding a project **fetches** its checks. The check list only changes when you fetch again
-  (↻ *Fetch checks*). A fetch keeps each surviving check's Overview toggle, shows new
-  checks, and drops removed ones along with their settings. Upstream checks you have not
-  fetched yet are ignored.
+  (↻ *Fetch checks*), or edit a project's **Base URL** or **API key**: an endpoint change
+  re-validates the key and refreshes the check list from that same result, using the same
+  merge rules as a fetch (surviving checks keep their Overview toggle, new ones appear,
+  removed ones are dropped). Upstream checks you have not fetched yet are ignored.
 - Status is **polled** on the project's interval with `GET /api/v3/checks/`. Polls are
-  skipped while the link is offline and run again as soon as it returns.
+  skipped while the link is offline and every project's poll is brought forward as soon
+  as it returns.
 - A failed poll, or an offline link, shows every badge of that project as stateless on the
   Overview. The Healthchecks view shows *Last poll failed: …* or *System is offline*.
   A check that disappears upstream shows as **gone** until the next fetch.
@@ -168,6 +170,8 @@ Behaviour:
   row per shown project.
 - One log line when polling starts failing, one when it recovers. Live status is not
   persisted.
+- The server makes the poll/fetch request to whatever **Base URL** you configure, the same
+  as the heartbeat URL — only trusted operators should be able to reach this dashboard.
 
 ## Docker
 
