@@ -13,6 +13,7 @@ test('rail navigates across all five views', async ({ page }) => {
   const viewPairs = [
     ['Domains', 'Domains'],
     ['Hooks', 'Hooks'],
+    ['Healthchecks', 'Healthchecks'],
     ['Logs', 'Logs'],
     ['Settings', 'Settings'],
   ] as const;
