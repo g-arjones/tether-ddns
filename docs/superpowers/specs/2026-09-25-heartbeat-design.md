@@ -51,9 +51,13 @@ class AppSettings(BaseModel):
 - `SettingsUpdate` (`extra='forbid'`, partial) gains
   `heartbeat_url: HttpUrl | None = None` and
   `heartbeat_interval: HeartbeatInterval | None = None`, reusing the same
-  `HeartbeatInterval` alias. FastAPI rejects bad input with a 422 before
-  `put_settings` runs, so the `AppSettings(...)` built inside the handler never sees
-  an invalid value and cannot turn into a 500.
+  `HeartbeatInterval` alias. FastAPI rejects most bad input with a 422 before
+  `put_settings` runs, but an explicit `null` for a non-nullable field (every field
+  above except `heartbeat_url`, where `null` means off) still passes `SettingsUpdate`
+  and only fails once merged into `AppSettings`. `put_settings` wraps that merge in a
+  `try/except ValidationError`, re-raising it as a `RequestValidationError` (each
+  error's `loc` prefixed with `'body'`) so the result is still a 422, not a 500, and
+  the config is left unchanged on failure.
 - `HttpUrl` accepts only `http`/`https`. `None` means off. The frontend sends an explicit
   `null` to clear the URL. `put_settings` merges with
   `model_dump(exclude_unset=True)`, so an explicit `null` is applied, while an omitted
@@ -62,8 +66,13 @@ class AppSettings(BaseModel):
   `https://hc-ping.com/`. The saved, normalised value is what the API returns.
 - Every endpoint that returns settings (`GET /api/state`, `GET /api/settings`,
   `PUT /api/settings`) uses `model_dump(mode='json')` so the URL is sent as a string.
-- `put_settings` calls `scheduler.reschedule_heartbeat()` when
-  `heartbeat_interval` changes, alongside the existing `reschedule_sync()` check.
+- `put_settings` computes `url_changed = merged.heartbeat_url != current.heartbeat_url`
+  alongside the existing `heartbeat_interval`/`check_interval` comparisons. If
+  `url_changed`, it clears the stale status with `runtime.set_heartbeat(None)`. If
+  `heartbeat_interval` changed or `url_changed`, it calls
+  `scheduler.reschedule_heartbeat(run_now=url_changed and merged.heartbeat_url is not None)`
+  — setting a URL runs the first tick immediately (still subject to the offline gate);
+  an interval-only change or clearing the URL reschedules without an immediate run.
 - The 30 s minimum stops a hand-edited config from producing a 0-second job loop.
 
 ### 2. `HeartbeatStatus` in runtime state — `tether_ddns/runtime.py`
@@ -78,8 +87,9 @@ class HeartbeatStatus(BaseModel):
 
 - `RuntimeState.heartbeat: HeartbeatStatus | None = Field(default=None, exclude=True)`.
   It is not persisted, the same as the reachability data.
-- `set_heartbeat(status)` assigns the status and notifies listeners, so every change
-  is broadcast over `/api/ws`.
+- `set_heartbeat(status: HeartbeatStatus | None)` assigns the status, or clears it with
+  `None`, and notifies listeners, so every change — including a clear — is broadcast
+  over `/api/ws`.
 - `snapshot()` includes `'heartbeat'`: `self.heartbeat.model_dump()`, or `None` when unset.
 
 ### 3. `HeartbeatService` — `tether_ddns/services/heartbeat.py` (new)
@@ -110,11 +120,14 @@ A context-owning service, like `SyncService` and `DispatchService`.
 
 - `Scheduler.__init__` takes the `HeartbeatService` as a new trailing parameter.
   `app.py` currently builds `Scheduler(ctx, sync, dispatch, ReachabilityProbe())`.
-- `start()` always adds an `id='heartbeat'` interval job at
-  `settings.heartbeat_interval`, which calls `heartbeat.run()`. When the URL is empty,
-  `run()` returns immediately.
-- `reschedule_heartbeat()` re-adds the job with `replace_existing=True`, the same as
-  `reschedule_sync()`.
+- `start()` calls `reschedule_heartbeat(run_now=True)`, so the heartbeat job's first
+  tick fires immediately, subject to the same offline gate as any other tick. When the
+  URL is empty, `run()` returns immediately.
+- `reschedule_heartbeat(*, run_now: bool = False)` re-adds the job with
+  `replace_existing=True`, the same as `reschedule_sync()`. When `run_now` is True it
+  also passes `next_run_time=datetime.now(timezone.utc)` so the first tick fires right
+  away; when False the kwarg is omitted entirely — passing `next_run_time=None` would
+  pause the job under APScheduler 3.x.
 - Wiring in `app.py` constructs the service and passes it to the scheduler and to
   `app.state.heartbeat`.
 
@@ -174,8 +187,10 @@ Records without `exc_info` are unchanged.
 | skipped | `Skipped` | `Link offline` | muted |
 | failed | `Failed` | error, monospace, truncated; full text in `title` | err border + text |
 
-The monospace host is `new URL(url).host` only. The full URL appears only in Settings.
-`every 5 min` comes from `formatInterval(interval)`.
+The monospace host line shows only `new URL(url).host`. The Failed state's error text
+is shown verbatim and may contain the full URL (e.g. aiohttp's `ClientResponseError`'s
+`str()` includes it); URL masking is a non-goal. `every 5 min` comes from
+`formatInterval(interval)`.
 
 ### 9. Settings — Heartbeat panel in `views/SettingsView.tsx`
 
@@ -230,14 +245,21 @@ alphabetical imports, and `patch.object` for protected members.
 - `test_api.py`:
   - Bad URL: 422 with `loc[-1] == 'heartbeat_url'`, config unchanged.
   - Explicit `null` clears the URL.
-  - An interval change calls `reschedule_heartbeat()`. Other changes don't.
+  - Explicit `null` for a non-nullable field (e.g. `heartbeat_interval`,
+    `check_interval`): 422 with `loc[-1]` naming the field, config unchanged.
+  - An interval-only change calls `reschedule_heartbeat(run_now=False)`. Setting a URL
+    calls `reschedule_heartbeat(run_now=True)` and clears any stale `runtime.heartbeat`.
+    Clearing an existing URL calls `reschedule_heartbeat(run_now=False)` and also
+    clears the status. Other changes don't reschedule.
   - `POST /api/heartbeat/ping`: 400 without a URL, status body with a URL (service
     patched).
   - Settings JSON has the URL as a string.
-- `test_scheduler.py`: `start()` adds the `heartbeat` job at the configured interval.
-  `reschedule_heartbeat()` replaces it.
-- `test_runtime.py`: `set_heartbeat` notifies, `snapshot()` includes it, and
-  `model_dump_json()` excludes it.
+- `test_scheduler.py`: `start()` adds the `heartbeat` job at the configured interval
+  with an aware `next_run_time`. `reschedule_heartbeat()` replaces it with no
+  `next_run_time` kwarg; `reschedule_heartbeat(run_now=True)` sets one.
+- `test_runtime.py`: `set_heartbeat` notifies, `snapshot()` includes it,
+  `model_dump_json()` excludes it, and `set_heartbeat(None)` clears it while still
+  notifying.
 - `test_logging_setup.py` (existing): an exception with an empty message renders
   as `msg: TimeoutError` with no trailing `: `. A normal message is unchanged.
 
