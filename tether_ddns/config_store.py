@@ -7,12 +7,15 @@ from pathlib import Path
 from typing import Annotated, Literal, cast
 from uuid import uuid4
 
-from pydantic import BaseModel, Field, HttpUrl
+from pydantic import BaseModel, ConfigDict, Field, HttpUrl
 
 from tether_ddns import paths
 
 
 HeartbeatInterval = Annotated[int, Field(ge=30, le=86400)]
+
+PollInterval = Annotated[int, Field(ge=60, le=86400)]
+DEFAULT_HEALTHCHECKS_URL = 'https://healthchecks.io'
 
 
 class AppSettings(BaseModel):
@@ -49,12 +52,39 @@ class HookConfig(BaseModel):
     config: dict[str, object] = Field(default_factory=dict[str, object])
 
 
+class HealthcheckRef(BaseModel):
+    """A fetched healthchecks.io check and its tether-ddns display setting."""
+
+    key: str
+    name: str
+    slug: str = ''
+    visible: bool = True
+
+
+class HealthchecksProject(BaseModel):
+    """A healthchecks.io project polled with a read-only API key."""
+
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    id: str = Field(default_factory=lambda: uuid4().hex)  # noqa: A003
+    name: str = Field(min_length=1)
+    base_url: HttpUrl = Field(
+        default_factory=lambda: HttpUrl(DEFAULT_HEALTHCHECKS_URL))
+    api_key: str = Field(min_length=1)
+    poll_interval: PollInterval = 300
+    show_on_overview: bool = True
+    fetched_at: float | None = None
+    checks: list[HealthcheckRef] = Field(default_factory=list[HealthcheckRef])
+
+
 class AppConfig(BaseModel):
     """Full application configuration."""
 
     settings: AppSettings = Field(default_factory=AppSettings)
     domains: list[DomainConfig] = Field(default_factory=list[DomainConfig])
     hooks: list[HookConfig] = Field(default_factory=list[HookConfig])
+    healthchecks: list[HealthchecksProject] = Field(
+        default_factory=list[HealthchecksProject])
 
 
 class ConfigStore:
