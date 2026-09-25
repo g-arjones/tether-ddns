@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { ApiError, getProviders, pingHeartbeat, putSettings } from './api';
+import { ApiError, createHealthchecks, fetchHealthchecks, getHealthchecks, getProviders, pingHeartbeat, putSettings, setCheckVisible, updateHealthchecks } from './api';
 
 describe('api', () => {
   beforeEach(() => { vi.restoreAllMocks(); });
@@ -41,5 +41,45 @@ describe('api', () => {
     vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => status })));
     expect(await pingHeartbeat()).toEqual(status);
     expect(fetch).toHaveBeenCalledWith('/api/heartbeat/ping', { method: 'POST' });
+  });
+
+  it('getHealthchecks GETs /api/healthchecks', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => [] })));
+    expect(await getHealthchecks()).toEqual([]);
+    expect(fetch).toHaveBeenCalledWith('/api/healthchecks');
+  });
+
+  it('createHealthchecks POSTs the project as JSON', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => ({ id: 'p1' }) })));
+    const input = { name: 'Homelab', base_url: 'https://healthchecks.io', api_key: 'k', poll_interval: 300 };
+    await createHealthchecks(input);
+    expect(fetch).toHaveBeenCalledWith('/api/healthchecks', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input),
+    });
+  });
+
+  it('updateHealthchecks PUTs a partial patch', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => ({}) })));
+    await updateHealthchecks('p1', { show_on_overview: false });
+    expect(fetch).toHaveBeenCalledWith('/api/healthchecks/p1', {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: '{"show_on_overview":false}',
+    });
+  });
+
+  it('setCheckVisible PUTs the flag under the encoded check key', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => ({}) })));
+    await setCheckVisible('p1', 'a/b', false);
+    expect(fetch).toHaveBeenCalledWith('/api/healthchecks/p1/checks/a%2Fb', {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: '{"visible":false}',
+    });
+  });
+
+  it('carries a string detail on non-422 failures', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, status: 502, json: async () => ({ detail: '429 Rate limited' }) })));
+    const err = await fetchHealthchecks('p1').catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(ApiError);
+    expect((err as ApiError).status).toBe(502);
+    expect((err as ApiError).detail).toBe('429 Rate limited');
+    expect(fetch).toHaveBeenCalledWith('/api/healthchecks/p1/fetch', { method: 'POST' });
   });
 });

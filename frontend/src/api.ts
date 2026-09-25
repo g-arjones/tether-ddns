@@ -1,14 +1,16 @@
-import type { Provider, HookDef, Settings, StateSnapshot, DomainConfig, HookConfig, AboutInfo, IncidentWindow, HeartbeatStatus } from './types';
+import type { Provider, HookDef, Settings, StateSnapshot, DomainConfig, HookConfig, AboutInfo, IncidentWindow, HeartbeatStatus, HealthchecksInput, HealthchecksProject } from './types';
 
 export class ApiError extends Error {
   readonly status: number;
   readonly fieldErrors: Record<string, string>;
+  readonly detail?: string;
 
-  constructor(message: string, status: number, fieldErrors: Record<string, string> = {}) {
+  constructor(message: string, status: number, fieldErrors: Record<string, string> = {}, detail?: string) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
     this.fieldErrors = fieldErrors;
+    this.detail = detail;
   }
 }
 
@@ -28,11 +30,21 @@ async function fieldErrorsOf(res: Response): Promise<Record<string, string>> {
   }
 }
 
+async function detailOf(res: Response): Promise<string | undefined> {
+  try {
+    const body = (await res.json()) as { detail?: unknown };
+    return typeof body.detail === 'string' ? body.detail : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 async function json<T>(url: string, init?: RequestInit): Promise<T> {
   const res = init ? await fetch(url, init) : await fetch(url);
   if (!res.ok) {
     const fieldErrors = res.status === 422 ? await fieldErrorsOf(res) : {};
-    throw new ApiError(`${url} -> ${res.status}`, res.status, fieldErrors);
+    const detail = res.status === 422 ? undefined : await detailOf(res);
+    throw new ApiError(`${url} -> ${res.status}`, res.status, fieldErrors, detail);
   }
   return res.json() as Promise<T>;
 }
@@ -60,3 +72,11 @@ export const refresh = () => json('/api/refresh', { method: 'POST' });
 export const getAbout = () => json<AboutInfo>('/api/about');
 export const getIncidents = () => json<IncidentWindow>('/api/reachability/incidents');
 export const pingHeartbeat = () => json<HeartbeatStatus>('/api/heartbeat/ping', { method: 'POST' });
+export const getHealthchecks = () => json<HealthchecksProject[]>('/api/healthchecks');
+export const createHealthchecks = (input: HealthchecksInput) => json<HealthchecksProject>('/api/healthchecks', jbody(input));
+export const updateHealthchecks = (id: string, patch: Partial<HealthchecksInput>) =>
+  json<HealthchecksProject>(`/api/healthchecks/${id}`, { ...jbody(patch), method: 'PUT' });
+export const deleteHealthchecks = (id: string) => json(`/api/healthchecks/${id}`, { method: 'DELETE' });
+export const fetchHealthchecks = (id: string) => json<HealthchecksProject>(`/api/healthchecks/${id}/fetch`, { method: 'POST' });
+export const setCheckVisible = (id: string, key: string, visible: boolean) =>
+  json<HealthchecksProject>(`/api/healthchecks/${id}/checks/${encodeURIComponent(key)}`, { ...jbody({ visible }), method: 'PUT' });
