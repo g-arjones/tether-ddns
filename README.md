@@ -3,15 +3,17 @@
 A self-hosted **dynamic DNS updater**. A FastAPI + APScheduler
 backend periodically checks internet reachability (via a DNS-resolver quorum),
 detects the current public IP, and updates one or more DDNS records through an
-auto-loaded **provider** plugin system. A React + Vite single-page app (served
+auto-loaded **provider** plugin system. It can also ping a push monitor such as
+[healthchecks.io](https://healthchecks.io) as a **heartbeat**, so you get alerted
+when tether-ddns itself stops running. A React + Vite single-page app (served
 by FastAPI in production) shows live status, streaming logs, and configuration —
 pushed over a single WebSocket.
 
 Configuration, last-known runtime state, and a 30-day reachability incident
 window are pydantic-modelled and persisted as JSON on disk, so a restart keeps
 your public IPs, per-domain status, "IP stable since" timestamps, and your
-uptime history. Only the short per-check reachability sparkline is rebuilt on
-start.
+uptime history. Only live telemetry — the short per-check reachability
+sparkline and the last heartbeat result — is rebuilt on start.
 
 ## Features
 
@@ -19,7 +21,7 @@ start.
   with exception-isolated jobs.
 - Pluggable **DDNS providers** (DuckDNS and Cloudflare included), **hooks**
   (log, ZTE router-firewall, and Pushover hooks included), and **IP sources**
-  (ipify / icanhazip included).
+  (ipify / icanhazip over HTTP, and Cloudflare over DNS, included).
 - Hooks declare the event types they support; the UI only offers those, and a
   per-hook **Run now** button triggers a hook on demand against current state.
 - Config forms are generated from each plugin's JSON schema, with friendly
@@ -30,10 +32,13 @@ start.
   printed to stdout alongside uvicorn's own output.
 - **Runtime state persisted across restarts** — last-known public IPs,
   per-domain status, and "IP stable since" timestamps survive a restart; only
-  the short per-check reachability sparkline is rebuilt.
+  live telemetry (the reachability sparkline and last heartbeat) is rebuilt.
 - **30-day reachability incident history** — outages and degraded periods are
   recorded to disk with a write-on-change policy, shown as a per-day history
   strip with a per-day incident modal, and used to compute window uptime%.
+- **Heartbeat** — an optional periodic `GET` to a push-monitor URL (e.g.
+  healthchecks.io), skipped while the link is offline, with a **Ping now**
+  button and last-result card on the Overview. See [Heartbeat](#heartbeat).
 
 ## Requirements
 
@@ -109,6 +114,30 @@ python -m tether_ddns            # serves the built SPA + API on :8000
   default. Changing the port matters mainly under Docker host networking, where
   port remapping is unavailable.
 
+## Heartbeat
+
+A dead-man's switch: tether-ddns sends a `GET` to a URL you provide on a fixed
+interval, and the monitor (e.g. [healthchecks.io](https://healthchecks.io))
+alerts you when the pings stop. Configure it in **Settings → Heartbeat**:
+
+- **Ping URL** — any absolute `http://` or `https://` URL, e.g.
+  `https://hc-ping.com/<your-uuid>`. Leave it empty to turn the heartbeat off.
+  Invalid URLs are rejected with the validation message shown under the field.
+- **Interval** — 30 s, 1 min, 5 min (default), or 15 min. The API accepts any
+  value from 30 s to 1 day.
+
+Behaviour:
+
+- A ping runs at startup, right after a URL is set, and then on every interval.
+- Scheduled pings are **skipped while reachability reports the link offline**,
+  so an outage doesn't log an error on every tick. **Ping now** on the Overview
+  card (`POST /api/heartbeat/ping`) always sends the request.
+- A non-2xx response, connection error, or 10 s timeout counts as a failure.
+  Failures are logged once per attempt — full traceback on the console, the
+  exception message in the in-app log viewer and on the Overview card.
+  Successful pings are not logged.
+- The last result is live state only and is not persisted.
+
 ## Docker
 
 A multi-stage Alpine image (frontend build + Python venv → slim non-root
@@ -133,11 +162,13 @@ Backend (pytest + coverage gate, `>=90%`):
 pytest
 ```
 
-Frontend unit/component (Vitest + coverage thresholds):
+Frontend unit/component (oxlint, then Vitest with coverage thresholds) and a
+type check — `npm test` does **not** type-check, so run `tsc` too:
 
 ```bash
 cd frontend
-npx vitest run --coverage
+npm test
+npx tsc --noEmit -p tsconfig.app.json
 ```
 
 Frontend end-to-end (Playwright — builds the SPA and launches the backend):
@@ -247,13 +278,8 @@ class MyConfig(BaseModel):
 
 Create a module under `tether_ddns/ip_sources/registered_sources/`:
 
-**Error handling:** Providers, hooks, and IP sources should raise
-`tether_ddns.errors.TetherError` (or any exception) on failure. The scheduler
-and detect layer log the exception message, which is now visible in the in-app
-log viewer.
-
 ```python
-from tether_ddns.ip_sources.base import IPSource, register_ip_source
+from tether_ddns.ip_sources.base import IPFamily, IPSource, register_ip_source
 
 
 @register_ip_source
@@ -261,10 +287,19 @@ class MySource(IPSource):
     key = 'mysource'
     display_name = 'My Source'
 
-    async def detect(self) -> str:
-        # return the detected public IP, or raise on failure
+    async def detect(self, family: IPFamily) -> str:
+        # return the public IP for family ('ipv4' or 'ipv6'), or raise on failure
         ...
 ```
+
+### Error handling
+
+Providers, hooks, and IP sources should raise `tether_ddns.errors.TetherError`
+(or any exception) on failure rather than catching it themselves. The calling
+layer contains the error. For providers and hooks it is logged with the full
+traceback on the console and the exception message in the in-app log viewer.
+IP-source failures are logged at debug level only and treated as "IP unknown"
+for that family, since a missing family (e.g. no IPv6) is normal.
 
 Fields whose JSON schema has `"format": "password"` (e.g. `SecretStr`) are
 automatically masked on read and preserved on update when the client sends the

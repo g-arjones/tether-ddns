@@ -4,12 +4,15 @@ from __future__ import annotations
 import os
 import tempfile
 from pathlib import Path
-from typing import Literal, cast
+from typing import Annotated, Literal, cast
 from uuid import uuid4
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, HttpUrl
 
 from tether_ddns import paths
+
+
+HeartbeatInterval = Annotated[int, Field(ge=30, le=86400)]
 
 
 class AppSettings(BaseModel):
@@ -20,6 +23,8 @@ class AppSettings(BaseModel):
     update_on_startup: bool = True
     retry_on_failure: bool = True
     notify: bool = True
+    heartbeat_url: HttpUrl | None = None
+    heartbeat_interval: HeartbeatInterval = 300
 
 
 class DomainConfig(BaseModel):

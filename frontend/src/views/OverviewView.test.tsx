@@ -16,7 +16,7 @@ const snapshot: StateSnapshot = {
   online: true, next_check_at: null,
   reachability: { since: 0, rev: 0, ongoing: null, history: [], latest: [] },
   domains: [{ id: 'a', status: 'synced', ip: '203.0.113.5', updated: 1, message: '' }],
-  settings: { check_interval: 300, ip_source: 'ipify', update_on_startup: true, retry_on_failure: true, notify: true },
+  settings: { check_interval: 300, ip_source: 'ipify', update_on_startup: true, retry_on_failure: true, notify: true, heartbeat_url: null, heartbeat_interval: 300 },
   logs: [],
 };
 
@@ -31,6 +31,7 @@ describe('OverviewView', () => {
         dayBuckets={buckets}
         nowMs={NOW_MS}
         onSelectDay={vi.fn()}
+        onPing={vi.fn()}
       />,
     );
     expect(screen.getByText('Total Domains')).toBeInTheDocument();
@@ -48,8 +49,27 @@ describe('OverviewView', () => {
         dayBuckets={buckets}
         nowMs={NOW_MS}
         onSelectDay={vi.fn()}
+        onPing={vi.fn()}
       />,
     );
     expect(screen.getByText('Total Domains')).toBeInTheDocument();
+  });
+
+  it('shows the Heartbeat card in place of Update Interval', () => {
+    render(
+      <OverviewView
+        snapshot={snapshot}
+        domains={[]}
+        settings={snapshot.settings ?? null}
+        incidentWindow={null}
+        dayBuckets={buckets}
+        nowMs={NOW_MS}
+        onSelectDay={vi.fn()}
+        onPing={vi.fn()}
+      />,
+    );
+    expect(screen.queryByText('Update Interval')).toBeNull();
+    expect(screen.getByText('Heartbeat')).toBeInTheDocument();
+    expect(screen.getByText('Off')).toBeInTheDocument();
   });
 });

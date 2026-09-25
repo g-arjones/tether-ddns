@@ -1,7 +1,9 @@
 """Tests for scheduler dispatch and exception isolation."""
 import asyncio
+from datetime import datetime
 from pathlib import Path
 from tempfile import mkdtemp
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -17,6 +19,7 @@ from tether_ddns.reachability import (
     ReachabilityProbe, ReachabilityResult, ResolverProbe)
 from tether_ddns.runtime import RuntimeState
 from tether_ddns.services.dispatch import DispatchService
+from tether_ddns.services.heartbeat import HeartbeatService
 from tether_ddns.services.incidents import IncidentRecorder
 from tether_ddns.services.sync import SyncService
 from tether_ddns.state_store import StateStore
@@ -47,8 +50,10 @@ def _sched(
 ) -> scheduler.Scheduler:
     """Build a Scheduler wired to a real SyncService over cfg/state."""
     dispatch = disp if disp is not None else AsyncMock()
-    sync = SyncService(_ctx(cfg, state), dispatch)
-    return scheduler.Scheduler(_ctx(cfg, state), sync, dispatch, ReachabilityProbe())
+    ctx = _ctx(cfg, state)
+    sync = SyncService(ctx, dispatch)
+    return scheduler.Scheduler(
+        ctx, sync, dispatch, ReachabilityProbe(), HeartbeatService(ctx))
 
 
 def _online(online: bool) -> ReachabilityResult:
@@ -917,7 +922,8 @@ def test_shutdown_flushes_state(tmp_path: Path) -> None:
     ss = StateStore(tmp_path / 'state.json')
     ctx = _ctx(cfg, state, ss)
     sched = scheduler.Scheduler(
-        ctx, SyncService(ctx, AsyncMock()), AsyncMock(), ReachabilityProbe())
+        ctx, SyncService(ctx, AsyncMock()), AsyncMock(), ReachabilityProbe(),
+        HeartbeatService(ctx))
     sched.shutdown()
     loaded = ss.load()
     assert loaded is not None
@@ -932,7 +938,8 @@ def test_flush_state_writes(tmp_path: Path) -> None:
     ss = StateStore(tmp_path / 'state.json')
     ctx = _ctx(cfg, state, ss)
     sched = scheduler.Scheduler(
-        ctx, SyncService(ctx, AsyncMock()), AsyncMock(), ReachabilityProbe())
+        ctx, SyncService(ctx, AsyncMock()), AsyncMock(), ReachabilityProbe(),
+        HeartbeatService(ctx))
     sched.flush_state()
     loaded = ss.load()
     assert loaded is not None
@@ -947,7 +954,8 @@ def test_flush_state_skips_write_when_unchanged(tmp_path: Path) -> None:
     ss = StateStore(tmp_path / 'state.json')
     ctx = _ctx(cfg, state, ss)
     sched = scheduler.Scheduler(
-        ctx, SyncService(ctx, AsyncMock()), AsyncMock(), ReachabilityProbe())
+        ctx, SyncService(ctx, AsyncMock()), AsyncMock(), ReachabilityProbe(),
+        HeartbeatService(ctx))
     with patch.object(ss, 'save', wraps=ss.save) as save:
         sched.flush_state()
         sched.flush_state()
@@ -963,7 +971,8 @@ def test_flush_state_writes_again_after_real_change(tmp_path: Path) -> None:
     ss = StateStore(tmp_path / 'state.json')
     ctx = _ctx(cfg, state, ss)
     sched = scheduler.Scheduler(
-        ctx, SyncService(ctx, AsyncMock()), AsyncMock(), ReachabilityProbe())
+        ctx, SyncService(ctx, AsyncMock()), AsyncMock(), ReachabilityProbe(),
+        HeartbeatService(ctx))
     with patch.object(ss, 'save', wraps=ss.save) as save:
         sched.flush_state()
         state.set_status('a', 'synced', ip='1.2.3.4')
@@ -980,7 +989,8 @@ def test_flush_state_ignores_reachability_ticks(tmp_path: Path) -> None:
     ss = StateStore(tmp_path / 'state.json')
     ctx = _ctx(cfg, state, ss)
     sched = scheduler.Scheduler(
-        ctx, SyncService(ctx, AsyncMock()), AsyncMock(), ReachabilityProbe())
+        ctx, SyncService(ctx, AsyncMock()), AsyncMock(), ReachabilityProbe(),
+        HeartbeatService(ctx))
     with patch.object(ss, 'save', wraps=ss.save) as save:
         sched.flush_state()
         state.record_reachability(
@@ -998,7 +1008,7 @@ async def test_check_reachability_records_an_incident() -> None:
     ctx = _ctx(AppConfig(), RuntimeState())
     probe = ReachabilityProbe()
     sched = scheduler.Scheduler(
-        ctx, SyncService(ctx, AsyncMock()), AsyncMock(), probe)
+        ctx, SyncService(ctx, AsyncMock()), AsyncMock(), probe, HeartbeatService(ctx))
     with patch.object(probe, 'check', new=AsyncMock(return_value=_online(False))):
         await sched.check_reachability()
     ongoing = ctx.incidents.view.ongoing
@@ -1015,7 +1025,7 @@ async def test_check_reachability_emits_once_per_tick() -> None:
     state.add_listener(emits.append)
     probe = ReachabilityProbe()
     sched = scheduler.Scheduler(
-        ctx, SyncService(ctx, AsyncMock()), AsyncMock(), probe)
+        ctx, SyncService(ctx, AsyncMock()), AsyncMock(), probe, HeartbeatService(ctx))
     with patch.object(probe, 'check', new=AsyncMock(return_value=_online(False))):
         await sched.check_reachability()
     assert len(emits) == 1
@@ -1025,7 +1035,86 @@ def test_shutdown_flushes_the_incident_window() -> None:
     """Shutdown persists pending incident widening before stopping."""
     ctx = _ctx(AppConfig(), RuntimeState())
     sched = scheduler.Scheduler(
-        ctx, SyncService(ctx, AsyncMock()), AsyncMock(), ReachabilityProbe())
+        ctx, SyncService(ctx, AsyncMock()), AsyncMock(), ReachabilityProbe(),
+        HeartbeatService(ctx))
     with patch.object(ctx.incidents, 'flush') as flush:
         sched.shutdown()
     flush.assert_called_once()
+
+
+def _heartbeat_call(fake: MagicMock) -> Any:
+    """Return the add_job call that registered the heartbeat job."""
+    return next(c for c in fake.add_job.call_args_list if c.kwargs.get('id') == 'heartbeat')
+
+
+def test_start_schedules_the_heartbeat_job() -> None:
+    """start() adds the heartbeat job at the configured interval."""
+    cfg = AppConfig()
+    cfg.settings.heartbeat_interval = 60
+    state = RuntimeState()
+    ctx = _ctx(cfg, state)
+    heartbeat = HeartbeatService(ctx)
+    sched = scheduler.Scheduler(
+        ctx, SyncService(ctx, AsyncMock()), AsyncMock(), ReachabilityProbe(), heartbeat)
+    fake = MagicMock()
+    with patch.object(sched, '_scheduler', fake):
+        sched.start()
+    call = _heartbeat_call(fake)
+    assert call.args[0] == heartbeat.run
+    assert call.args[1] == 'interval'
+    assert call.kwargs['seconds'] == 60
+    assert call.kwargs['replace_existing'] is True
+
+
+def test_start_runs_the_heartbeat_immediately() -> None:
+    """start() passes an aware next_run_time so the heartbeat fires right away."""
+    cfg = AppConfig()
+    state = RuntimeState()
+    sched = _sched(cfg, state)
+    fake = MagicMock()
+    with patch.object(sched, '_scheduler', fake):
+        sched.start()
+    call = _heartbeat_call(fake)
+    next_run_time = call.kwargs['next_run_time']
+    assert isinstance(next_run_time, datetime)
+    assert next_run_time.tzinfo is not None
+
+
+def test_reschedule_heartbeat_applies_new_interval() -> None:
+    """reschedule_heartbeat re-adds the job with the current interval."""
+    cfg = AppConfig()
+    state = RuntimeState()
+    sched = _sched(cfg, state)
+    cfg.settings.heartbeat_interval = 900
+    fake = MagicMock()
+    with patch.object(sched, '_scheduler', fake):
+        sched.reschedule_heartbeat()
+    call = _heartbeat_call(fake)
+    assert call.kwargs['seconds'] == 900
+    assert call.kwargs['replace_existing'] is True
+
+
+def test_reschedule_heartbeat_without_run_now_omits_next_run_time() -> None:
+    """reschedule_heartbeat() with no run_now must not pause the job."""
+    cfg = AppConfig()
+    state = RuntimeState()
+    sched = _sched(cfg, state)
+    fake = MagicMock()
+    with patch.object(sched, '_scheduler', fake):
+        sched.reschedule_heartbeat()
+    call = _heartbeat_call(fake)
+    assert 'next_run_time' not in call.kwargs
+
+
+def test_reschedule_heartbeat_run_now_sets_next_run_time() -> None:
+    """reschedule_heartbeat(run_now=True) fires the first tick immediately."""
+    cfg = AppConfig()
+    state = RuntimeState()
+    sched = _sched(cfg, state)
+    fake = MagicMock()
+    with patch.object(sched, '_scheduler', fake):
+        sched.reschedule_heartbeat(run_now=True)
+    call = _heartbeat_call(fake)
+    next_run_time = call.kwargs['next_run_time']
+    assert isinstance(next_run_time, datetime)
+    assert next_run_time.tzinfo is not None

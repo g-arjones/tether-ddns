@@ -231,6 +231,14 @@ export default function App() {
     [pushToast],
   );
 
+  const handlePing = useCallback(async () => {
+    try {
+      await api.pingHeartbeat();
+    } catch {
+      pushToast('Ping request failed', 'error');
+    }
+  }, [pushToast]);
+
   const handleDelete = useCallback(
     async (id: string) => {
       const d = domains.find((x) => x.id === id);
@@ -282,8 +290,10 @@ export default function App() {
         const next = await api.putSettings(patch);
         setSettings(next);
         pushToast('Settings saved', 'success');
-      } catch {
+        return next;
+      } catch (err) {
         pushToast('Failed to save settings', 'error');
+        throw err;
       }
     },
     [pushToast],
@@ -332,6 +342,7 @@ export default function App() {
                 dayBuckets={dayBuckets}
                 nowMs={nowMs}
                 onSelectDay={setSelectedDayStart}
+                onPing={handlePing}
               />
             )}
             {activeView === 'domains' && (

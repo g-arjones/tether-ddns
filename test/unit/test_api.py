@@ -15,7 +15,8 @@ from tether_ddns.config_store import AppConfig, ConfigStore, DomainConfig
 from tether_ddns.incident_store import IncidentStore
 from tether_ddns.incidents import WINDOW_SECONDS
 from tether_ddns.reachability import ReachabilityResult
-from tether_ddns.runtime import RuntimeState
+from tether_ddns.runtime import HeartbeatStatus, RuntimeState
+from tether_ddns.services.heartbeat import HeartbeatService
 from tether_ddns.state_store import StateStore
 
 
@@ -459,3 +460,123 @@ def test_get_incidents_filters_expired_records(
         recorder.record(make_result([True, True, True]), now=old + 50)
         res = client.get('/api/reachability/incidents')
     assert res.json()['incidents'] == []
+
+
+HB_URL = 'https://hc-ping.com/5b1c7f0a'
+
+
+def test_settings_heartbeat_url_round_trips_as_string(tmp_path: Path) -> None:
+    """A heartbeat URL is accepted, persisted and returned as a string."""
+    with _client(tmp_path) as client:
+        resp: Any = client.put('/api/settings', json={'heartbeat_url': HB_URL})
+        assert resp.status_code == 200
+        assert resp.json()['heartbeat_url'] == HB_URL
+        state: Any = client.get('/api/state')
+    assert state.json()['settings']['heartbeat_url'] == HB_URL
+
+
+def test_settings_heartbeat_url_invalid_returns_422(tmp_path: Path) -> None:
+    """A schemeless heartbeat URL is a 422 naming the field; config is unchanged."""
+    with _client(tmp_path) as client:
+        resp: Any = client.put('/api/settings', json={'heartbeat_url': 'hc-ping.com/x'})
+        assert resp.status_code == 422
+        assert resp.json()['detail'][0]['loc'][-1] == 'heartbeat_url'
+        read_back: Any = client.get('/api/settings')
+    assert read_back.json()['heartbeat_url'] is None
+
+
+def test_settings_heartbeat_url_null_clears(tmp_path: Path) -> None:
+    """An explicit null turns the heartbeat off."""
+    with _client(tmp_path) as client:
+        client.put('/api/settings', json={'heartbeat_url': HB_URL})
+        resp: Any = client.put('/api/settings', json={'heartbeat_url': None})
+    assert resp.status_code == 200
+    assert resp.json()['heartbeat_url'] is None
+
+
+def test_settings_heartbeat_interval_out_of_range_returns_422(tmp_path: Path) -> None:
+    """A heartbeat interval below 30 s is rejected with 422."""
+    with _client(tmp_path) as client:
+        resp: Any = client.put('/api/settings', json={'heartbeat_interval': 29})
+    assert resp.status_code == 422
+
+
+def test_settings_heartbeat_interval_null_returns_422(tmp_path: Path) -> None:
+    """An explicit null for the non-nullable heartbeat interval is a 422, not a 500."""
+    with _client(tmp_path) as client:
+        resp: Any = client.put('/api/settings', json={'heartbeat_interval': None})
+        assert resp.status_code == 422
+        assert resp.json()['detail'][0]['loc'][-1] == 'heartbeat_interval'
+        read_back: Any = client.get('/api/settings')
+    assert read_back.json()['heartbeat_interval'] == 300
+
+
+def test_settings_check_interval_null_returns_422(tmp_path: Path) -> None:
+    """An explicit null for the non-nullable check interval is a 422, not a 500."""
+    with _client(tmp_path) as client:
+        resp: Any = client.put('/api/settings', json={'check_interval': None})
+        assert resp.status_code == 422
+        assert resp.json()['detail'][0]['loc'][-1] == 'check_interval'
+        read_back: Any = client.get('/api/settings')
+    assert read_back.json()['check_interval'] == 300
+
+
+def test_heartbeat_interval_change_reschedules(tmp_path: Path) -> None:
+    """Changing the heartbeat interval reschedules the heartbeat job."""
+    with _client(tmp_path) as client:
+        with patch.object(client.app.state.scheduler, 'reschedule_heartbeat') as resched:
+            client.put('/api/settings', json={'heartbeat_interval': 60})
+    resched.assert_called_once_with(run_now=False)
+
+
+def test_other_setting_change_does_not_reschedule_heartbeat(tmp_path: Path) -> None:
+    """An unrelated settings change leaves the heartbeat job alone."""
+    with _client(tmp_path) as client:
+        with patch.object(client.app.state.scheduler, 'reschedule_heartbeat') as resched:
+            client.put('/api/settings', json={'notify': False})
+    resched.assert_not_called()
+
+
+def test_setting_heartbeat_url_reschedules_and_clears_status(tmp_path: Path) -> None:
+    """Setting a heartbeat URL runs the job now and clears any stale status."""
+    with _client(tmp_path) as client:
+        client.app.state.runtime.set_heartbeat(
+            HeartbeatStatus(at=1.0, ok=True, skipped=False, error=None))
+        with patch.object(client.app.state.scheduler, 'reschedule_heartbeat') as resched:
+            client.put('/api/settings', json={'heartbeat_url': HB_URL})
+        heartbeat = client.app.state.runtime.heartbeat
+    resched.assert_called_once_with(run_now=True)
+    assert heartbeat is None
+
+
+def test_clearing_heartbeat_url_reschedules_without_running_now(tmp_path: Path) -> None:
+    """Clearing an existing heartbeat URL reschedules without an immediate run."""
+    with _client(tmp_path) as client:
+        client.put('/api/settings', json={'heartbeat_url': HB_URL})
+        client.app.state.runtime.set_heartbeat(
+            HeartbeatStatus(at=1.0, ok=True, skipped=False, error=None))
+        with patch.object(client.app.state.scheduler, 'reschedule_heartbeat') as resched:
+            client.put('/api/settings', json={'heartbeat_url': None})
+        heartbeat = client.app.state.runtime.heartbeat
+    resched.assert_called_once_with(run_now=False)
+    assert heartbeat is None
+
+
+def test_ping_now_without_url_is_400(tmp_path: Path) -> None:
+    """Ping now with no heartbeat URL configured returns 400."""
+    with _client(tmp_path) as client:
+        resp: Any = client.post('/api/heartbeat/ping')
+    assert resp.status_code == 400
+    assert resp.json()['detail'] == 'heartbeat URL not configured'
+
+
+def test_ping_now_forces_a_ping_and_returns_status(tmp_path: Path) -> None:
+    """Ping now pings even while offline and returns the recorded status."""
+    with _client(tmp_path) as client:
+        client.put('/api/settings', json={'heartbeat_url': HB_URL})
+        with patch.object(HeartbeatService, '_ping', new=AsyncMock()) as ping:
+            resp: Any = client.post('/api/heartbeat/ping')
+    assert resp.status_code == 200
+    body: dict[str, object] = resp.json()
+    assert body['ok'] is True and body['skipped'] is False and body['error'] is None
+    ping.assert_awaited_once_with(HB_URL)

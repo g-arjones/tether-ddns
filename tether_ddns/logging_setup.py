@@ -15,6 +15,12 @@ APP_LOGGER_NAME = 'tether_ddns'
 _ATTACH_TO = ('uvicorn', 'uvicorn.access', APP_LOGGER_NAME)
 
 
+def describe_exception(exc: BaseException) -> str:
+    """Return 'Type: message', or just 'Type' when the message is empty."""
+    text = str(exc)
+    return f'{type(exc).__name__}: {text}' if text else type(exc).__name__
+
+
 class LogRingHandler(logging.Handler):
     """Logging handler retaining recent records and notifying listeners."""
 
@@ -42,8 +48,7 @@ class LogRingHandler(logging.Handler):
         try:
             message = record.getMessage()
             if record.exc_info and record.exc_info[1] is not None:
-                exc = record.exc_info[1]
-                message = f'{message}: {type(exc).__name__}: {exc}'
+                message = f'{message}: {describe_exception(record.exc_info[1])}'
             entry: LogRecordDict = {
                 'time': record.created,
                 'level': record.levelname,

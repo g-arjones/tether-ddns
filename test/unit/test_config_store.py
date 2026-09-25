@@ -1,9 +1,11 @@
 """Tests for configuration models and the ConfigStore."""
 from pathlib import Path
 
+from pydantic import ValidationError
+
 import pytest
 
-from tether_ddns.config_store import AppConfig, ConfigStore, DomainConfig
+from tether_ddns.config_store import AppConfig, AppSettings, ConfigStore, DomainConfig
 
 
 def test_default_path_sits_in_the_home_dir(
@@ -34,3 +36,42 @@ def test_save_then_load_round_trips(tmp_path: Path) -> None:
     loaded = store.load()
     assert loaded.domains[0].hostname == 'home.example.com'
     assert loaded.domains[0].id == cfg.domains[0].id
+
+
+URL = 'https://hc-ping.com/5b1c7f0a'
+
+
+def test_heartbeat_defaults() -> None:
+    """The heartbeat is off with a five-minute interval by default."""
+    settings = AppSettings()
+    assert settings.heartbeat_url is None
+    assert settings.heartbeat_interval == 300
+
+
+@pytest.mark.parametrize('url', ['ftp://hc-ping.com/x', 'hc-ping.com/x', 'not a url'])
+def test_heartbeat_url_rejects_non_http(url: str) -> None:
+    """Only absolute http/https URLs are accepted."""
+    with pytest.raises(ValidationError):
+        AppSettings.model_validate({'heartbeat_url': url})
+
+
+@pytest.mark.parametrize('seconds', [30, 86400])
+def test_heartbeat_interval_accepts_bounds(seconds: int) -> None:
+    """The interval bounds 30 s and 1 day are inclusive."""
+    assert AppSettings.model_validate(
+        {'heartbeat_interval': seconds}).heartbeat_interval == seconds
+
+
+@pytest.mark.parametrize('seconds', [29, 86401, 0])
+def test_heartbeat_interval_rejects_out_of_range(seconds: int) -> None:
+    """Intervals outside 30 s .. 1 day are rejected."""
+    with pytest.raises(ValidationError):
+        AppSettings.model_validate({'heartbeat_interval': seconds})
+
+
+def test_heartbeat_url_round_trips_as_string(tmp_path: Path) -> None:
+    """A saved heartbeat URL is written as a JSON string and read back."""
+    store = ConfigStore(tmp_path / 'cfg.json')
+    store.save(AppConfig.model_validate({'settings': {'heartbeat_url': URL}}))
+    assert f'"heartbeat_url": "{URL}"' in store.path.read_text('utf-8')
+    assert str(store.load().settings.heartbeat_url) == URL

@@ -8,6 +8,7 @@ from tether_ddns.incidents import Incident, IncidentView
 from tether_ddns.reachability import ReachabilityResult, ResolverProbe
 from tether_ddns.runtime import (
     CheckRecord,
+    HeartbeatStatus,
     REACHABILITY_HISTORY_SIZE,
     RuntimeState,
 )
@@ -493,3 +494,42 @@ def test_incident_fields_are_not_persisted() -> None:
     dumped = state.model_dump()
     assert 'incident_rev' not in dumped
     assert 'incident_ongoing' not in dumped
+
+
+def _hb() -> HeartbeatStatus:
+    """Return a heartbeat status."""
+    return HeartbeatStatus(at=1.0, ok=False, skipped=False, error='TimeoutError')
+
+
+def test_set_heartbeat_notifies_listeners() -> None:
+    """Setting the heartbeat emits a snapshot that carries it."""
+    state = RuntimeState()
+    seen: list[dict[str, object]] = []
+    state.add_listener(seen.append)
+    state.set_heartbeat(_hb())
+    assert state.heartbeat == _hb()
+    assert seen[-1]['heartbeat'] == {
+        'at': 1.0, 'ok': False, 'skipped': False, 'error': 'TimeoutError'}
+
+
+def test_set_heartbeat_none_clears_and_notifies() -> None:
+    """Setting the heartbeat to None clears it and still emits a snapshot."""
+    state = RuntimeState()
+    state.set_heartbeat(_hb())
+    seen: list[dict[str, object]] = []
+    state.add_listener(seen.append)
+    state.set_heartbeat(None)
+    assert state.heartbeat is None
+    assert seen[-1]['heartbeat'] is None
+
+
+def test_snapshot_heartbeat_defaults_to_none() -> None:
+    """A fresh state reports no heartbeat attempt yet."""
+    assert RuntimeState().snapshot()['heartbeat'] is None
+
+
+def test_heartbeat_is_not_persisted() -> None:
+    """The heartbeat status is excluded from the persisted payload."""
+    state = RuntimeState()
+    state.set_heartbeat(_hb())
+    assert 'heartbeat' not in state.model_dump_json()

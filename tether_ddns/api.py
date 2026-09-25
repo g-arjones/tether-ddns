@@ -6,12 +6,14 @@ import platform
 from importlib import metadata
 
 from fastapi import APIRouter, FastAPI, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi.exceptions import RequestValidationError
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, HttpUrl, ValidationError
 
 from tether_ddns.config_store import (
     AppSettings,
     DomainConfig,
+    HeartbeatInterval,
     HookConfig,
     mask_secrets,
     merge_secrets,
@@ -21,6 +23,7 @@ from tether_ddns.ip_sources.base import IP_SOURCE_REGISTRY
 from tether_ddns.providers.base import PROVIDER_REGISTRY
 from tether_ddns.services.collection import find_or_404
 from tether_ddns.services.dispatch import DispatchService
+from tether_ddns.services.heartbeat import HeartbeatService
 
 
 APP_NAME = 'Tether'
@@ -99,6 +102,8 @@ class SettingsUpdate(BaseModel):
     update_on_startup: bool | None = None
     retry_on_failure: bool | None = None
     notify: bool | None = None
+    heartbeat_url: HttpUrl | None = None
+    heartbeat_interval: HeartbeatInterval | None = None
 
 
 def _provider_schema(provider: str) -> dict[str, object]:
@@ -146,7 +151,7 @@ def register_routes(app: FastAPI) -> None:
     def get_state() -> dict[str, object]:
         cfg = app.state.config
         snap: dict[str, object] = app.state.runtime.snapshot()
-        snap['settings'] = cfg.settings.model_dump()
+        snap['settings'] = cfg.settings.model_dump(mode='json')
         snap['logs'] = app.state.log_handler.snapshot()
         return snap
 
@@ -262,21 +267,44 @@ def register_routes(app: FastAPI) -> None:
 
     @router.get('/settings')
     def get_settings() -> dict[str, object]:
-        settings: dict[str, object] = app.state.config.settings.model_dump()
+        settings: dict[str, object] = app.state.config.settings.model_dump(mode='json')
         return settings
 
     @router.put('/settings')
     def put_settings(payload: SettingsUpdate) -> dict[str, object]:
         current = app.state.config.settings
         set_fields = payload.model_dump(exclude_unset=True)
-        merged = AppSettings(**{**current.model_dump(), **set_fields})
+        try:
+            merged = AppSettings(**{**current.model_dump(), **set_fields})
+        except ValidationError as exc:
+            errors: list[dict[str, object]] = []
+            for error in exc.errors():
+                item = dict(error)
+                item['loc'] = ('body', *error['loc'])
+                errors.append(item)
+            raise RequestValidationError(errors) from exc
         interval_changed = merged.check_interval != current.check_interval
+        heartbeat_changed = merged.heartbeat_interval != current.heartbeat_interval
+        url_changed = merged.heartbeat_url != current.heartbeat_url
         app.state.config.settings = merged
         _persist(app)
         if interval_changed:
             app.state.scheduler.reschedule_sync()
-        dumped: dict[str, object] = merged.model_dump()
+        if url_changed:
+            app.state.runtime.set_heartbeat(None)
+        if heartbeat_changed or url_changed:
+            app.state.scheduler.reschedule_heartbeat(
+                run_now=url_changed and merged.heartbeat_url is not None)
+        dumped: dict[str, object] = merged.model_dump(mode='json')
         return dumped
+
+    @router.post('/heartbeat/ping')
+    async def ping_heartbeat() -> dict[str, object]:
+        heartbeat: HeartbeatService = app.state.heartbeat
+        status = await heartbeat.run(force=True)
+        if status is None:
+            raise HTTPException(status_code=400, detail='heartbeat URL not configured')
+        return status.model_dump()
 
     @router.post('/refresh')
     async def refresh() -> dict[str, bool]:

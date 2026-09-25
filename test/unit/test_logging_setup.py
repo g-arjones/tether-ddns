@@ -8,6 +8,7 @@ import pytest
 from tether_ddns.logging_setup import (
     APP_LOGGER_NAME,
     LogRingHandler,
+    describe_exception,
     install_ring_handler,
     install_stdout_handler,
 )
@@ -154,3 +155,39 @@ def test_ring_handler_includes_exception_detail() -> None:
     assert any(
         'operation failed' in m and 'ValueError' in m and 'kaboom' in m
         for m in messages)
+
+
+def test_describe_exception_with_message() -> None:
+    """An exception with a message renders as 'Type: message'."""
+    assert describe_exception(ValueError('bad')) == 'ValueError: bad'
+
+
+def test_describe_exception_without_message() -> None:
+    """An exception with an empty message renders as the bare type name."""
+    assert describe_exception(TimeoutError()) == 'TimeoutError'
+
+
+def test_ring_handler_exception_without_message_has_no_trailing_colon() -> None:
+    """A logged exception with no message does not leave a dangling ': '."""
+    handler = LogRingHandler(maxlen=10)
+    logger = logging.getLogger('test.ring.exc')
+    logger.addHandler(handler)
+    logger.setLevel(logging.INFO)
+    try:
+        raise TimeoutError()
+    except TimeoutError:
+        logger.exception('ping failed')
+    assert handler.snapshot()[-1]['message'] == 'ping failed: TimeoutError'
+
+
+def test_ring_handler_exception_with_message_is_unchanged() -> None:
+    """A logged exception with a message keeps the 'msg: Type: text' form."""
+    handler = LogRingHandler(maxlen=10)
+    logger = logging.getLogger('test.ring.exc2')
+    logger.addHandler(handler)
+    logger.setLevel(logging.INFO)
+    try:
+        raise ValueError('boom')
+    except ValueError:
+        logger.exception('hook failed')
+    assert handler.snapshot()[-1]['message'] == 'hook failed: ValueError: boom'

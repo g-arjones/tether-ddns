@@ -249,3 +249,36 @@ test('the reachability legend drops durations on mobile but keeps percentages', 
   await expect(pct).toBeVisible();
   await expect(pct).toHaveCSS('margin-left', '0px');
 });
+
+test('heartbeat settings show the validation message inline', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: /Settings/ }).click();
+  const url = page.getByLabel(/Ping URL/);
+  await url.fill('hc-ping.com/x');
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(page.locator('#setHeartbeatUrlHelp')).toContainText(/valid URL/);
+  await expect(url).toHaveAttribute('aria-invalid', 'true');
+});
+
+test('overview shows the heartbeat card as Off by default', async ({ page }) => {
+  await page.goto('/');
+  const card = page.locator('.stat').filter({ hasText: 'Heartbeat' });
+  await expect(card).toContainText('Off');
+  await expect(card.getByRole('button', { name: 'Ping now' })).toHaveCount(0);
+});
+
+test('all four stat cards share one row geometry', async ({ page }) => {
+  await page.setViewportSize({ width: 1400, height: 900 });
+  await page.goto('/');
+  await expect(page.locator('.stat')).toHaveCount(4);
+  for (const part of ['.stat-label', '.stat-ico', '.stat-value', '.stat-sub']) {
+    const boxes = await page.locator(`.stat ${part}`).evaluateAll(
+      (els) => els.map((el) => el.getBoundingClientRect()).map((r) => ({ top: r.top, height: r.height })),
+    );
+    expect(boxes, part).toHaveLength(4);
+    for (const box of boxes) {
+      expect(box.top, `${part} top`).toBeCloseTo(boxes[0].top, 0);
+      expect(box.height, `${part} height`).toBeCloseTo(boxes[0].height, 0);
+    }
+  }
+});

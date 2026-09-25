@@ -258,6 +258,20 @@ header.topbar {
 .tint-ok { background: var(--ok-soft); color: var(--ok); }
 .tint-warn { background: var(--warn-soft); color: var(--warn); }
 .tint-err { background: var(--err-soft); color: var(--err); }
+.tint-muted { background: var(--muted-soft); color: var(--muted-status); }
+.stat-sub-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.stat-ico-btn { transition: var(--transition); }
+.stat-ico-btn:hover:not(:disabled) { box-shadow: 0 0 0 1px currentColor; }
+.stat-ico-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.stat-ico-btn:disabled { cursor: progress; }
+.stat-ico-btn.spin svg { animation: spin .8s linear infinite; }
+
+/* heartbeat stat card */
+.hb-mono { font-family: var(--mono); }
+.hb-flag { color: var(--ok); font-weight: 650; }
+.hb-muted .stat-value { color: var(--text-3); }
+.hb-err { border-color: color-mix(in srgb, var(--err) 45%, transparent); }
+.hb-err .stat-value, .hb-err .stat-sub { color: var(--err); }
 
 /* ---------- Overview: two-column panels ---------- */
 .ov-grid { display: grid; grid-template-columns: 1.4fr 1fr; gap: 16px; margin-bottom: 26px; }
@@ -492,6 +506,13 @@ header.topbar {
 }
 .field input:focus, .field select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(59,130,246,.15); }
 .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+
+/* heartbeat URL: after the .field input rules so the invalid state wins over :focus */
+.hb-url { display: flex; gap: 8px; }
+.hb-url input[type="text"] { flex: 1; min-width: 0; font-family: var(--mono); font-size: 13px; }
+.hb-url input.hb-invalid { border-color: var(--err); box-shadow: 0 0 0 3px var(--err-soft); }
+.field-help.hb-error { color: var(--err); }
+.chips.hb-dim { opacity: .45; }
 
 /* ---------- Custom select (replaces native combobox chrome) ---------- */
 .cs { position: relative; width: 100%; }
