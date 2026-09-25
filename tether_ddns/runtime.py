@@ -25,6 +25,15 @@ class CheckRecord(BaseModel):
     total: int
 
 
+class HeartbeatStatus(BaseModel):
+    """Outcome of the most recent heartbeat attempt."""
+
+    at: float
+    ok: bool
+    skipped: bool
+    error: str | None = None
+
+
 def freshness(assigned_ip: str | None, current_ip: str | None) -> Status:
     """Return 'synced' when the assigned IP matches the current public IP."""
     if assigned_ip is not None and assigned_ip == current_ip:
@@ -68,6 +77,7 @@ class RuntimeState(BaseModel):
     reachability_latest: list[ResolverProbe] = Field(
         default_factory=list[ResolverProbe], exclude=True)
     next_check_at: float | None = Field(default=None, exclude=True)
+    heartbeat: HeartbeatStatus | None = Field(default=None, exclude=True)
     ipv4_changed_at: float | None = None
     ipv6_changed_at: float | None = None
 
@@ -190,6 +200,11 @@ class RuntimeState(BaseModel):
         self.next_check_at = ts
         self._emit()
 
+    def set_heartbeat(self, status: HeartbeatStatus) -> None:
+        """Record the latest heartbeat outcome and notify listeners."""
+        self.heartbeat = status
+        self._emit()
+
     def set_status(
         self, domain_id: str, status: Status, *, ip: str | None = None, message: str = '',
     ) -> Status | None:
@@ -231,6 +246,8 @@ class RuntimeState(BaseModel):
             'ipv6_changed_at': self.ipv6_changed_at,
             'online': self.online,
             'next_check_at': self.next_check_at,
+            'heartbeat': (
+                self.heartbeat.model_dump() if self.heartbeat is not None else None),
             'reachability': {
                 'since': self.reachability_since,
                 'rev': self.incident_rev,
