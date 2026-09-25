@@ -391,21 +391,32 @@ def register_routes(app: FastAPI) -> None:
         if set_fields.get('api_key') in ('', MASK):
             del set_fields['api_key']
         try:
-            merged = HealthchecksProject(**{**current.model_dump(), **set_fields})
+            candidate = HealthchecksProject(**{**current.model_dump(), **set_fields})
         except ValidationError as exc:
             raise _body_validation_error(exc) from exc
         endpoint_changed = (
-            merged.base_url != current.base_url or merged.api_key != current.api_key)
-        if endpoint_changed:
-            service: HealthchecksService = app.state.healthchecks
-            try:
-                await service.validate(str(merged.base_url), merged.api_key)
-            except HealthchecksError as exc:
-                raise _upstream_error(exc) from exc
+            candidate.base_url != current.base_url or candidate.api_key != current.api_key)
+        if not endpoint_changed:
+            app.state.config.healthchecks[i] = candidate
+            _persist(app)
+            if candidate.poll_interval != current.poll_interval:
+                app.state.scheduler.schedule_healthchecks(candidate, run_now=True)
+            return _masked_project(candidate)
+        service: HealthchecksService = app.state.healthchecks
+        try:
+            remote = await service.validate(str(candidate.base_url), candidate.api_key)
+        except HealthchecksError as exc:
+            raise _upstream_error(exc) from exc
+        # Re-fetch: the project may have been edited, replaced or deleted while validating.
+        i, fresh = find_or_404(
+            app.state.config.healthchecks, project_id, 'project not found')
+        merged = HealthchecksProject(**{**fresh.model_dump(), **set_fields})
+        merged.checks = merge_refs(fresh.checks, remote)
+        merged.fetched_at = time.time()
         app.state.config.healthchecks[i] = merged
         _persist(app)
-        if endpoint_changed or merged.poll_interval != current.poll_interval:
-            app.state.scheduler.schedule_healthchecks(merged, run_now=True)
+        service.record_success(merged, remote)
+        app.state.scheduler.schedule_healthchecks(merged)
         return _masked_project(merged)
 
     @router.delete('/healthchecks/{project_id}')

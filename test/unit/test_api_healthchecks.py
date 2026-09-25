@@ -123,17 +123,54 @@ def test_update_masked_key_skips_validation(tmp_path: Path) -> None:
     assert [c.key for c in saved.checks] == ['k1']
 
 
-def test_update_new_key_validates_and_reschedules_now(tmp_path: Path) -> None:
-    """A new key is validated with a poll and the job reruns at once; checks stay."""
-    with _client(tmp_path, _seed()) as client:
-        with patch(LIST, new=AsyncMock(return_value=[])) as list_checks, \
+def test_update_new_key_refreshes_checks_and_reschedules(tmp_path: Path) -> None:
+    """A new key re-validates, refreshes the check list via merge_refs and reschedules now."""
+    seed = HealthchecksProject(
+        id='p1', name='Homelab', api_key='secret', fetched_at=1.0,
+        checks=[HealthcheckRef(key='k1', name='K1', slug='k1', visible=False)])
+    with _client(tmp_path, seed) as client:
+        with patch(LIST, new=AsyncMock(
+                return_value=[_remote('k1'), _remote('k2')])) as list_checks, \
                 patch.object(client.app.state.scheduler, 'schedule_healthchecks') as sched:
             resp: Any = client.put('/api/healthchecks/p1', json={'api_key': 'fresh'})
+        runtime = client.app.state.runtime.healthchecks
     assert resp.status_code == 200
     list_checks.assert_awaited_once_with('https://healthchecks.io/', 'fresh')
-    assert sched.call_args.kwargs == {'run_now': True}
+    assert sched.call_args.kwargs == {}
+    body: dict[str, Any] = resp.json()
+    assert [(c['key'], c['visible']) for c in body['checks']] == [('k1', False), ('k2', True)]
     [saved] = _saved(tmp_path)
-    assert saved.api_key == 'fresh' and [c.key for c in saved.checks] == ['k1']
+    assert saved.api_key == 'fresh'
+    assert saved.fetched_at is not None
+    assert runtime['p1'].ok is True
+
+
+def test_visibility_change_during_put_validation_survives(tmp_path: Path) -> None:
+    """A check-visibility toggle made while a PUT is validating is not lost."""
+    with _client(tmp_path, _seed()) as client:
+        async def _toggle_visibility(*_args: object, **_kwargs: object) -> list[RemoteCheck]:
+            client.app.state.config.healthchecks[0].checks[0].visible = False
+            return [_remote('k1')]
+
+        with patch(LIST, new=AsyncMock(side_effect=_toggle_visibility)), \
+                patch.object(client.app.state.scheduler, 'schedule_healthchecks'):
+            resp: Any = client.put('/api/healthchecks/p1', json={'api_key': 'fresh'})
+    assert resp.status_code == 200
+    assert resp.json()['checks'] == [{'key': 'k1', 'name': 'K1', 'slug': 'k1', 'visible': False}]
+    [saved] = _saved(tmp_path)
+    assert saved.checks[0].visible is False
+
+
+def test_update_deleted_during_validation_is_a_404(tmp_path: Path) -> None:
+    """A PUT whose project is deleted while validating an endpoint change is a 404."""
+    with _client(tmp_path, _seed()) as client:
+        async def _delete_project(*_args: object, **_kwargs: object) -> list[RemoteCheck]:
+            del client.app.state.config.healthchecks[0]
+            return [_remote('k1')]
+
+        with patch(LIST, new=AsyncMock(side_effect=_delete_project)):
+            resp: Any = client.put('/api/healthchecks/p1', json={'api_key': 'fresh'})
+    assert resp.status_code == 404
 
 
 def test_update_failed_validation_saves_nothing(tmp_path: Path) -> None:
