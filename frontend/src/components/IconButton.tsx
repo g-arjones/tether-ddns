@@ -6,6 +6,7 @@ export interface IconButtonProps {
   children: ReactNode;
   variant?: 'icon' | 'act';
   danger?: boolean;
+  disabled?: boolean;
   className?: string;
 }
 
@@ -17,6 +18,7 @@ export function IconButton({
   children,
   variant = 'icon',
   danger = false,
+  disabled = false,
   className,
 }: IconButtonProps): JSX.Element {
   const classes = [variant === 'icon' ? 'icon-btn' : 'act-btn'];
@@ -29,6 +31,7 @@ export function IconButton({
       title={label}
       aria-label={label}
       onClick={onClick}
+      disabled={disabled}
     >
       {children}
     </button>

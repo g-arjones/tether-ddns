@@ -259,6 +259,15 @@ header.topbar {
 .tint-warn { background: var(--warn-soft); color: var(--warn); }
 .tint-err { background: var(--err-soft); color: var(--err); }
 
+/* heartbeat stat card: ages like "5m 12s ago" are wider than a count */
+.hb-value { font-size: 24px; }
+.hb-sub { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hb-host { font-family: var(--mono); }
+.hb-flag { color: var(--ok); font-weight: 650; }
+.hb-muted .stat-value { color: var(--text-3); }
+.hb-err { border-color: color-mix(in srgb, var(--err) 45%, transparent); }
+.hb-err .stat-value, .hb-err .hb-sub { color: var(--err); }
+
 /* ---------- Overview: two-column panels ---------- */
 .ov-grid { display: grid; grid-template-columns: 1.4fr 1fr; gap: 16px; margin-bottom: 26px; }
 .ov-wide { grid-column: 1 / -1; }
