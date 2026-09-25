@@ -7,7 +7,7 @@ import { SectionHeader } from '../components/SectionHeader';
 export interface SettingsViewProps {
   settings: Settings | null;
   ipSources: { key: string; display_name: string }[];
-  onSave: (patch: Partial<Settings>) => Promise<void>;
+  onSave: (patch: Partial<Settings>) => Promise<Settings>;
 }
 
 const INTERVALS = [
@@ -34,14 +34,19 @@ function HeartbeatPanel({ settings, onSave }: { settings: Settings; onSave: Save
   const saved = settings.heartbeat_url ?? '';
   const [draft, setDraft] = useState(saved);
   const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
   const dirty = draft.trim() !== saved;
 
   const submit = async () => {
-    if (!dirty) return;
+    if (!dirty || saving) return;
+    setSaving(true);
     try {
-      await onSave({ heartbeat_url: draft.trim() || null });
+      const next = await onSave({ heartbeat_url: draft.trim() || null });
+      setDraft(next.heartbeat_url ?? '');
     } catch (err) {
       setError(err instanceof ApiError ? err.fieldErrors.heartbeat_url ?? null : null);
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -66,7 +71,7 @@ function HeartbeatPanel({ settings, onSave }: { settings: Settings; onSave: Save
               value={draft}
               onChange={(e) => { setDraft(e.target.value); setError(null); }}
             />
-            <button type="submit" className="btn btn-ghost" disabled={!dirty}>Save</button>
+            <button type="submit" className="btn btn-ghost" disabled={!dirty || saving}>Save</button>
           </form>
           <div id="setHeartbeatUrlHelp" className={`field-help${error ? ' hb-error' : ''}`}>
             {error ?? 'Leave empty to disable.'}

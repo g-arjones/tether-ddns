@@ -10,7 +10,7 @@ const settings: Settings = {
 };
 const URL = 'https://hc-ping.com/5b1c7f0a';
 const sources = [{ key: 'ipify', display_name: 'ipify' }];
-const ok = () => vi.fn().mockResolvedValue(undefined);
+const ok = (result: Settings = settings) => vi.fn().mockResolvedValue(result);
 
 function view(s: Settings, onSave = ok()) {
   const utils = render(<SettingsView settings={s} ipSources={sources} onSave={onSave} />);
@@ -87,5 +87,30 @@ describe('SettingsView', () => {
   it('does not dim the heartbeat chips once a URL is saved', () => {
     view({ ...settings, heartbeat_url: URL });
     expect(screen.getByRole('group', { name: 'Heartbeat interval' })).not.toHaveClass('hb-dim');
+  });
+
+  it('resets the draft when a save normalises back to the already-stored URL', async () => {
+    const stored = 'https://hc-ping.com/x';
+    const resolved: Settings = { ...settings, heartbeat_url: stored };
+    const { input, save } = view({ ...settings, heartbeat_url: stored }, ok(resolved));
+    fireEvent.change(input, { target: { value: 'https://hc-ping.com:443/x' } });
+    expect(save).toBeEnabled();
+    fireEvent.click(save);
+    await waitFor(() => expect(input.value).toBe(stored));
+    expect(save).toBeDisabled();
+  });
+
+  it('guards Save against a second submit while onSave is in flight', async () => {
+    let resolve!: (value: Settings) => void;
+    const pending = new Promise<Settings>((res) => { resolve = res; });
+    const onSave = vi.fn().mockReturnValue(pending);
+    const { input, save } = view(settings, onSave);
+    fireEvent.change(input, { target: { value: URL } });
+    fireEvent.click(save);
+    expect(save).toBeDisabled();
+    fireEvent.submit(input.closest('form') as HTMLFormElement);
+    expect(onSave).toHaveBeenCalledTimes(1);
+    resolve({ ...settings, heartbeat_url: URL });
+    await waitFor(() => expect(save).toBeEnabled());
   });
 });

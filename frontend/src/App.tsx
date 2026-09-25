@@ -290,6 +290,7 @@ export default function App() {
         const next = await api.putSettings(patch);
         setSettings(next);
         pushToast('Settings saved', 'success');
+        return next;
       } catch (err) {
         pushToast('Failed to save settings', 'error');
         throw err;
