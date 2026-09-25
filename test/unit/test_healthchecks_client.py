@@ -54,11 +54,12 @@ def test_checks_url_joins_after_stripping_the_trailing_slash() -> None:
 
 @pytest.mark.asyncio
 async def test_list_checks_sends_the_key_header_with_a_timeout() -> None:
-    """The request carries X-Api-Key and a 10 s total timeout."""
+    """The request carries X-Api-Key, no redirects and a 10 s total timeout."""
     session = _session(body={'checks': []})
     _, cs = await _call(session)
     session.get.assert_called_once_with(
-        'https://healthchecks.io/api/v3/checks/', headers={'X-Api-Key': KEY})
+        'https://healthchecks.io/api/v3/checks/', headers={'X-Api-Key': KEY},
+        allow_redirects=False)
     assert cs.call_args.kwargs['timeout'].total == 10
 
 
@@ -92,6 +93,7 @@ async def test_list_checks_accepts_an_empty_project() -> None:
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(('status', 'message', 'field'), [
+    (301, 'HTTP 301', 'base_url'),
     (401, '401 Unauthorized — API key invalid or revoked', 'api_key'),
     (429, '429 Rate limited', 'base_url'),
     (404, 'HTTP 404', 'base_url'),

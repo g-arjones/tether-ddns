@@ -94,7 +94,8 @@ async def list_checks(base_url: str, api_key: str) -> list[RemoteCheck]:
     try:
         async with aiohttp.ClientSession(timeout=_TIMEOUT) as session:
             async with session.get(
-                    checks_url(base_url), headers={'X-Api-Key': api_key}) as resp:
+                    checks_url(base_url), headers={'X-Api-Key': api_key},
+                    allow_redirects=False) as resp:
                 _raise_for_status(resp.status)
                 body: object = await resp.json(content_type=None)
     except (aiohttp.ClientError, TimeoutError) as exc:
