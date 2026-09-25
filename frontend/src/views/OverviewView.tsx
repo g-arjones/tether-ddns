@@ -12,7 +12,7 @@ import { IconGlobe, IconCheckCircle, IconAlertTriangle } from '../components/ico
 export interface OverviewViewProps {
   snapshot: StateSnapshot | null;
   domains: DomainConfig[];
-  projects?: HealthchecksProject[];
+  projects: HealthchecksProject[];
   settings: Settings | null;
   incidentWindow: IncidentWindow | null;
   dayBuckets: DayBucket[];
@@ -23,7 +23,7 @@ export interface OverviewViewProps {
 
 export function OverviewView(
   {
-    snapshot, domains, projects = [], settings, incidentWindow, dayBuckets, nowMs, onSelectDay, onPing,
+    snapshot, domains, projects, settings, incidentWindow, dayBuckets, nowMs, onSelectDay, onPing,
   }: OverviewViewProps,
 ): JSX.Element {
   // Null-safe defaults
