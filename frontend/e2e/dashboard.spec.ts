@@ -187,7 +187,8 @@ test('the keyboard cannot escape an open modal into the rail or topbar', async (
 
 test('recovers from a dropped connection and does not duplicate logs', async ({ page }) => {
   let live = true;
-  let activeRoute: WebSocketRoute | null = null;
+  // Assigned inside the route callback, which TS flow analysis cannot see.
+  let activeRoute = null as WebSocketRoute | null;
 
   await page.routeWebSocket('**/api/ws', (route) => {
     if (!live) {
