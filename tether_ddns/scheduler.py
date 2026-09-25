@@ -118,6 +118,14 @@ class Scheduler:
             self._scheduler.remove_job(  # pyright: ignore[reportUnknownMemberType]
                 healthchecks_job_id(project_id))
 
+    def nudge_healthchecks(self) -> None:
+        """Bring every project's poll job forward to run immediately."""
+        now = datetime.now(timezone.utc)
+        for project in self._ctx.config.healthchecks:
+            with contextlib.suppress(JobLookupError):
+                self._scheduler.modify_job(  # pyright: ignore[reportUnknownMemberType]
+                    healthchecks_job_id(project.id), next_run_time=now)
+
     def run_startup_check(self) -> None:
         """Schedule one immediate, non-blocking check cycle at startup."""
         self._scheduler.add_job(  # pyright: ignore[reportUnknownMemberType]
@@ -163,14 +171,14 @@ class Scheduler:
         reach = await self._reachability.check()
         view = self._ctx.incidents.record(reach)
         if state.record_reachability(reach, view):
-            if reach.online:
-                await self._healthchecks.poll_all()
-            else:
+            if not reach.online:
                 self._healthchecks.mark_offline()
             await self._dispatch.dispatch(
                 'reachability_changed',
                 ReachabilityChangedEvent(
                     online=reach.online, was_online=was_online))
+            if reach.online:
+                self.nudge_healthchecks()
 
     async def sync_ips(self) -> None:
         """Delegate to SyncService, then republish the next fire time."""

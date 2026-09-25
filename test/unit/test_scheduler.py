@@ -1191,44 +1191,76 @@ def test_unschedule_healthchecks_tolerates_a_missing_job() -> None:
         sched.unschedule_healthchecks('a')
 
 
-def _hc_sched(online: bool) -> tuple[scheduler.Scheduler, MagicMock, ReachabilityProbe]:
+def _hc_sched(
+    online: bool, cfg: AppConfig | None = None,
+) -> tuple[scheduler.Scheduler, MagicMock, ReachabilityProbe, AsyncMock]:
     """Build a scheduler with a mocked healthchecks service and a given link state."""
     state = RuntimeState()
     state.online = online
-    ctx = _ctx(AppConfig(), state)
+    ctx = _ctx(cfg if cfg is not None else AppConfig(), state)
     hc = MagicMock(spec=HealthchecksService)
     probe = ReachabilityProbe()
+    disp = AsyncMock()
     sched = scheduler.Scheduler(
-        ctx, SyncService(ctx, AsyncMock()), AsyncMock(), probe, HeartbeatService(ctx),
+        ctx, SyncService(ctx, AsyncMock()), disp, probe, HeartbeatService(ctx),
         healthchecks=hc)
-    return sched, hc, probe
+    return sched, hc, probe, disp
 
 
 @pytest.mark.asyncio
 async def test_going_offline_marks_healthchecks_offline() -> None:
-    """An online-to-offline transition flags projects without polling."""
-    sched, hc, probe = _hc_sched(online=True)
-    with patch.object(probe, 'check', new=AsyncMock(return_value=_online(False))):
-        await sched.check_reachability()
+    """An online-to-offline transition marks projects offline and nudges no jobs."""
+    sched, hc, probe, disp = _hc_sched(online=True)
+    fake = MagicMock()
+    with patch.object(sched, '_scheduler', fake):
+        with patch.object(probe, 'check', new=AsyncMock(return_value=_online(False))):
+            await sched.check_reachability()
     hc.mark_offline.assert_called_once_with()
-    hc.poll_all.assert_not_awaited()
+    fake.modify_job.assert_not_called()
+    disp.dispatch.assert_awaited_once()
 
 
 @pytest.mark.asyncio
-async def test_coming_online_polls_every_project() -> None:
-    """An offline-to-online transition polls every project at once."""
-    sched, hc, probe = _hc_sched(online=False)
-    with patch.object(probe, 'check', new=AsyncMock(return_value=_online(True))):
-        await sched.check_reachability()
-    hc.poll_all.assert_awaited_once_with()
+async def test_coming_online_nudges_every_project_job() -> None:
+    """An offline-to-online transition dispatches first, then nudges every job forward."""
+    cfg = AppConfig(healthchecks=[
+        HealthchecksProject(id='a', name='A', api_key='k'),
+        HealthchecksProject(id='b', name='B', api_key='k'),
+    ])
+    sched, hc, probe, disp = _hc_sched(online=False, cfg=cfg)
+    fake = MagicMock()
+    with patch.object(sched, '_scheduler', fake):
+        with patch.object(probe, 'check', new=AsyncMock(return_value=_online(True))):
+            await sched.check_reachability()
+    assert [c.args[0] for c in fake.modify_job.call_args_list] == [
+        'healthchecks:a', 'healthchecks:b']
+    for call in fake.modify_job.call_args_list:
+        next_run_time = call.kwargs['next_run_time']
+        assert isinstance(next_run_time, datetime) and next_run_time.tzinfo is not None
     hc.mark_offline.assert_not_called()
+    disp.dispatch.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_coming_online_tolerates_a_missing_job() -> None:
+    """A project whose job vanished mid-flight does not abort the nudge or the dispatch."""
+    cfg = AppConfig(healthchecks=[HealthchecksProject(id='a', name='A', api_key='k')])
+    sched, _, probe, disp = _hc_sched(online=False, cfg=cfg)
+    fake = MagicMock()
+    fake.modify_job.side_effect = JobLookupError('healthchecks:a')
+    with patch.object(sched, '_scheduler', fake):
+        with patch.object(probe, 'check', new=AsyncMock(return_value=_online(True))):
+            await sched.check_reachability()  # must not raise
+    disp.dispatch.assert_awaited_once()
 
 
 @pytest.mark.asyncio
 async def test_steady_reachability_leaves_healthchecks_alone() -> None:
     """No transition, no healthchecks side effects."""
-    sched, hc, probe = _hc_sched(online=True)
-    with patch.object(probe, 'check', new=AsyncMock(return_value=_online(True))):
-        await sched.check_reachability()
-    hc.poll_all.assert_not_awaited()
+    sched, hc, probe, _ = _hc_sched(online=True)
+    fake = MagicMock()
+    with patch.object(sched, '_scheduler', fake):
+        with patch.object(probe, 'check', new=AsyncMock(return_value=_online(True))):
+            await sched.check_reachability()
+    fake.modify_job.assert_not_called()
     hc.mark_offline.assert_not_called()
