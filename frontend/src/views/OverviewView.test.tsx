@@ -31,6 +31,7 @@ describe('OverviewView', () => {
         dayBuckets={buckets}
         nowMs={NOW_MS}
         onSelectDay={vi.fn()}
+        onPing={vi.fn()}
       />,
     );
     expect(screen.getByText('Total Domains')).toBeInTheDocument();
@@ -48,8 +49,27 @@ describe('OverviewView', () => {
         dayBuckets={buckets}
         nowMs={NOW_MS}
         onSelectDay={vi.fn()}
+        onPing={vi.fn()}
       />,
     );
     expect(screen.getByText('Total Domains')).toBeInTheDocument();
+  });
+
+  it('shows the Heartbeat card in place of Update Interval', () => {
+    render(
+      <OverviewView
+        snapshot={snapshot}
+        domains={[]}
+        settings={snapshot.settings ?? null}
+        incidentWindow={null}
+        dayBuckets={buckets}
+        nowMs={NOW_MS}
+        onSelectDay={vi.fn()}
+        onPing={vi.fn()}
+      />,
+    );
+    expect(screen.queryByText('Update Interval')).toBeNull();
+    expect(screen.getByText('Heartbeat')).toBeInTheDocument();
+    expect(screen.getByText('Off')).toBeInTheDocument();
   });
 });

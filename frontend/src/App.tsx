@@ -231,6 +231,14 @@ export default function App() {
     [pushToast],
   );
 
+  const handlePing = useCallback(async () => {
+    try {
+      await api.pingHeartbeat();
+    } catch {
+      pushToast('Ping request failed', 'error');
+    }
+  }, [pushToast]);
+
   const handleDelete = useCallback(
     async (id: string) => {
       const d = domains.find((x) => x.id === id);
@@ -332,6 +340,7 @@ export default function App() {
                 dayBuckets={dayBuckets}
                 nowMs={nowMs}
                 onSelectDay={setSelectedDayStart}
+                onPing={handlePing}
               />
             )}
             {activeView === 'domains' && (

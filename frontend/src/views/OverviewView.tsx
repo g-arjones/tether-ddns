@@ -1,11 +1,12 @@
 import type { JSX } from 'react';
 import type { StateSnapshot, Settings, DomainConfig, IncidentWindow } from '../types';
 import { StatCard } from '../components/StatCard';
+import { HeartbeatCard } from '../components/HeartbeatCard';
 import { IpReadoutPanel } from '../components/IpReadoutPanel';
 import { ReachabilityPanel } from '../components/ReachabilityPanel';
 import { RecordHealthPanel } from '../components/RecordHealthPanel';
-import { formatInterval, type DayBucket } from '../utils';
-import { IconGlobe, IconCheckCircle, IconAlertTriangle, IconClock } from '../components/icons';
+import type { DayBucket } from '../utils';
+import { IconGlobe, IconCheckCircle, IconAlertTriangle } from '../components/icons';
 
 export interface OverviewViewProps {
   snapshot: StateSnapshot | null;
@@ -15,11 +16,12 @@ export interface OverviewViewProps {
   dayBuckets: DayBucket[];
   nowMs: number;
   onSelectDay: (dayStart: number) => void;
+  onPing: () => Promise<void>;
 }
 
 export function OverviewView(
   {
-    snapshot, domains, settings, incidentWindow, dayBuckets, nowMs, onSelectDay,
+    snapshot, domains, settings, incidentWindow, dayBuckets, nowMs, onSelectDay, onPing,
   }: OverviewViewProps,
 ): JSX.Element {
   // Null-safe defaults
@@ -51,8 +53,6 @@ export function OverviewView(
     if (runtime?.status === 'pending' || runtime?.status === 'error') needsUpdate += 1;
   }
 
-  const intervalStr = checkInterval ? formatInterval(checkInterval) : '—';
-
   // Icons from mockup
   const globeIcon = <IconGlobe />;
 
@@ -60,15 +60,18 @@ export function OverviewView(
 
   const warnIcon = <IconAlertTriangle />;
 
-  const clockIcon = <IconClock />;
-
   return (
     <>
       <div className="stats">
         <StatCard label="Total Domains" value={total} sub={`Across ${providers} ${providers === 1 ? 'provider' : 'providers'}`} tint="tint-accent" icon={globeIcon} />
         <StatCard label="Synced" value={synced} sub="Records up to date" tint="tint-ok" icon={checkIcon} />
         <StatCard label="Needs Update" value={needsUpdate} sub="Pending or errored" tint={needsUpdate > 0 ? 'tint-warn' : 'tint-ok'} icon={warnIcon} />
-        <StatCard label="Update Interval" value={intervalStr} sub="Check for IP changes" tint="tint-accent" icon={clockIcon} />
+        <HeartbeatCard
+          status={snapshot?.heartbeat ?? null}
+          url={settings?.heartbeat_url ?? null}
+          interval={settings?.heartbeat_interval ?? 300}
+          onPing={onPing}
+        />
       </div>
       <div className="ov-grid">
         <IpReadoutPanel ipv4={ipv4} ipv6={ipv6} ipv4ChangedAt={ipv4ChangedAt} ipv6ChangedAt={ipv6ChangedAt} ipSource={ipSource} />
