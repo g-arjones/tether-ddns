@@ -8,7 +8,9 @@ from tether_ddns.incidents import Incident, IncidentView
 from tether_ddns.reachability import ReachabilityResult, ResolverProbe
 from tether_ddns.runtime import (
     CheckRecord,
+    CheckStatus,
     HeartbeatStatus,
+    ProjectRuntime,
     REACHABILITY_HISTORY_SIZE,
     RuntimeState,
 )
@@ -533,3 +535,70 @@ def test_heartbeat_is_not_persisted() -> None:
     state = RuntimeState()
     state.set_heartbeat(_hb())
     assert 'heartbeat' not in state.model_dump_json()
+
+
+def _check_status() -> CheckStatus:
+    """Return a live status for one check."""
+    return CheckStatus(
+        name='Backup', slug='backup', status='up', last_ping=10.0, next_ping=None,
+        timeout=86400, schedule=None, tz=None, grace=3600)
+
+
+def test_set_project_runtime_emits_it_in_the_snapshot() -> None:
+    """Recording a project's poll result streams it to listeners."""
+    state = RuntimeState()
+    seen: list[dict[str, object]] = []
+    state.add_listener(seen.append)
+    state.set_project_runtime(
+        'p1', ProjectRuntime(polled_at=5.0, ok=True, checks={'k1': _check_status()}))
+    snap = cast('dict[str, dict[str, object]]', seen[-1]['healthchecks'])
+    assert snap['p1']['ok'] is True
+    assert snap['p1']['checks'] == {'k1': _check_status().model_dump()}
+
+
+def test_snapshot_healthchecks_defaults_to_empty() -> None:
+    """A fresh state reports no project runtimes."""
+    assert RuntimeState().snapshot()['healthchecks'] == {}
+
+
+def test_set_healthchecks_offline_creates_and_flags_entries() -> None:
+    """Going offline flags known projects and seeds entries for unpolled ones."""
+    state = RuntimeState()
+    state.set_project_runtime('p1', ProjectRuntime(polled_at=5.0, ok=True))
+    seen: list[dict[str, object]] = []
+    state.add_listener(seen.append)
+    state.set_healthchecks_offline(['p1', 'p2'])
+    assert state.healthchecks['p1'].offline is True
+    assert state.healthchecks['p1'].ok is True
+    assert state.healthchecks['p2'] == ProjectRuntime(offline=True)
+    assert len(seen) == 1
+
+
+def test_set_healthchecks_offline_is_silent_when_nothing_changes() -> None:
+    """Re-flagging already-offline projects emits nothing."""
+    state = RuntimeState()
+    state.set_healthchecks_offline(['p1'])
+    seen: list[dict[str, object]] = []
+    state.add_listener(seen.append)
+    state.set_healthchecks_offline(['p1'])
+    state.set_healthchecks_offline([])
+    assert seen == []
+
+
+def test_drop_project_runtime_removes_and_emits_once() -> None:
+    """Dropping a project runtime emits; dropping an absent one does not."""
+    state = RuntimeState()
+    state.set_project_runtime('p1', ProjectRuntime())
+    seen: list[dict[str, object]] = []
+    state.add_listener(seen.append)
+    state.drop_project_runtime('p1')
+    state.drop_project_runtime('p1')
+    assert 'p1' not in state.healthchecks
+    assert len(seen) == 1
+
+
+def test_healthchecks_runtime_is_not_persisted() -> None:
+    """Project runtimes are excluded from the persisted payload."""
+    state = RuntimeState()
+    state.set_project_runtime('p1', ProjectRuntime(ok=True))
+    assert 'healthchecks' not in state.model_dump_json()
