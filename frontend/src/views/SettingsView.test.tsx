@@ -1,8 +1,9 @@
 import { render, screen, fireEvent } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { SettingsView } from './SettingsView';
+import type { Settings } from '../types';
 
-const settings = { check_interval: 300, ip_source: 'ipify', update_on_startup: true, retry_on_failure: true, notify: true };
+const settings: Settings = { check_interval: 300, ip_source: 'ipify', update_on_startup: true, retry_on_failure: true, notify: true, heartbeat_url: null, heartbeat_interval: 300 };
 
 describe('SettingsView', () => {
   it('marks the active interval chip and saves on change', () => {

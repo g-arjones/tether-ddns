@@ -2,7 +2,11 @@ export interface Provider { key: string; display_name: string; schema: Record<st
 export interface HookEventDef { key: string; label: string; }
 export interface HookDef { key: string; display_name: string; events: HookEventDef[]; schema: Record<string, unknown>; }
 export interface DomainState { id: string; status: string; ip: string | null; updated: number | null; message: string; }
-export interface Settings { check_interval: number; ip_source: string; update_on_startup: boolean; retry_on_failure: boolean; notify: boolean; }
+export interface Settings {
+  check_interval: number; ip_source: string; update_on_startup: boolean; retry_on_failure: boolean; notify: boolean;
+  heartbeat_url: string | null; heartbeat_interval: number;
+}
+export interface HeartbeatStatus { at: number; ok: boolean; skipped: boolean; error: string | null; }
 export interface LogEntry { time: number; level: string; logger: string; message: string; }
 
 export interface ResolverProbe { ip: string; ok: boolean; latency_ms: number | null; }
@@ -41,6 +45,7 @@ export interface StateSnapshot {
   ipv6_changed_at: number | null;
   online: boolean;
   next_check_at: number | null;
+  heartbeat?: HeartbeatStatus | null;
   reachability: Reachability;
   domains: DomainState[];
   // Present on the REST /api/state payload; absent from the /api/ws state

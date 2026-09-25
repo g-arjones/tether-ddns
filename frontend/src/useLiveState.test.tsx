@@ -51,6 +51,8 @@ const snapshot: StateSnapshot = {
     update_on_startup: true,
     retry_on_failure: true,
     notify: false,
+    heartbeat_url: null,
+    heartbeat_interval: 300,
   },
   logs: [],
 };
