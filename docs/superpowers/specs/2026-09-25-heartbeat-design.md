@@ -98,8 +98,9 @@ A context-owning service, like `SyncService` and `DispatchService`.
      `ok=True, skipped=False, error=None`. Nothing is logged.
   4. `except Exception` is the **single handling point**. It calls
      `_log.exception('Heartbeat to %s failed', url)` and records
-     `ok=False, skipped=False, error=_describe(exc)`.
-- `_describe(exc)` returns `f'{type(exc).__name__}: {exc}'`, or just the type name when
+     `ok=False, skipped=False, error=describe_exception(exc)`.
+- `describe_exception(exc)` (in `logging_setup.py`, shared with §6) returns
+  `f'{type(exc).__name__}: {exc}'`, or just the type name when
   `str(exc)` is empty (for example `TimeoutError`).
 - `CancelledError` is not an `Exception`, so shutdown cancels an in-flight ping cleanly.
 - A manual ping can overlap a scheduled one. Each only overwrites `runtime.heartbeat`,
@@ -129,9 +130,9 @@ A context-owning service, like `SyncService` and `DispatchService`.
 
 `emit` currently appends `f': {type(exc).__name__}: {exc}'`, which renders
 `...: TimeoutError: ` for exceptions with no message. This affects every logged
-exception, hooks included. The fix appends `': ' + type name`, followed by
-`': ' + message` only when the message is non-empty. Records without `exc_info` are
-unchanged.
+exception, hooks included. The fix formats the exception with the shared
+`describe_exception` helper (§3), so the result is `msg: Type` or `msg: Type: text`.
+Records without `exc_info` are unchanged.
 
 ### 7. Frontend types and API — `types.ts`, `api.ts`, `App.tsx`
 
@@ -145,8 +146,10 @@ unchanged.
   non-OK response has empty `fieldErrors`. The existing message format
   (`${url} -> ${status}`) is kept, so current callers behave the same.
 - `pingHeartbeat()` calls `POST /api/heartbeat/ping`.
-- `handleSaveSettings` keeps its error toast and **rethrows** the error. Existing chip
-  and switch callers ignore the returned promise with `void`.
+- `handleSaveSettings` keeps its error toast and **rethrows** the error. Existing chip,
+  switch and select callers go through a small `fire()` helper that adds
+  `.catch(() => undefined)`. A bare `void` would leave an unhandled rejection, and App
+  has already shown the toast.
 
 ### 8. Overview — `components/HeartbeatCard.tsx` (new)
 
@@ -156,7 +159,8 @@ unchanged.
   plain string, and its icon slot is a tinted `<span>`, not a button.
 - Top-right: `IconButton variant="act" label="Ping now"` with a new `IconActivity`
   (pulse line) in `icons.tsx`. While the request is pending it adds `.spin` and is
-  disabled. The result arrives through the ws.
+  disabled. This needs a new optional `disabled` prop on `IconButton`. The result arrives
+  through the ws.
 - Re-renders every second with its own timer, like `RecordHealthPanel`, so "42s ago"
   counts up.
 - Props: `status: HeartbeatStatus | null`, `url: string | null`,
@@ -185,10 +189,13 @@ The monospace host is `new URL(url).host` only. The full URL appears only in Set
   - Save sends `{heartbeat_url: draft.trim() || null}`. On `ApiError`,
     `fieldErrors.heartbeat_url` is shown as `.field-help` in the error colour, with the
     input in an error-border state, until the draft changes. On success, the draft
-    resets to the returned, normalised value.
+    resets to the returned, normalised value. The panel is keyed on the saved URL, so a
+    changed saved value remounts it with a fresh draft.
 - **Interval** chips: `30 s / 1 min / 5 min / 15 min` (30/60/300/900). They save
   immediately on click, like the check-interval chips. They are dimmed (`opacity`) while
-  no URL is saved, but still clickable.
+  no URL is saved, but still clickable. Both chip rows get `role="group"` with an
+  `aria-label` (`Check interval` / `Heartbeat interval`), because `1 min` and `5 min`
+  appear in both.
 - No status line in Settings. Status lives on the Overview card only.
 
 ## Error handling summary
