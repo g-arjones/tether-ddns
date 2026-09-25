@@ -12,6 +12,7 @@ from tether_ddns.incidents import Incident, IncidentView
 from tether_ddns.reachability import ReachabilityResult, ResolverProbe
 
 Status = Literal['synced', 'pending', 'error', 'updating']
+CheckState = Literal['new', 'up', 'grace', 'down', 'paused']
 Listener = Callable[[dict[str, object]], None]
 
 REACHABILITY_HISTORY_SIZE = 60
@@ -32,6 +33,30 @@ class HeartbeatStatus(BaseModel):
     ok: bool
     skipped: bool
     error: str | None = None
+
+
+class CheckStatus(BaseModel):
+    """Live state of one fetched healthchecks.io check (epoch-second timestamps)."""
+
+    name: str
+    slug: str = ''
+    status: CheckState
+    last_ping: float | None = None
+    next_ping: float | None = None
+    timeout: int | None = None
+    schedule: str | None = None
+    tz: str | None = None
+    grace: int
+
+
+class ProjectRuntime(BaseModel):
+    """Outcome of a project's latest poll; ``checks`` is from the last successful one."""
+
+    polled_at: float | None = None
+    ok: bool = False
+    error: str | None = None
+    offline: bool = False
+    checks: dict[str, CheckStatus] = Field(default_factory=dict[str, CheckStatus])
 
 
 def freshness(assigned_ip: str | None, current_ip: str | None) -> Status:
@@ -78,6 +103,8 @@ class RuntimeState(BaseModel):
         default_factory=list[ResolverProbe], exclude=True)
     next_check_at: float | None = Field(default=None, exclude=True)
     heartbeat: HeartbeatStatus | None = Field(default=None, exclude=True)
+    healthchecks: dict[str, ProjectRuntime] = Field(
+        default_factory=dict[str, ProjectRuntime], exclude=True)
     ipv4_changed_at: float | None = None
     ipv6_changed_at: float | None = None
 
@@ -205,6 +232,30 @@ class RuntimeState(BaseModel):
         self.heartbeat = status
         self._emit()
 
+    def set_project_runtime(self, project_id: str, runtime: ProjectRuntime) -> None:
+        """Record a project's latest poll outcome and notify listeners."""
+        self.healthchecks[project_id] = runtime
+        self._emit()
+
+    def set_healthchecks_offline(self, project_ids: list[str]) -> None:
+        """Flag each project as paused by an outage; notify only on change."""
+        changed = False
+        for project_id in project_ids:
+            current = self.healthchecks.get(project_id)
+            if current is None:
+                self.healthchecks[project_id] = ProjectRuntime(offline=True)
+                changed = True
+            elif not current.offline:
+                current.offline = True
+                changed = True
+        if changed:
+            self._emit()
+
+    def drop_project_runtime(self, project_id: str) -> None:
+        """Forget a deleted project's runtime, notifying if it existed."""
+        if self.healthchecks.pop(project_id, None) is not None:
+            self._emit()
+
     def set_status(
         self, domain_id: str, status: Status, *, ip: str | None = None, message: str = '',
     ) -> Status | None:
@@ -258,6 +309,8 @@ class RuntimeState(BaseModel):
                 'latest': [p.model_dump() for p in self.reachability_latest],
             },
             'domains': [d.model_dump() for d in self.domains.values()],
+            'healthchecks': {
+                pid: rt.model_dump() for pid, rt in self.healthchecks.items()},
         }
 
     def _emit(self) -> None:

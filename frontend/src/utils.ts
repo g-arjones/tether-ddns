@@ -1,4 +1,4 @@
-import type { Incident } from './types';
+import type { CheckState, HealthcheckRef, Incident, ProjectRuntime } from './types';
 
 export type DaySeverity = 'healthy' | 'degraded' | 'outage';
 
@@ -156,4 +156,81 @@ export function formatCountdown(nextCheckAt: number | null, now: number = Date.n
   const m = Math.floor(remain / 60);
   const s = remain % 60;
   return `${m}:${String(s).padStart(2, '0')}`;
+}
+
+export type CheckDisplay = CheckState | 'gone' | 'unknown';
+
+export const DISPLAY_LABEL: Record<CheckDisplay, string> = {
+  up: 'up', grace: 'late', down: 'down', paused: 'paused', new: 'new', gone: 'gone', unknown: 'unknown',
+};
+
+export function projectUnknown(runtime: ProjectRuntime | undefined): boolean {
+  return !runtime || runtime.polled_at === null || runtime.offline || !runtime.ok;
+}
+
+export function checkDisplayStatus(runtime: ProjectRuntime | undefined, key: string): CheckDisplay {
+  if (projectUnknown(runtime)) return 'unknown';
+  return runtime?.checks[key]?.status ?? 'gone';
+}
+
+export interface SummaryPart { status: CheckDisplay; n: number; label: string; }
+
+const SUMMARY_ORDER: CheckDisplay[] = ['up', 'grace', 'down', 'paused', 'new', 'gone'];
+
+export function projectSummary(
+  refs: HealthcheckRef[],
+  runtime: ProjectRuntime | undefined,
+): { unknown: boolean; parts: SummaryPart[] } {
+  if (projectUnknown(runtime)) return { unknown: true, parts: [] };
+  const counts = new Map<CheckDisplay, number>();
+  for (const ref of refs) {
+    const display = checkDisplayStatus(runtime, ref.key);
+    counts.set(display, (counts.get(display) ?? 0) + 1);
+  }
+  const parts = SUMMARY_ORDER
+    .filter((s) => counts.has(s))
+    .map((s) => ({ status: s, n: counts.get(s) ?? 0, label: DISPLAY_LABEL[s] }));
+  return { unknown: false, parts };
+}
+
+const WEEK = 604800;
+const DURATION_UNITS: [number, string][] = [[86400, 'day'], [3600, 'hour'], [60, 'minute'], [1, 'second']];
+const plural = (n: number, unit: string) => `${n} ${unit}${n === 1 ? '' : 's'}`;
+
+// Healthchecks-style period: whole weeks read as weeks, anything else as at most two units.
+export function humanDuration(seconds: number): string {
+  const total = Math.max(0, Math.round(seconds));
+  if (total > 0 && total % WEEK === 0) return plural(total / WEEK, 'week');
+  const parts: string[] = [];
+  let rest = total;
+  for (const [size, unit] of DURATION_UNITS) {
+    const n = Math.floor(rest / size);
+    if (n > 0) {
+      parts.push(plural(n, unit));
+      rest -= n * size;
+    }
+    if (parts.length === 2) break;
+  }
+  return parts.length > 0 ? parts.join(' ') : '0 seconds';
+}
+
+const AGO_UNITS: [number, string, string][] = [
+  [2592000, 'month', 'mo'], [WEEK, 'week', 'w'], [86400, 'day', 'd'],
+  [3600, 'hour', 'h'], [60, 'minute', 'm'], [1, 'second', 's'],
+];
+
+export function ago(ts: number | null, nowMs: number, short = false): string {
+  if (ts === null) return '—';
+  const elapsed = Math.max(0, Math.floor(nowMs / 1000 - ts));
+  const [size, unit, abbr] = AGO_UNITS.find(([s]) => elapsed >= s) ?? AGO_UNITS[AGO_UNITS.length - 1];
+  const n = Math.floor(elapsed / size);
+  return short ? `${n}${abbr} ago` : `${plural(n, unit)} ago`;
+}
+
+export function hostOf(url: string): string {
+  try {
+    return new URL(url).host;
+  } catch {
+    return url;
+  }
 }

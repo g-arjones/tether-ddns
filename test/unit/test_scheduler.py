@@ -6,10 +6,13 @@ from tempfile import mkdtemp
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
+from apscheduler.jobstores.base import JobLookupError  # pyright: ignore[reportMissingTypeStubs]
+from apscheduler.util import undefined  # pyright: ignore[reportMissingTypeStubs]
+
 import pytest
 
 from tether_ddns import scheduler
-from tether_ddns.config_store import AppConfig, DomainConfig, HookConfig
+from tether_ddns.config_store import AppConfig, DomainConfig, HealthchecksProject, HookConfig
 from tether_ddns.context import AppContext
 from tether_ddns.hooks.base import (
     IpChangedEvent, ReachabilityChangedEvent, load_hooks)
@@ -19,6 +22,7 @@ from tether_ddns.reachability import (
     ReachabilityProbe, ReachabilityResult, ResolverProbe)
 from tether_ddns.runtime import RuntimeState
 from tether_ddns.services.dispatch import DispatchService
+from tether_ddns.services.healthchecks import HealthchecksService
 from tether_ddns.services.heartbeat import HeartbeatService
 from tether_ddns.services.incidents import IncidentRecorder
 from tether_ddns.services.sync import SyncService
@@ -1118,3 +1122,145 @@ def test_reschedule_heartbeat_run_now_sets_next_run_time() -> None:
     next_run_time = call.kwargs['next_run_time']
     assert isinstance(next_run_time, datetime)
     assert next_run_time.tzinfo is not None
+
+
+def _hc_calls(fake: MagicMock) -> list[Any]:
+    """Return the add_job calls that registered healthchecks jobs."""
+    return [
+        c for c in fake.add_job.call_args_list
+        if str(c.kwargs.get('id', '')).startswith('healthchecks:')]
+
+
+def test_start_schedules_every_healthchecks_project_now() -> None:
+    """start() adds one immediate interval job per project."""
+    cfg = AppConfig(healthchecks=[
+        HealthchecksProject(id='a', name='A', api_key='k', poll_interval=120),
+        HealthchecksProject(id='b', name='B', api_key='k'),
+    ])
+    sched = _sched(cfg, RuntimeState())
+    fake = MagicMock()
+    with patch.object(sched, '_scheduler', fake):
+        sched.start()
+    calls = _hc_calls(fake)
+    assert [c.kwargs['id'] for c in calls] == ['healthchecks:a', 'healthchecks:b']
+    assert calls[0].args[1] == 'interval'
+    assert calls[0].kwargs['seconds'] == 120
+    assert calls[0].kwargs['args'] == ['a']
+    assert calls[0].kwargs['replace_existing'] is True
+    assert calls[0].kwargs['next_run_time'].tzinfo is not None
+
+
+def test_schedule_healthchecks_without_run_now_omits_next_run_time() -> None:
+    """Scheduling without run_now must not pause the job."""
+    sched = _sched(AppConfig(), RuntimeState())
+    fake = MagicMock()
+    with patch.object(sched, '_scheduler', fake):
+        sched.schedule_healthchecks(HealthchecksProject(id='a', name='A', api_key='k'))
+    [call] = _hc_calls(fake)
+    assert call.kwargs['next_run_time'] is undefined
+    assert call.kwargs['seconds'] == 300
+
+
+def test_schedule_healthchecks_run_now_fires_immediately() -> None:
+    """run_now passes an aware next_run_time."""
+    sched = _sched(AppConfig(), RuntimeState())
+    fake = MagicMock()
+    with patch.object(sched, '_scheduler', fake):
+        sched.schedule_healthchecks(
+            HealthchecksProject(id='a', name='A', api_key='k'), run_now=True)
+    [call] = _hc_calls(fake)
+    assert isinstance(call.kwargs['next_run_time'], datetime)
+    assert call.kwargs['next_run_time'].tzinfo is not None
+
+
+def test_unschedule_healthchecks_removes_the_job() -> None:
+    """Unscheduling removes the project's job by id."""
+    sched = _sched(AppConfig(), RuntimeState())
+    fake = MagicMock()
+    with patch.object(sched, '_scheduler', fake):
+        sched.unschedule_healthchecks('a')
+    fake.remove_job.assert_called_once_with('healthchecks:a')
+
+
+def test_unschedule_healthchecks_tolerates_a_missing_job() -> None:
+    """Unscheduling a job that does not exist is a no-op."""
+    sched = _sched(AppConfig(), RuntimeState())
+    fake = MagicMock()
+    fake.remove_job.side_effect = JobLookupError('healthchecks:a')
+    with patch.object(sched, '_scheduler', fake):
+        sched.unschedule_healthchecks('a')
+
+
+def _hc_sched(
+    online: bool, cfg: AppConfig | None = None,
+) -> tuple[scheduler.Scheduler, MagicMock, ReachabilityProbe, AsyncMock]:
+    """Build a scheduler with a mocked healthchecks service and a given link state."""
+    state = RuntimeState()
+    state.online = online
+    ctx = _ctx(cfg if cfg is not None else AppConfig(), state)
+    hc = MagicMock(spec=HealthchecksService)
+    probe = ReachabilityProbe()
+    disp = AsyncMock()
+    sched = scheduler.Scheduler(
+        ctx, SyncService(ctx, AsyncMock()), disp, probe, HeartbeatService(ctx),
+        healthchecks=hc)
+    return sched, hc, probe, disp
+
+
+@pytest.mark.asyncio
+async def test_going_offline_marks_healthchecks_offline() -> None:
+    """An online-to-offline transition marks projects offline and nudges no jobs."""
+    sched, hc, probe, disp = _hc_sched(online=True)
+    fake = MagicMock()
+    with patch.object(sched, '_scheduler', fake):
+        with patch.object(probe, 'check', new=AsyncMock(return_value=_online(False))):
+            await sched.check_reachability()
+    hc.mark_offline.assert_called_once_with()
+    fake.modify_job.assert_not_called()
+    disp.dispatch.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_coming_online_nudges_every_project_job() -> None:
+    """An offline-to-online transition dispatches first, then nudges every job forward."""
+    cfg = AppConfig(healthchecks=[
+        HealthchecksProject(id='a', name='A', api_key='k'),
+        HealthchecksProject(id='b', name='B', api_key='k'),
+    ])
+    sched, hc, probe, disp = _hc_sched(online=False, cfg=cfg)
+    fake = MagicMock()
+    with patch.object(sched, '_scheduler', fake):
+        with patch.object(probe, 'check', new=AsyncMock(return_value=_online(True))):
+            await sched.check_reachability()
+    assert [c.args[0] for c in fake.modify_job.call_args_list] == [
+        'healthchecks:a', 'healthchecks:b']
+    for call in fake.modify_job.call_args_list:
+        next_run_time = call.kwargs['next_run_time']
+        assert isinstance(next_run_time, datetime) and next_run_time.tzinfo is not None
+    hc.mark_offline.assert_not_called()
+    disp.dispatch.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_coming_online_tolerates_a_missing_job() -> None:
+    """A project whose job vanished mid-flight does not abort the nudge or the dispatch."""
+    cfg = AppConfig(healthchecks=[HealthchecksProject(id='a', name='A', api_key='k')])
+    sched, _, probe, disp = _hc_sched(online=False, cfg=cfg)
+    fake = MagicMock()
+    fake.modify_job.side_effect = JobLookupError('healthchecks:a')
+    with patch.object(sched, '_scheduler', fake):
+        with patch.object(probe, 'check', new=AsyncMock(return_value=_online(True))):
+            await sched.check_reachability()  # must not raise
+    disp.dispatch.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_steady_reachability_leaves_healthchecks_alone() -> None:
+    """No transition, no healthchecks side effects."""
+    sched, hc, probe, _ = _hc_sched(online=True)
+    fake = MagicMock()
+    with patch.object(sched, '_scheduler', fake):
+        with patch.object(probe, 'check', new=AsyncMock(return_value=_online(True))):
+            await sched.check_reachability()
+    fake.modify_job.assert_not_called()
+    hc.mark_offline.assert_not_called()

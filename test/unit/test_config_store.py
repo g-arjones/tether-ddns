@@ -5,7 +5,10 @@ from pydantic import ValidationError
 
 import pytest
 
-from tether_ddns.config_store import AppConfig, AppSettings, ConfigStore, DomainConfig
+from tether_ddns.config_store import (
+    AppConfig, AppSettings, ConfigStore, DomainConfig, HealthcheckRef,
+    HealthchecksProject,
+)
 
 
 def test_default_path_sits_in_the_home_dir(
@@ -75,3 +78,66 @@ def test_heartbeat_url_round_trips_as_string(tmp_path: Path) -> None:
     store.save(AppConfig.model_validate({'settings': {'heartbeat_url': URL}}))
     assert f'"heartbeat_url": "{URL}"' in store.path.read_text('utf-8')
     assert str(store.load().settings.heartbeat_url) == URL
+
+
+def test_config_without_healthchecks_loads_empty(tmp_path: Path) -> None:
+    """A config file written before healthchecks existed loads with no projects."""
+    path = tmp_path / 'cfg.json'
+    path.write_text('{"settings": {}, "domains": [], "hooks": []}', encoding='utf-8')
+    assert ConfigStore(path).load().healthchecks == []
+
+
+def test_healthchecks_project_defaults() -> None:
+    """A project defaults to healthchecks.io, a 5-minute poll and Overview visibility."""
+    project = HealthchecksProject(name='Homelab', api_key='k')
+    assert str(project.base_url) == 'https://healthchecks.io/'
+    assert project.poll_interval == 300
+    assert project.show_on_overview is True
+    assert project.fetched_at is None
+    assert project.checks == []
+    assert len(project.id) == 32
+
+
+@pytest.mark.parametrize('seconds', [60, 86400])
+def test_poll_interval_accepts_bounds(seconds: int) -> None:
+    """The poll interval accepts its inclusive bounds."""
+    project = HealthchecksProject(name='a', api_key='k', poll_interval=seconds)
+    assert project.poll_interval == seconds
+
+
+@pytest.mark.parametrize('seconds', [59, 86401])
+def test_poll_interval_rejects_out_of_range(seconds: int) -> None:
+    """The poll interval rejects values outside 60 s to 1 day."""
+    with pytest.raises(ValidationError):
+        HealthchecksProject(name='a', api_key='k', poll_interval=seconds)
+
+
+def test_project_base_url_rejects_non_http() -> None:
+    """Only http(s) base URLs are accepted."""
+    with pytest.raises(ValidationError):
+        HealthchecksProject(
+            name='a', api_key='k',
+            base_url='ftp://hc.example.lan',  # type: ignore[arg-type]
+        )
+
+
+@pytest.mark.parametrize('field', ['name', 'api_key'])
+def test_project_rejects_blank_text(field: str) -> None:
+    """Name and key must be non-blank after whitespace is stripped."""
+    data = {'name': 'a', 'api_key': 'k', field: '   '}
+    with pytest.raises(ValidationError):
+        HealthchecksProject.model_validate(data)
+
+
+def test_healthchecks_round_trip(tmp_path: Path) -> None:
+    """Projects and their fetched checks survive a save/load cycle."""
+    store = ConfigStore(tmp_path / 'cfg.json')
+    project = HealthchecksProject(
+        name='Homelab', api_key='secret',
+        base_url='https://hc.example.lan/sub',  # type: ignore[arg-type]
+        poll_interval=120, fetched_at=1.5,
+        checks=[HealthcheckRef(key='k1', name='Backup', slug='backup', visible=False)])
+    store.save(AppConfig(healthchecks=[project]))
+    loaded = store.load().healthchecks
+    assert loaded == [project]
+    assert str(loaded[0].base_url) == 'https://hc.example.lan/sub'

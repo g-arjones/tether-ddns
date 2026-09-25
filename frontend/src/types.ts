@@ -52,6 +52,46 @@ export interface StateSnapshot {
   // frame (settings are fetched separately; logs arrive as their own frames).
   settings?: Settings;
   logs?: LogEntry[];
+  // Optional: fixtures and older servers omit it — always read `snapshot?.healthchecks?.[id]`.
+  healthchecks?: Record<string, ProjectRuntime>;
+}
+
+export type CheckState = 'new' | 'up' | 'grace' | 'down' | 'paused';
+export interface HealthcheckRef { key: string; name: string; slug: string; visible: boolean; }
+export interface HealthchecksProject {
+  id: string;
+  name: string;
+  base_url: string;
+  api_key: string;
+  poll_interval: number;
+  show_on_overview: boolean;
+  fetched_at: number | null;
+  checks: HealthcheckRef[];
+}
+export interface HealthchecksInput {
+  name: string;
+  base_url: string;
+  api_key: string;
+  poll_interval: number;
+  show_on_overview?: boolean;
+}
+export interface CheckStatus {
+  name: string;
+  slug: string;
+  status: CheckState;
+  last_ping: number | null;
+  next_ping: number | null;
+  timeout: number | null;
+  schedule: string | null;
+  tz: string | null;
+  grace: number;
+}
+export interface ProjectRuntime {
+  polled_at: number | null;
+  ok: boolean;
+  error: string | null;
+  offline: boolean;
+  checks: Record<string, CheckStatus>;
 }
 
 export interface DomainConfig { id: string; hostname: string; provider: string; record_type: string; enabled: boolean; provider_config?: Record<string, unknown>; }

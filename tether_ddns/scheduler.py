@@ -1,22 +1,32 @@
 """APScheduler-driven periodic jobs delegating sync to SyncService."""
 from __future__ import annotations
 
+import contextlib
 from datetime import datetime, timezone
 
+from apscheduler.jobstores.base import JobLookupError  # pyright: ignore[reportMissingTypeStubs]
 from apscheduler.schedulers.asyncio import (  # pyright: ignore[reportMissingTypeStubs]
     AsyncIOScheduler,
 )
+from apscheduler.util import undefined  # pyright: ignore[reportMissingTypeStubs]
 
+from tether_ddns.config_store import HealthchecksProject
 from tether_ddns.context import AppContext
 from tether_ddns.hooks.base import ReachabilityChangedEvent
 from tether_ddns.reachability import ReachabilityProbe
 from tether_ddns.runtime import RuntimeState
 from tether_ddns.services.dispatch import DispatchService
+from tether_ddns.services.healthchecks import HealthchecksService
 from tether_ddns.services.heartbeat import HeartbeatService
 from tether_ddns.services.sync import SyncService
 
 REACHABILITY_INTERVAL_SECONDS = 30
 STATE_FLUSH_INTERVAL_SECONDS = 30
+
+
+def healthchecks_job_id(project_id: str) -> str:
+    """Return the scheduler job id for a healthchecks project."""
+    return f'healthchecks:{project_id}'
 
 
 class Scheduler:
@@ -25,7 +35,8 @@ class Scheduler:
     def __init__(
         self, ctx: AppContext, sync: SyncService,
         dispatch: DispatchService, reachability: ReachabilityProbe,
-        heartbeat: HeartbeatService,
+        heartbeat: HeartbeatService, *,
+        healthchecks: HealthchecksService | None = None,
     ) -> None:
         """Create an unstarted scheduler bound to its services."""
         self._scheduler = AsyncIOScheduler()
@@ -34,6 +45,8 @@ class Scheduler:
         self._dispatch = dispatch
         self._reachability = reachability
         self._heartbeat = heartbeat
+        self._healthchecks = (
+            healthchecks if healthchecks is not None else HealthchecksService(ctx))
         self._last_state_json: str | None = None
 
     def start(self) -> None:
@@ -54,6 +67,8 @@ class Scheduler:
             args=[], id='state-flush', replace_existing=True,
         )
         self.reschedule_heartbeat(run_now=True)
+        for project in self._ctx.config.healthchecks:
+            self.schedule_healthchecks(project, run_now=True)
         self._scheduler.start()
         self._publish_next_check(self._ctx.runtime)
 
@@ -85,6 +100,31 @@ class Scheduler:
                 seconds=self._ctx.config.settings.heartbeat_interval,
                 args=[], id='heartbeat', replace_existing=True,
             )
+
+    def schedule_healthchecks(
+        self, project: HealthchecksProject, *, run_now: bool = False,
+    ) -> None:
+        """(Re-)add a project's poll job; ``run_now`` fires the first tick at once."""
+        self._scheduler.add_job(  # pyright: ignore[reportUnknownMemberType]
+            self._healthchecks.poll, 'interval',
+            seconds=project.poll_interval, args=[project.id],
+            id=healthchecks_job_id(project.id), replace_existing=True,
+            next_run_time=datetime.now(timezone.utc) if run_now else undefined,
+        )
+
+    def unschedule_healthchecks(self, project_id: str) -> None:
+        """Remove a project's poll job if it exists."""
+        with contextlib.suppress(JobLookupError):
+            self._scheduler.remove_job(  # pyright: ignore[reportUnknownMemberType]
+                healthchecks_job_id(project_id))
+
+    def nudge_healthchecks(self) -> None:
+        """Bring every project's poll job forward to run immediately."""
+        now = datetime.now(timezone.utc)
+        for project in self._ctx.config.healthchecks:
+            with contextlib.suppress(JobLookupError):
+                self._scheduler.modify_job(  # pyright: ignore[reportUnknownMemberType]
+                    healthchecks_job_id(project.id), next_run_time=now)
 
     def run_startup_check(self) -> None:
         """Schedule one immediate, non-blocking check cycle at startup."""
@@ -131,10 +171,14 @@ class Scheduler:
         reach = await self._reachability.check()
         view = self._ctx.incidents.record(reach)
         if state.record_reachability(reach, view):
+            if not reach.online:
+                self._healthchecks.mark_offline()
             await self._dispatch.dispatch(
                 'reachability_changed',
                 ReachabilityChangedEvent(
                     online=reach.online, was_online=was_online))
+            if reach.online:
+                self.nudge_healthchecks()
 
     async def sync_ips(self) -> None:
         """Delegate to SyncService, then republish the next fire time."""

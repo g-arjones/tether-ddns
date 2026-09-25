@@ -29,6 +29,7 @@ from tether_ddns.reachability import ReachabilityProbe
 from tether_ddns.runtime import RuntimeState
 from tether_ddns.scheduler import Scheduler
 from tether_ddns.services.dispatch import DispatchService
+from tether_ddns.services.healthchecks import HealthchecksService
 from tether_ddns.services.heartbeat import HeartbeatService
 from tether_ddns.services.incidents import IncidentRecorder
 from tether_ddns.services.sync import SyncService
@@ -92,7 +93,9 @@ def create_app(
         dispatch = DispatchService(ctx)
         sync = SyncService(ctx, dispatch)
         heartbeat = HeartbeatService(ctx)
-        scheduler = Scheduler(ctx, sync, dispatch, ReachabilityProbe(), heartbeat)
+        healthchecks = HealthchecksService(ctx)
+        scheduler = Scheduler(
+            ctx, sync, dispatch, ReachabilityProbe(), heartbeat, healthchecks=healthchecks)
         scheduler.start()
         if config.settings.update_on_startup:
             scheduler.run_startup_check()
@@ -107,6 +110,7 @@ def create_app(
         app.state.dispatch = dispatch
         app.state.sync = sync
         app.state.heartbeat = heartbeat
+        app.state.healthchecks = healthchecks
         try:
             yield
         finally:

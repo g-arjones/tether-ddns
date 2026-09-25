@@ -42,4 +42,16 @@ describe('IconButton', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Edit' }));
     expect(onClick).toHaveBeenCalledTimes(1);
   });
+
+  it('can be disabled and report its expanded state', () => {
+    render(<IconButton label="Expand" onClick={vi.fn()} disabled expanded={false}><svg /></IconButton>);
+    const button = screen.getByRole('button', { name: 'Expand' });
+    expect(button).toBeDisabled();
+    expect(button).toHaveAttribute('aria-expanded', 'false');
+  });
+
+  it('omits aria-expanded unless asked', () => {
+    render(<IconButton label="Edit" onClick={vi.fn()}><svg /></IconButton>);
+    expect(screen.getByRole('button', { name: 'Edit' })).not.toHaveAttribute('aria-expanded');
+  });
 });
