@@ -3,26 +3,33 @@
 from __future__ import annotations
 
 import platform
+import time
 from importlib import metadata
 
 from fastapi import APIRouter, FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.exceptions import RequestValidationError
 
-from pydantic import BaseModel, ConfigDict, HttpUrl, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, HttpUrl, ValidationError
 
 from tether_ddns.config_store import (
     AppSettings,
+    DEFAULT_HEALTHCHECKS_URL,
     DomainConfig,
+    HealthchecksProject,
     HeartbeatInterval,
     HookConfig,
+    MASK,
+    PollInterval,
     mask_secrets,
     merge_secrets,
 )
+from tether_ddns.healthchecks import HealthchecksError
 from tether_ddns.hooks.base import EVENT_SPECS, HOOK_REGISTRY
 from tether_ddns.ip_sources.base import IP_SOURCE_REGISTRY
 from tether_ddns.providers.base import PROVIDER_REGISTRY
 from tether_ddns.services.collection import find_or_404
 from tether_ddns.services.dispatch import DispatchService
+from tether_ddns.services.healthchecks import HealthchecksService, merge_refs
 from tether_ddns.services.heartbeat import HeartbeatService
 
 
@@ -106,6 +113,38 @@ class SettingsUpdate(BaseModel):
     heartbeat_interval: HeartbeatInterval | None = None
 
 
+class HealthchecksInput(BaseModel):
+    """Incoming healthchecks.io project (id and checks assigned server-side)."""
+
+    model_config = ConfigDict(extra='forbid', str_strip_whitespace=True)
+
+    name: str = Field(min_length=1)
+    base_url: HttpUrl = HttpUrl(DEFAULT_HEALTHCHECKS_URL)
+    api_key: str = Field(min_length=1)
+    poll_interval: PollInterval = 300
+    show_on_overview: bool = True
+
+
+class HealthchecksUpdate(BaseModel):
+    """Partial project update; an empty or masked key keeps the stored one."""
+
+    model_config = ConfigDict(extra='forbid')
+
+    name: str | None = None
+    base_url: HttpUrl | None = None
+    api_key: str | None = None
+    poll_interval: PollInterval | None = None
+    show_on_overview: bool | None = None
+
+
+class CheckVisibility(BaseModel):
+    """Toggle a fetched check's Overview visibility."""
+
+    model_config = ConfigDict(extra='forbid')
+
+    visible: bool
+
+
 def _provider_schema(provider: str) -> dict[str, object]:
     cls = PROVIDER_REGISTRY.get(provider)
     return cls.config_schema() if cls else {}
@@ -137,6 +176,28 @@ def _masked_hook(h: HookConfig) -> dict[str, object]:
     data = h.model_dump()
     data['config'] = mask_secrets(_hook_schema(h.hook), h.config)
     return data
+
+
+def _masked_project(p: HealthchecksProject) -> dict[str, object]:
+    data: dict[str, object] = p.model_dump(mode='json')
+    data['api_key'] = MASK
+    return data
+
+
+def _body_validation_error(exc: ValidationError) -> RequestValidationError:
+    """Re-shape a model ValidationError as FastAPI's 422 with body-prefixed locs."""
+    errors: list[dict[str, object]] = []
+    for error in exc.errors():
+        item = dict(error)
+        item['loc'] = ('body', *error['loc'])
+        errors.append(item)
+    return RequestValidationError(errors)
+
+
+def _upstream_error(exc: HealthchecksError) -> RequestValidationError:
+    """Report an upstream failure as a 422 on the form field it concerns."""
+    return RequestValidationError([
+        {'type': 'value_error', 'loc': ('body', exc.field), 'msg': str(exc), 'input': None}])
 
 
 def _persist(app: FastAPI) -> None:
@@ -277,12 +338,7 @@ def register_routes(app: FastAPI) -> None:
         try:
             merged = AppSettings(**{**current.model_dump(), **set_fields})
         except ValidationError as exc:
-            errors: list[dict[str, object]] = []
-            for error in exc.errors():
-                item = dict(error)
-                item['loc'] = ('body', *error['loc'])
-                errors.append(item)
-            raise RequestValidationError(errors) from exc
+            raise _body_validation_error(exc) from exc
         interval_changed = merged.check_interval != current.check_interval
         heartbeat_changed = merged.heartbeat_interval != current.heartbeat_interval
         url_changed = merged.heartbeat_url != current.heartbeat_url
@@ -305,6 +361,84 @@ def register_routes(app: FastAPI) -> None:
         if status is None:
             raise HTTPException(status_code=400, detail='heartbeat URL not configured')
         return status.model_dump()
+
+    @router.get('/healthchecks')
+    def list_healthchecks() -> list[dict[str, object]]:
+        return [_masked_project(p) for p in app.state.config.healthchecks]
+
+    @router.post('/healthchecks')
+    async def create_healthchecks(payload: HealthchecksInput) -> dict[str, object]:
+        service: HealthchecksService = app.state.healthchecks
+        try:
+            remote = await service.validate(str(payload.base_url), payload.api_key)
+        except HealthchecksError as exc:
+            raise _upstream_error(exc) from exc
+        project = HealthchecksProject(
+            **payload.model_dump(), checks=merge_refs([], remote), fetched_at=time.time())
+        app.state.config.healthchecks.append(project)
+        _persist(app)
+        service.record_success(project, remote)
+        app.state.scheduler.schedule_healthchecks(project)
+        return _masked_project(project)
+
+    @router.put('/healthchecks/{project_id}')
+    async def update_healthchecks(
+        project_id: str, payload: HealthchecksUpdate,
+    ) -> dict[str, object]:
+        i, current = find_or_404(
+            app.state.config.healthchecks, project_id, 'project not found')
+        set_fields = payload.model_dump(exclude_unset=True)
+        if set_fields.get('api_key') in ('', MASK):
+            del set_fields['api_key']
+        try:
+            merged = HealthchecksProject(**{**current.model_dump(), **set_fields})
+        except ValidationError as exc:
+            raise _body_validation_error(exc) from exc
+        endpoint_changed = (
+            merged.base_url != current.base_url or merged.api_key != current.api_key)
+        if endpoint_changed:
+            service: HealthchecksService = app.state.healthchecks
+            try:
+                await service.validate(str(merged.base_url), merged.api_key)
+            except HealthchecksError as exc:
+                raise _upstream_error(exc) from exc
+        app.state.config.healthchecks[i] = merged
+        _persist(app)
+        if endpoint_changed or merged.poll_interval != current.poll_interval:
+            app.state.scheduler.schedule_healthchecks(merged, run_now=True)
+        return _masked_project(merged)
+
+    @router.delete('/healthchecks/{project_id}')
+    def delete_healthchecks(project_id: str) -> dict[str, bool]:
+        i, _ = find_or_404(app.state.config.healthchecks, project_id, 'project not found')
+        del app.state.config.healthchecks[i]
+        _persist(app)
+        app.state.scheduler.unschedule_healthchecks(project_id)
+        app.state.runtime.drop_project_runtime(project_id)
+        return {'ok': True}
+
+    @router.post('/healthchecks/{project_id}/fetch')
+    async def fetch_healthchecks(project_id: str) -> dict[str, object]:
+        find_or_404(app.state.config.healthchecks, project_id, 'project not found')
+        service: HealthchecksService = app.state.healthchecks
+        try:
+            project = await service.fetch(project_id)
+        except HealthchecksError as exc:
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
+        return _masked_project(project)
+
+    @router.put('/healthchecks/{project_id}/checks/{key}')
+    def set_check_visibility(
+        project_id: str, key: str, payload: CheckVisibility,
+    ) -> dict[str, object]:
+        _, project = find_or_404(
+            app.state.config.healthchecks, project_id, 'project not found')
+        ref = next((c for c in project.checks if c.key == key), None)
+        if ref is None:
+            raise HTTPException(status_code=404, detail='check not found')
+        ref.visible = payload.visible
+        _persist(app)
+        return _masked_project(project)
 
     @router.post('/refresh')
     async def refresh() -> dict[str, bool]:
