@@ -76,6 +76,7 @@ export function OverviewView(
         />
       </div>
       <div className="ov-grid">
+        <HealthchecksPanel projects={projects} runtime={snapshot?.healthchecks} nowMs={nowMs} />
         <IpReadoutPanel ipv4={ipv4} ipv6={ipv6} ipv4ChangedAt={ipv4ChangedAt} ipv6ChangedAt={ipv6ChangedAt} ipSource={ipSource} />
         <RecordHealthPanel domains={runtimeDomains} enabledById={enabledById} nextCheckAt={nextCheckAt} checkInterval={checkInterval} />
         <div className="panel ov-wide">
@@ -87,7 +88,6 @@ export function OverviewView(
             onSelectDay={onSelectDay}
           />
         </div>
-        <HealthchecksPanel projects={projects} runtime={snapshot?.healthchecks} nowMs={nowMs} />
       </div>
     </>
   );

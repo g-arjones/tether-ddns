@@ -273,7 +273,7 @@ start collapsed.
   `inert` / `aria-hidden={open ? undefined : true}` handling.
 
 **`components/HealthchecksPanel.tsx`**, on the Overview.
-- A `.panel ov-wide` placed after Reachability, titled "Healthchecks".
+- A `.panel ov-wide` placed first in `.ov-grid` (below the stat cards, above Public IP), titled "Healthchecks".
 - One row per project with `show_on_overview`, listing only `visible` checks. A row is a
   grid: the left side has the name and summary (`3 up · 1 down · 1 gone`, or
   `status unknown`); the right side has the wrapped badges.
@@ -358,7 +358,7 @@ frames):
 - the add flow shows the inline 422;
 - card expand;
 - the last table row has `border-bottom-width: 0`;
-- the Overview panel appears below Reachability;
+- the Overview panel appears between the stat cards and Public IP;
 - the closed ProjectModal's controls are unreachable by Tab;
 - at 375px, the Status and Slug columns are hidden, the dot is visible, and the table
   does not overflow the card (geometry assertion);

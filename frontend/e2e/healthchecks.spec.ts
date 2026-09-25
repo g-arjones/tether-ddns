@@ -60,7 +60,7 @@ test('a project card expands into its checks table without a trailing divider', 
   await expect(rows.last().locator('td').first()).toHaveCSS('border-bottom-width', '0px');
 });
 
-test('the overview shows healthchecks badges below reachability', async ({ page }) => {
+test('the overview shows healthchecks badges between the stat cards and the IP panel', async ({ page }) => {
   await page.setViewportSize({ width: 1400, height: 900 });
   await stubHealthchecks(page);
   await page.goto('/');
@@ -69,11 +69,14 @@ test('the overview shows healthchecks badges below reachability', async ({ page 
   await expect(panel.locator('.hc-badge.hc-down')).toContainText('SSL (hydrogen)');
   await expect(panel.locator('.hc-badge.hc-gone')).toContainText('Old job');
   const geometry = await page.evaluate(() => {
-    const reach = document.querySelector('.ov-grid > .ov-wide:not(.hc-panel)')!.getBoundingClientRect();
+    const stats = document.querySelector('.stats')!.getBoundingClientRect();
     const hc = document.querySelector('.hc-panel')!.getBoundingClientRect();
-    return { reachBottom: reach.bottom, hcTop: hc.top };
+    const ip = document.querySelector('.ov-grid > .hc-panel + .panel')!.getBoundingClientRect();
+    return { statsBottom: stats.bottom, hcTop: hc.top, hcBottom: hc.bottom, ipTop: ip.top };
   });
-  expect(geometry.hcTop).toBeGreaterThan(geometry.reachBottom);
+  expect(geometry.hcTop).toBeGreaterThan(geometry.statsBottom);
+  expect(geometry.ipTop).toBeGreaterThan(geometry.hcBottom);
+  await expect(page.locator('.ov-grid > .hc-panel + .panel')).toContainText('Public IP');
 });
 
 test('adding a project shows the upstream error inline', async ({ page }) => {
@@ -161,4 +164,3 @@ test('editing a project without touching the endpoint toasts a plain save', asyn
   await expect(toast).toContainText('Saved Homelab HQ');
   await expect(toast).not.toContainText('refreshed');
 });
-
