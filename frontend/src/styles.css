@@ -502,6 +502,13 @@ header.topbar {
 .field input:focus, .field select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(59,130,246,.15); }
 .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
 
+/* heartbeat URL: after the .field input rules so the invalid state wins over :focus */
+.hb-url { display: flex; gap: 8px; }
+.hb-url input[type="text"] { flex: 1; min-width: 0; font-family: var(--mono); font-size: 13px; }
+.hb-url input.hb-invalid { border-color: var(--err); box-shadow: 0 0 0 3px var(--err-soft); }
+.field-help.hb-error { color: var(--err); }
+.chips.hb-dim { opacity: .45; }
+
 /* ---------- Custom select (replaces native combobox chrome) ---------- */
 .cs { position: relative; width: 100%; }
 .cs-native { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); border: 0; }
