@@ -200,8 +200,8 @@ class RuntimeState(BaseModel):
         self.next_check_at = ts
         self._emit()
 
-    def set_heartbeat(self, status: HeartbeatStatus) -> None:
-        """Record the latest heartbeat outcome and notify listeners."""
+    def set_heartbeat(self, status: HeartbeatStatus | None) -> None:
+        """Record the latest heartbeat outcome (or clear it) and notify listeners."""
         self.heartbeat = status
         self._emit()
 

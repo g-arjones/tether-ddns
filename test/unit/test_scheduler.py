@@ -1,5 +1,6 @@
 """Tests for scheduler dispatch and exception isolation."""
 import asyncio
+from datetime import datetime
 from pathlib import Path
 from tempfile import mkdtemp
 from typing import Any
@@ -1065,6 +1066,20 @@ def test_start_schedules_the_heartbeat_job() -> None:
     assert call.kwargs['replace_existing'] is True
 
 
+def test_start_runs_the_heartbeat_immediately() -> None:
+    """start() passes an aware next_run_time so the heartbeat fires right away."""
+    cfg = AppConfig()
+    state = RuntimeState()
+    sched = _sched(cfg, state)
+    fake = MagicMock()
+    with patch.object(sched, '_scheduler', fake):
+        sched.start()
+    call = _heartbeat_call(fake)
+    next_run_time = call.kwargs['next_run_time']
+    assert isinstance(next_run_time, datetime)
+    assert next_run_time.tzinfo is not None
+
+
 def test_reschedule_heartbeat_applies_new_interval() -> None:
     """reschedule_heartbeat re-adds the job with the current interval."""
     cfg = AppConfig()
@@ -1077,3 +1092,29 @@ def test_reschedule_heartbeat_applies_new_interval() -> None:
     call = _heartbeat_call(fake)
     assert call.kwargs['seconds'] == 900
     assert call.kwargs['replace_existing'] is True
+
+
+def test_reschedule_heartbeat_without_run_now_omits_next_run_time() -> None:
+    """reschedule_heartbeat() with no run_now must not pause the job."""
+    cfg = AppConfig()
+    state = RuntimeState()
+    sched = _sched(cfg, state)
+    fake = MagicMock()
+    with patch.object(sched, '_scheduler', fake):
+        sched.reschedule_heartbeat()
+    call = _heartbeat_call(fake)
+    assert 'next_run_time' not in call.kwargs
+
+
+def test_reschedule_heartbeat_run_now_sets_next_run_time() -> None:
+    """reschedule_heartbeat(run_now=True) fires the first tick immediately."""
+    cfg = AppConfig()
+    state = RuntimeState()
+    sched = _sched(cfg, state)
+    fake = MagicMock()
+    with patch.object(sched, '_scheduler', fake):
+        sched.reschedule_heartbeat(run_now=True)
+    call = _heartbeat_call(fake)
+    next_run_time = call.kwargs['next_run_time']
+    assert isinstance(next_run_time, datetime)
+    assert next_run_time.tzinfo is not None

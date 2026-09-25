@@ -6,8 +6,9 @@ import platform
 from importlib import metadata
 
 from fastapi import APIRouter, FastAPI, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi.exceptions import RequestValidationError
 
-from pydantic import BaseModel, ConfigDict, HttpUrl
+from pydantic import BaseModel, ConfigDict, HttpUrl, ValidationError
 
 from tether_ddns.config_store import (
     AppSettings,
@@ -273,15 +274,27 @@ def register_routes(app: FastAPI) -> None:
     def put_settings(payload: SettingsUpdate) -> dict[str, object]:
         current = app.state.config.settings
         set_fields = payload.model_dump(exclude_unset=True)
-        merged = AppSettings(**{**current.model_dump(), **set_fields})
+        try:
+            merged = AppSettings(**{**current.model_dump(), **set_fields})
+        except ValidationError as exc:
+            errors: list[dict[str, object]] = []
+            for error in exc.errors():
+                item = dict(error)
+                item['loc'] = ('body', *error['loc'])
+                errors.append(item)
+            raise RequestValidationError(errors) from exc
         interval_changed = merged.check_interval != current.check_interval
         heartbeat_changed = merged.heartbeat_interval != current.heartbeat_interval
+        url_changed = merged.heartbeat_url != current.heartbeat_url
         app.state.config.settings = merged
         _persist(app)
         if interval_changed:
             app.state.scheduler.reschedule_sync()
-        if heartbeat_changed:
-            app.state.scheduler.reschedule_heartbeat()
+        if url_changed:
+            app.state.runtime.set_heartbeat(None)
+        if heartbeat_changed or url_changed:
+            app.state.scheduler.reschedule_heartbeat(
+                run_now=url_changed and merged.heartbeat_url is not None)
         dumped: dict[str, object] = merged.model_dump(mode='json')
         return dumped
 
