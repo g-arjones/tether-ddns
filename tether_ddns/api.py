@@ -22,6 +22,7 @@ from tether_ddns.ip_sources.base import IP_SOURCE_REGISTRY
 from tether_ddns.providers.base import PROVIDER_REGISTRY
 from tether_ddns.services.collection import find_or_404
 from tether_ddns.services.dispatch import DispatchService
+from tether_ddns.services.heartbeat import HeartbeatService
 
 
 APP_NAME = 'Tether'
@@ -274,12 +275,23 @@ def register_routes(app: FastAPI) -> None:
         set_fields = payload.model_dump(exclude_unset=True)
         merged = AppSettings(**{**current.model_dump(), **set_fields})
         interval_changed = merged.check_interval != current.check_interval
+        heartbeat_changed = merged.heartbeat_interval != current.heartbeat_interval
         app.state.config.settings = merged
         _persist(app)
         if interval_changed:
             app.state.scheduler.reschedule_sync()
+        if heartbeat_changed:
+            app.state.scheduler.reschedule_heartbeat()
         dumped: dict[str, object] = merged.model_dump(mode='json')
         return dumped
+
+    @router.post('/heartbeat/ping')
+    async def ping_heartbeat() -> dict[str, object]:
+        heartbeat: HeartbeatService = app.state.heartbeat
+        status = await heartbeat.run(force=True)
+        if status is None:
+            raise HTTPException(status_code=400, detail='heartbeat URL not configured')
+        return status.model_dump()
 
     @router.post('/refresh')
     async def refresh() -> dict[str, bool]:

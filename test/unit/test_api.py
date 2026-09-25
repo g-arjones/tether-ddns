@@ -16,6 +16,7 @@ from tether_ddns.incident_store import IncidentStore
 from tether_ddns.incidents import WINDOW_SECONDS
 from tether_ddns.reachability import ReachabilityResult
 from tether_ddns.runtime import RuntimeState
+from tether_ddns.services.heartbeat import HeartbeatService
 from tether_ddns.state_store import StateStore
 
 
@@ -498,3 +499,39 @@ def test_settings_heartbeat_interval_out_of_range_returns_422(tmp_path: Path) ->
     with _client(tmp_path) as client:
         resp: Any = client.put('/api/settings', json={'heartbeat_interval': 29})
     assert resp.status_code == 422
+
+
+def test_heartbeat_interval_change_reschedules(tmp_path: Path) -> None:
+    """Changing the heartbeat interval reschedules the heartbeat job."""
+    with _client(tmp_path) as client:
+        with patch.object(client.app.state.scheduler, 'reschedule_heartbeat') as resched:
+            client.put('/api/settings', json={'heartbeat_interval': 60})
+    resched.assert_called_once_with()
+
+
+def test_other_setting_change_does_not_reschedule_heartbeat(tmp_path: Path) -> None:
+    """An unrelated settings change leaves the heartbeat job alone."""
+    with _client(tmp_path) as client:
+        with patch.object(client.app.state.scheduler, 'reschedule_heartbeat') as resched:
+            client.put('/api/settings', json={'notify': False})
+    resched.assert_not_called()
+
+
+def test_ping_now_without_url_is_400(tmp_path: Path) -> None:
+    """Ping now with no heartbeat URL configured returns 400."""
+    with _client(tmp_path) as client:
+        resp: Any = client.post('/api/heartbeat/ping')
+    assert resp.status_code == 400
+    assert resp.json()['detail'] == 'heartbeat URL not configured'
+
+
+def test_ping_now_forces_a_ping_and_returns_status(tmp_path: Path) -> None:
+    """Ping now pings even while offline and returns the recorded status."""
+    with _client(tmp_path) as client:
+        client.put('/api/settings', json={'heartbeat_url': HB_URL})
+        with patch.object(HeartbeatService, '_ping', new=AsyncMock()) as ping:
+            resp: Any = client.post('/api/heartbeat/ping')
+    assert resp.status_code == 200
+    body: dict[str, object] = resp.json()
+    assert body['ok'] is True and body['skipped'] is False and body['error'] is None
+    ping.assert_awaited_once_with(HB_URL)

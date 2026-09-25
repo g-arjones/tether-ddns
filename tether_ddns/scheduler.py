@@ -10,6 +10,7 @@ from tether_ddns.hooks.base import ReachabilityChangedEvent
 from tether_ddns.reachability import ReachabilityProbe
 from tether_ddns.runtime import RuntimeState
 from tether_ddns.services.dispatch import DispatchService
+from tether_ddns.services.heartbeat import HeartbeatService
 from tether_ddns.services.sync import SyncService
 
 REACHABILITY_INTERVAL_SECONDS = 30
@@ -22,17 +23,19 @@ class Scheduler:
     def __init__(
         self, ctx: AppContext, sync: SyncService,
         dispatch: DispatchService, reachability: ReachabilityProbe,
+        heartbeat: HeartbeatService,
     ) -> None:
-        """Create an unstarted scheduler bound to context, sync, dispatch, reachability."""
+        """Create an unstarted scheduler bound to its services."""
         self._scheduler = AsyncIOScheduler()
         self._ctx = ctx
         self._sync = sync
         self._dispatch = dispatch
         self._reachability = reachability
+        self._heartbeat = heartbeat
         self._last_state_json: str | None = None
 
     def start(self) -> None:
-        """Schedule the reachability and IP-sync jobs and start."""
+        """Schedule the reachability, IP-sync, heartbeat and flush jobs and start."""
         self._scheduler.add_job(  # pyright: ignore[reportUnknownMemberType]
             self.check_reachability, 'interval',
             seconds=REACHABILITY_INTERVAL_SECONDS,
@@ -48,6 +51,7 @@ class Scheduler:
             seconds=STATE_FLUSH_INTERVAL_SECONDS,
             args=[], id='state-flush', replace_existing=True,
         )
+        self.reschedule_heartbeat()
         self._scheduler.start()
         self._publish_next_check(self._ctx.runtime)
 
@@ -59,6 +63,14 @@ class Scheduler:
             args=[], id='sync', replace_existing=True,
         )
         self._publish_next_check(self._ctx.runtime)
+
+    def reschedule_heartbeat(self) -> None:
+        """(Re-)add the heartbeat job with the current heartbeat interval."""
+        self._scheduler.add_job(  # pyright: ignore[reportUnknownMemberType]
+            self._heartbeat.run, 'interval',
+            seconds=self._ctx.config.settings.heartbeat_interval,
+            args=[], id='heartbeat', replace_existing=True,
+        )
 
     def run_startup_check(self) -> None:
         """Schedule one immediate, non-blocking check cycle at startup."""
