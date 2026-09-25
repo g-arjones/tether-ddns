@@ -249,3 +249,20 @@ test('the reachability legend drops durations on mobile but keeps percentages', 
   await expect(pct).toBeVisible();
   await expect(pct).toHaveCSS('margin-left', '0px');
 });
+
+test('heartbeat settings show the validation message inline', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: /Settings/ }).click();
+  const url = page.getByLabel(/Ping URL/);
+  await url.fill('hc-ping.com/x');
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(page.locator('#setHeartbeatUrlHelp')).toContainText(/valid URL/);
+  await expect(url).toHaveAttribute('aria-invalid', 'true');
+});
+
+test('overview shows the heartbeat card as Off by default', async ({ page }) => {
+  await page.goto('/');
+  const card = page.locator('.stat').filter({ hasText: 'Heartbeat' });
+  await expect(card).toContainText('Off');
+  await expect(card.getByRole('button', { name: 'Ping now' })).toHaveCount(0);
+});
