@@ -121,3 +121,44 @@ test('the checks table drops columns on narrow screens and stays inside its card
   const fits = await card.locator('.hc-inner').evaluate((el) => el.scrollWidth <= el.clientWidth);
   expect(fits).toBe(true);
 });
+
+test('editing a project with a new API key toasts that the check list refreshed', async ({ page }) => {
+  await stubHealthchecks(page);
+  await page.route('**/api/healthchecks/p1', async (route) => {
+    if (route.request().method() !== 'PUT') {
+      await route.fallback();
+      return;
+    }
+    await route.fulfill({ json: PROJECT });
+  });
+  await page.goto('/');
+  await openHealthchecks(page);
+  const card = page.locator('.hc-card').filter({ hasText: 'Homelab' });
+  await card.getByRole('button', { name: 'Edit' }).click();
+  const modal = page.locator('.modal-overlay.open .modal');
+  await modal.getByLabel('API key').fill('newkey');
+  await modal.getByRole('button', { name: 'Save' }).click();
+  await expect(page.locator('.toast')).toContainText('Saved Homelab — check list refreshed');
+});
+
+test('editing a project without touching the endpoint toasts a plain save', async ({ page }) => {
+  await stubHealthchecks(page);
+  await page.route('**/api/healthchecks/p1', async (route) => {
+    if (route.request().method() !== 'PUT') {
+      await route.fallback();
+      return;
+    }
+    await route.fulfill({ json: PROJECT });
+  });
+  await page.goto('/');
+  await openHealthchecks(page);
+  const card = page.locator('.hc-card').filter({ hasText: 'Homelab' });
+  await card.getByRole('button', { name: 'Edit' }).click();
+  const modal = page.locator('.modal-overlay.open .modal');
+  await modal.getByLabel('Name').fill('Homelab HQ');
+  await modal.getByRole('button', { name: 'Save' }).click();
+  const toast = page.locator('.toast');
+  await expect(toast).toContainText('Saved Homelab HQ');
+  await expect(toast).not.toContainText('refreshed');
+});
+

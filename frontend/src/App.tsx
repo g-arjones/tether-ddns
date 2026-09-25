@@ -312,9 +312,15 @@ export default function App() {
   // Rejects on failure so ProjectModal can render the field errors inline.
   const handleSaveProject = useCallback(
     async (value: ProjectFormValue) => {
+      const endpointChanged =
+        editingProject !== null &&
+        (value.api_key !== '' || value.base_url !== editingProject.base_url);
       if (editingProject) await api.updateHealthchecks(editingProject.id, value);
       else await api.createHealthchecks(value);
-      pushToast(`Saved ${value.name}`, 'success');
+      pushToast(
+        endpointChanged ? `Saved ${value.name} — check list refreshed` : `Saved ${value.name}`,
+        'success',
+      );
       setProjectModalOpen(false);
       setEditingProject(null);
       await loadConfig();
