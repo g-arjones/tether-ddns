@@ -33,6 +33,7 @@ describe('App run hook', () => {
     vi.mocked(api.getIncidents).mockResolvedValue({
       monitoring_since: 0, rev: 0, incidents: [], ongoing: null,
     } as never);
+    vi.mocked(api.getHealthchecks).mockResolvedValue([] as never);
     vi.mocked(api.runHook).mockResolvedValue({ ran: 2, skipped: [] });
   });
 

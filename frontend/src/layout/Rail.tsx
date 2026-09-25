@@ -1,7 +1,7 @@
 import type { JSX, PointerEvent as ReactPointerEvent } from 'react';
-import { IconDashboard, IconGlobe, IconHook, IconLogs, IconSettings, IconInfo } from '../components/icons';
+import { IconDashboard, IconGlobe, IconHeartPulse, IconHook, IconLogs, IconSettings, IconInfo } from '../components/icons';
 
-export type ViewKey = 'overview' | 'domains' | 'hooks' | 'logs' | 'settings' | 'about';
+export type ViewKey = 'overview' | 'domains' | 'hooks' | 'healthchecks' | 'logs' | 'settings' | 'about';
 
 const RAIL_MIN = 190;
 const RAIL_MAX = 380;
@@ -11,6 +11,7 @@ export interface RailProps {
   onSelect: (view: ViewKey) => void;
   domainCount: number;
   hookCount: number;
+  healthchecksCount: number;
   online: boolean;
   collapsed: boolean;
   mobileOpen: boolean;
@@ -48,11 +49,12 @@ function startResize(e: ReactPointerEvent<HTMLDivElement>, collapsed: boolean): 
 }
 
 export function Rail(props: RailProps): JSX.Element {
-  const { active, onSelect, domainCount, hookCount, online, mobileOpen, collapsed } = props;
+  const { active, onSelect, domainCount, hookCount, healthchecksCount, online, mobileOpen, collapsed } = props;
   const items: NavDef[] = [
     { key: 'overview', label: 'Overview', icon: <IconDashboard /> },
     { key: 'domains', label: 'Domains', count: domainCount, icon: <IconGlobe /> },
     { key: 'hooks', label: 'Hooks', count: hookCount, icon: <IconHook /> },
+    { key: 'healthchecks', label: 'Healthchecks', count: healthchecksCount, icon: <IconHeartPulse /> },
     { key: 'logs', label: 'Logs', icon: <IconLogs /> },
     { key: 'settings', label: 'Settings', icon: <IconSettings /> },
     { key: 'about', label: 'About', icon: <IconInfo /> },

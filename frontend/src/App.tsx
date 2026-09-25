@@ -3,6 +3,7 @@ import * as api from './api';
 import type {
   DomainConfig,
   DomainState,
+  HealthchecksProject,
   HookConfig,
   HookDef,
   Provider,
@@ -18,11 +19,13 @@ import { TopBar } from './layout/TopBar';
 import { OverviewView } from './views/OverviewView';
 import { DomainsView } from './views/DomainsView';
 import { HooksView } from './views/HooksView';
+import { HealthchecksView } from './views/HealthchecksView';
 import { LogsView } from './views/LogsView';
 import { SettingsView } from './views/SettingsView';
 import { AboutView } from './views/AboutView';
 import { DomainModal, type DomainFormValue } from './components/DomainModal';
 import { HookModal, type HookFormValue } from './components/HookModal';
+import { ProjectModal, type ProjectFormValue } from './components/ProjectModal';
 import { IncidentModal } from './components/IncidentModal';
 import { DAY_BARS } from './components/ReachabilityPanel';
 import { Toasts, type ToastItem, type ToastKind } from './components/Toasts';
@@ -34,6 +37,7 @@ const TITLES: Record<ViewKey, { title: string; sub: string }> = {
   overview: { title: 'Overview', sub: 'Live status of your dynamic DNS records' },
   domains: { title: 'Domains', sub: 'Manage your DNS records' },
   hooks: { title: 'Hooks', sub: 'React to lifecycle events' },
+  healthchecks: { title: 'Healthchecks', sub: 'Check status from healthchecks.io projects' },
   logs: { title: 'Logs', sub: 'Live application log' },
   settings: { title: 'Settings', sub: 'Scheduling, behavior, and IP source' },
   about: { title: 'About', sub: 'Version & tech stack' },
@@ -58,6 +62,7 @@ export default function App() {
   const [ipSources, setIpSources] = useState<{ key: string; display_name: string }[]>([]);
   const [domains, setDomains] = useState<DomainConfig[]>([]);
   const [hooks, setHooks] = useState<HookConfig[]>([]);
+  const [projects, setProjects] = useState<HealthchecksProject[]>([]);
   const [settings, setSettings] = useState<Settings | null>(null);
 
   const [theme, setTheme] = useState<Theme>(initialTheme);
@@ -78,6 +83,8 @@ export default function App() {
   const [editingDomain, setEditingDomain] = useState<DomainConfig | null>(null);
   const [hookModalOpen, setHookModalOpen] = useState(false);
   const [editingHook, setEditingHook] = useState<HookConfig | null>(null);
+  const [projectModalOpen, setProjectModalOpen] = useState(false);
+  const [editingProject, setEditingProject] = useState<HealthchecksProject | null>(null);
   const [selectedDayStart, setSelectedDayStart] = useState<number | null>(null);
 
   const incidentWindow = useIncidents(snapshot?.reachability?.rev ?? 0, generation);
@@ -94,7 +101,7 @@ export default function App() {
 
   // aria-modal on any open modal claims the rest of the app is inert to assistive
   // tech, so the shell must actually become inert whenever one is open.
-  const anyModalOpen = domainModalOpen || hookModalOpen || selectedDay !== null;
+  const anyModalOpen = domainModalOpen || hookModalOpen || projectModalOpen || selectedDay !== null;
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
@@ -147,10 +154,13 @@ export default function App() {
 
   const loadConfig = useCallback(async () => {
     try {
-      const [d, h, s] = await Promise.all([api.getDomains(), api.getHooksConfig(), api.getSettings()]);
+      const [d, h, s, p] = await Promise.all([
+        api.getDomains(), api.getHooksConfig(), api.getSettings(), api.getHealthchecks(),
+      ]);
       setDomains(d);
       setHooks(h);
       setSettings(s);
+      setProjects(p);
     } catch {
       /* backend may be unavailable during dev */
     }
@@ -299,6 +309,72 @@ export default function App() {
     [pushToast],
   );
 
+  // Rejects on failure so ProjectModal can render the field errors inline.
+  const handleSaveProject = useCallback(
+    async (value: ProjectFormValue) => {
+      if (editingProject) await api.updateHealthchecks(editingProject.id, value);
+      else await api.createHealthchecks(value);
+      pushToast(`Saved ${value.name}`, 'success');
+      setProjectModalOpen(false);
+      setEditingProject(null);
+      await loadConfig();
+    },
+    [editingProject, loadConfig, pushToast],
+  );
+
+  const handleFetchProject = useCallback(
+    async (id: string) => {
+      try {
+        await api.fetchHealthchecks(id);
+        pushToast('Checks fetched', 'success');
+        await loadConfig();
+      } catch (err) {
+        const detail = err instanceof api.ApiError ? err.detail : undefined;
+        pushToast(detail ? `Fetch failed: ${detail}` : 'Fetch failed', 'error');
+      }
+    },
+    [loadConfig, pushToast],
+  );
+
+  const handleDeleteProject = useCallback(
+    async (id: string) => {
+      const p = projects.find((x) => x.id === id);
+      if (p && !window.confirm(`Remove "${p.name}"?`)) return;
+      try {
+        await api.deleteHealthchecks(id);
+        pushToast('Project removed', 'info');
+        await loadConfig();
+      } catch {
+        pushToast('Failed to remove project', 'error');
+      }
+    },
+    [projects, loadConfig, pushToast],
+  );
+
+  const handleToggleProjectOverview = useCallback(
+    async (id: string, next: boolean) => {
+      try {
+        await api.updateHealthchecks(id, { show_on_overview: next });
+        await loadConfig();
+      } catch {
+        pushToast('Failed to update project', 'error');
+      }
+    },
+    [loadConfig, pushToast],
+  );
+
+  const handleToggleCheck = useCallback(
+    async (id: string, key: string, visible: boolean) => {
+      try {
+        await api.setCheckVisible(id, key, visible);
+        await loadConfig();
+      } catch {
+        pushToast('Failed to update check', 'error');
+      }
+    },
+    [loadConfig, pushToast],
+  );
+
   const toggleTheme = useCallback(() => {
     setTheme((t) => (t === 'dark' ? 'light' : 'dark'));
   }, []);
@@ -313,6 +389,7 @@ export default function App() {
           onSelect={setActiveView}
           domainCount={domains.length}
           hookCount={hooks.length}
+          healthchecksCount={projects.length}
           online={snapshot?.online ?? false}
           collapsed={railCollapsed}
           mobileOpen={railMobileOpen}
@@ -337,6 +414,7 @@ export default function App() {
               <OverviewView
                 snapshot={snapshot}
                 domains={domains}
+                projects={projects}
                 settings={settings}
                 incidentWindow={incidentWindow}
                 dayBuckets={dayBuckets}
@@ -381,6 +459,25 @@ export default function App() {
                 }}
               />
             )}
+            {activeView === 'healthchecks' && (
+              <HealthchecksView
+                projects={projects}
+                runtime={snapshot?.healthchecks}
+                nowMs={nowMs}
+                onAdd={() => {
+                  setEditingProject(null);
+                  setProjectModalOpen(true);
+                }}
+                onEdit={(project) => {
+                  setEditingProject(project);
+                  setProjectModalOpen(true);
+                }}
+                onDelete={handleDeleteProject}
+                onFetch={handleFetchProject}
+                onToggleOverview={handleToggleProjectOverview}
+                onToggleCheck={handleToggleCheck}
+              />
+            )}
             {activeView === 'logs' && <LogsView logs={logs} />}
             {activeView === 'settings' && (
               <SettingsView settings={settings} ipSources={ipSources} onSave={handleSaveSettings} />
@@ -410,6 +507,16 @@ export default function App() {
           setEditingHook(null);
         }}
         onSave={handleSaveHook}
+      />
+
+      <ProjectModal
+        open={projectModalOpen}
+        editing={editingProject}
+        onClose={() => {
+          setProjectModalOpen(false);
+          setEditingProject(null);
+        }}
+        onSave={handleSaveProject}
       />
 
       <IncidentModal

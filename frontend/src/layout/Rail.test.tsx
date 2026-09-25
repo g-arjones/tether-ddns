@@ -4,6 +4,7 @@ import { Rail } from './Rail';
 
 const base = {
   active: 'overview' as const, onSelect: vi.fn(), domainCount: 3, hookCount: 2,
+  healthchecksCount: 4,
   online: true, collapsed: false, mobileOpen: false, onCloseMobile: vi.fn(),
 };
 
@@ -61,5 +62,14 @@ describe('Rail', () => {
     fireEvent(document, new MouseEvent('pointermove', { clientX: 260 } as MouseEventInit));
     fireEvent(document, new MouseEvent('pointerup', {} as MouseEventInit));
     expect(localStorage.getItem('tether-rail-width')).toBeNull();
+  });
+
+  it('renders the Healthchecks nav item with its project count', () => {
+    const onSelect = vi.fn();
+    render(<Rail {...base} onSelect={onSelect} />);
+    const item = screen.getByRole('button', { name: /Healthchecks/ });
+    expect(item).toHaveTextContent('4');
+    fireEvent.click(item);
+    expect(onSelect).toHaveBeenCalledWith('healthchecks');
   });
 });
