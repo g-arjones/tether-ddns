@@ -7,11 +7,12 @@ from importlib import metadata
 
 from fastapi import APIRouter, FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, HttpUrl
 
 from tether_ddns.config_store import (
     AppSettings,
     DomainConfig,
+    HeartbeatInterval,
     HookConfig,
     mask_secrets,
     merge_secrets,
@@ -99,6 +100,8 @@ class SettingsUpdate(BaseModel):
     update_on_startup: bool | None = None
     retry_on_failure: bool | None = None
     notify: bool | None = None
+    heartbeat_url: HttpUrl | None = None
+    heartbeat_interval: HeartbeatInterval | None = None
 
 
 def _provider_schema(provider: str) -> dict[str, object]:
@@ -146,7 +149,7 @@ def register_routes(app: FastAPI) -> None:
     def get_state() -> dict[str, object]:
         cfg = app.state.config
         snap: dict[str, object] = app.state.runtime.snapshot()
-        snap['settings'] = cfg.settings.model_dump()
+        snap['settings'] = cfg.settings.model_dump(mode='json')
         snap['logs'] = app.state.log_handler.snapshot()
         return snap
 
@@ -262,7 +265,7 @@ def register_routes(app: FastAPI) -> None:
 
     @router.get('/settings')
     def get_settings() -> dict[str, object]:
-        settings: dict[str, object] = app.state.config.settings.model_dump()
+        settings: dict[str, object] = app.state.config.settings.model_dump(mode='json')
         return settings
 
     @router.put('/settings')
@@ -275,7 +278,7 @@ def register_routes(app: FastAPI) -> None:
         _persist(app)
         if interval_changed:
             app.state.scheduler.reschedule_sync()
-        dumped: dict[str, object] = merged.model_dump()
+        dumped: dict[str, object] = merged.model_dump(mode='json')
         return dumped
 
     @router.post('/refresh')

@@ -459,3 +459,42 @@ def test_get_incidents_filters_expired_records(
         recorder.record(make_result([True, True, True]), now=old + 50)
         res = client.get('/api/reachability/incidents')
     assert res.json()['incidents'] == []
+
+
+HB_URL = 'https://hc-ping.com/5b1c7f0a'
+
+
+def test_settings_heartbeat_url_round_trips_as_string(tmp_path: Path) -> None:
+    """A heartbeat URL is accepted, persisted and returned as a string."""
+    with _client(tmp_path) as client:
+        resp: Any = client.put('/api/settings', json={'heartbeat_url': HB_URL})
+        assert resp.status_code == 200
+        assert resp.json()['heartbeat_url'] == HB_URL
+        state: Any = client.get('/api/state')
+    assert state.json()['settings']['heartbeat_url'] == HB_URL
+
+
+def test_settings_heartbeat_url_invalid_returns_422(tmp_path: Path) -> None:
+    """A schemeless heartbeat URL is a 422 naming the field; config is unchanged."""
+    with _client(tmp_path) as client:
+        resp: Any = client.put('/api/settings', json={'heartbeat_url': 'hc-ping.com/x'})
+        assert resp.status_code == 422
+        assert resp.json()['detail'][0]['loc'][-1] == 'heartbeat_url'
+        read_back: Any = client.get('/api/settings')
+    assert read_back.json()['heartbeat_url'] is None
+
+
+def test_settings_heartbeat_url_null_clears(tmp_path: Path) -> None:
+    """An explicit null turns the heartbeat off."""
+    with _client(tmp_path) as client:
+        client.put('/api/settings', json={'heartbeat_url': HB_URL})
+        resp: Any = client.put('/api/settings', json={'heartbeat_url': None})
+    assert resp.status_code == 200
+    assert resp.json()['heartbeat_url'] is None
+
+
+def test_settings_heartbeat_interval_out_of_range_returns_422(tmp_path: Path) -> None:
+    """A heartbeat interval below 30 s is rejected with 422."""
+    with _client(tmp_path) as client:
+        resp: Any = client.put('/api/settings', json={'heartbeat_interval': 29})
+    assert resp.status_code == 422
