@@ -26,6 +26,7 @@ describe('OverviewView', () => {
       <OverviewView
         snapshot={snapshot}
         domains={[{ id: 'a', hostname: 'h', provider: 'duckdns', record_type: 'A', enabled: true }]}
+        projects={[]}
         settings={snapshot.settings ?? null}
         incidentWindow={null}
         dayBuckets={buckets}
@@ -44,6 +45,7 @@ describe('OverviewView', () => {
       <OverviewView
         snapshot={null}
         domains={[]}
+        projects={[]}
         settings={null}
         incidentWindow={null}
         dayBuckets={buckets}
@@ -60,6 +62,7 @@ describe('OverviewView', () => {
       <OverviewView
         snapshot={snapshot}
         domains={[]}
+        projects={[]}
         settings={snapshot.settings ?? null}
         incidentWindow={null}
         dayBuckets={buckets}
@@ -71,5 +74,26 @@ describe('OverviewView', () => {
     expect(screen.queryByText('Update Interval')).toBeNull();
     expect(screen.getByText('Heartbeat')).toBeInTheDocument();
     expect(screen.getByText('Off')).toBeInTheDocument();
+  });
+
+  it('renders the Healthchecks panel when a project has visible checks', () => {
+    render(
+      <OverviewView
+        snapshot={snapshot}
+        domains={[]}
+        projects={[{
+          id: 'p1', name: 'Homelab', base_url: 'https://healthchecks.io/', api_key: '********', poll_interval: 300,
+          show_on_overview: true, fetched_at: 1, checks: [{ key: 'a', name: 'Backup', slug: 'backup', visible: true }],
+        }]}
+        settings={snapshot.settings ?? null}
+        incidentWindow={null}
+        dayBuckets={buckets}
+        nowMs={NOW_MS}
+        onSelectDay={vi.fn()}
+        onPing={vi.fn()}
+      />,
+    );
+    expect(screen.getByRole('heading', { name: 'Healthchecks' })).toBeInTheDocument();
+    expect(screen.getByText('Backup')).toBeInTheDocument();
   });
 });

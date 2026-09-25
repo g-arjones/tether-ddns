@@ -1,16 +1,18 @@
 import type { JSX } from 'react';
-import type { StateSnapshot, Settings, DomainConfig, IncidentWindow } from '../types';
+import type { StateSnapshot, Settings, DomainConfig, IncidentWindow, HealthchecksProject } from '../types';
 import { StatCard } from '../components/StatCard';
 import { HeartbeatCard } from '../components/HeartbeatCard';
 import { IpReadoutPanel } from '../components/IpReadoutPanel';
 import { ReachabilityPanel } from '../components/ReachabilityPanel';
 import { RecordHealthPanel } from '../components/RecordHealthPanel';
+import { HealthchecksPanel } from '../components/HealthchecksPanel';
 import type { DayBucket } from '../utils';
 import { IconGlobe, IconCheckCircle, IconAlertTriangle } from '../components/icons';
 
 export interface OverviewViewProps {
   snapshot: StateSnapshot | null;
   domains: DomainConfig[];
+  projects?: HealthchecksProject[];
   settings: Settings | null;
   incidentWindow: IncidentWindow | null;
   dayBuckets: DayBucket[];
@@ -21,7 +23,7 @@ export interface OverviewViewProps {
 
 export function OverviewView(
   {
-    snapshot, domains, settings, incidentWindow, dayBuckets, nowMs, onSelectDay, onPing,
+    snapshot, domains, projects = [], settings, incidentWindow, dayBuckets, nowMs, onSelectDay, onPing,
   }: OverviewViewProps,
 ): JSX.Element {
   // Null-safe defaults
@@ -85,6 +87,7 @@ export function OverviewView(
             onSelectDay={onSelectDay}
           />
         </div>
+        <HealthchecksPanel projects={projects} runtime={snapshot?.healthchecks} nowMs={nowMs} />
       </div>
     </>
   );
