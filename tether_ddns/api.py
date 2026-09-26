@@ -4,12 +4,26 @@ from __future__ import annotations
 
 import platform
 import time
+from collections.abc import Mapping
 from importlib import metadata
+from typing import Any, Literal
 
-from fastapi import APIRouter, FastAPI, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
+from fastapi.exception_handlers import request_validation_exception_handler
 from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
 
-from pydantic import BaseModel, ConfigDict, Field, HttpUrl, ValidationError
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    HttpUrl,
+    ValidationError,
+    ValidationInfo,
+    field_validator,
+)
+
+from pydantic_core import PydanticCustomError
 
 from tether_ddns.config_store import (
     AppSettings,
@@ -26,7 +40,9 @@ from tether_ddns.config_store import (
 from tether_ddns.healthchecks import HealthchecksError
 from tether_ddns.hooks.base import EVENT_SPECS, HOOK_REGISTRY
 from tether_ddns.ip_sources.base import IP_SOURCE_REGISTRY
+from tether_ddns.plugin_config import ConfigModelMixin
 from tether_ddns.providers.base import PROVIDER_REGISTRY
+from tether_ddns.schema_fields import RequiredStr
 from tether_ddns.services.collection import find_or_404
 from tether_ddns.services.dispatch import DispatchService
 from tether_ddns.services.healthchecks import HealthchecksService, merge_refs
@@ -82,12 +98,20 @@ def _about_payload() -> dict[str, object]:
 class DomainInput(BaseModel):
     """Incoming domain payload (id assigned server-side)."""
 
-    hostname: str
+    hostname: RequiredStr
     provider: str
-    record_type: str = 'A'
+    record_type: Literal['A', 'AAAA'] = 'A'
     enabled: bool = True
     update_period: int = 300
     provider_config: dict[str, object] = {}
+
+    @field_validator('provider')
+    @classmethod
+    def _known_provider(cls, provider: str) -> str:
+        """Reject providers that are not registered."""
+        if provider not in PROVIDER_REGISTRY:
+            raise PydanticCustomError('unknown_provider', 'Unknown provider')
+        return provider
 
 
 class HookInput(BaseModel):
@@ -97,6 +121,28 @@ class HookInput(BaseModel):
     enabled: bool = True
     events: list[str] = []
     config: dict[str, object] = {}
+
+    @field_validator('hook')
+    @classmethod
+    def _known_hook(cls, hook: str) -> str:
+        """Reject hooks that are not registered."""
+        if hook not in HOOK_REGISTRY:
+            raise PydanticCustomError('unknown_hook', 'Unknown hook')
+        return hook
+
+    @field_validator('events')
+    @classmethod
+    def _supported_events(cls, events: list[str], info: ValidationInfo) -> list[str]:
+        """Reject events the (already validated) hook does not support."""
+        hook = info.data.get('hook')
+        if hook is None:
+            return events
+        supported = HOOK_REGISTRY[hook].supported_events()
+        for event in events:
+            if event not in supported:
+                raise PydanticCustomError(
+                    'unsupported_event', 'Unsupported event {event}', {'event': event})
+        return events
 
 
 class SettingsUpdate(BaseModel):
@@ -155,17 +201,6 @@ def _hook_schema(hook: str) -> dict[str, object]:
     return cls.config_schema() if cls else {}
 
 
-def _validate_hook_events(hook: str, events: list[str]) -> None:
-    cls = HOOK_REGISTRY.get(hook)
-    if cls is None:
-        raise HTTPException(status_code=400, detail=f'unknown hook {hook}')
-    for event in events:
-        if event not in cls.supported_events():
-            raise HTTPException(
-                status_code=400,
-                detail=f'unsupported event {event} for hook {hook}')
-
-
 def _masked_domain(d: DomainConfig) -> dict[str, object]:
     data = d.model_dump()
     data['provider_config'] = mask_secrets(_provider_schema(d.provider), d.provider_config)
@@ -184,14 +219,39 @@ def _masked_project(p: HealthchecksProject) -> dict[str, object]:
     return data
 
 
-def _body_validation_error(exc: ValidationError) -> RequestValidationError:
+_MIN_LENGTH_TYPES = frozenset({'too_short', 'string_too_short'})
+
+
+def _friendly(error: Mapping[str, Any]) -> dict[str, Any]:
+    """Collapse pydantic's 'missing' and 'at least 1' messages into 'Required'."""
+    item = dict(error)
+    ctx: dict[str, Any] = item.get('ctx') or {}
+    if item.get('type') == 'missing' or (
+            item.get('type') in _MIN_LENGTH_TYPES and ctx.get('min_length') == 1):
+        item['msg'] = 'Required'
+    return item
+
+
+def _body_validation_error(
+    exc: ValidationError, prefix: tuple[str, ...] = (),
+) -> RequestValidationError:
     """Re-shape a model ValidationError as FastAPI's 422 with body-prefixed locs."""
     errors: list[dict[str, object]] = []
     for error in exc.errors():
         item = dict(error)
-        item['loc'] = ('body', *error['loc'])
+        item['loc'] = ('body', *prefix, *error['loc'])
         errors.append(item)
     return RequestValidationError(errors)
+
+
+def _validate_plugin_config(
+    cls: type[ConfigModelMixin], config: dict[str, object], field: str,
+) -> None:
+    """Validate a plugin config against its model, as a 422 under ``field``."""
+    try:
+        cls.ConfigModel.model_validate(config)
+    except ValidationError as exc:
+        raise _body_validation_error(exc, (field,)) from exc
 
 
 def _upstream_error(exc: HealthchecksError) -> RequestValidationError:
@@ -206,6 +266,15 @@ def _persist(app: FastAPI) -> None:
 
 def register_routes(app: FastAPI) -> None:
     """Attach all API routes to the app."""
+    @app.exception_handler(RequestValidationError)
+    async def friendly_validation_errors(
+        request: Request, exc: RequestValidationError,
+    ) -> JSONResponse:
+        """Rewrite pydantic's default messages to the form-friendly ones."""
+        friendly = RequestValidationError(
+            [_friendly(e) for e in exc.errors()], body=exc.body)
+        return await request_validation_exception_handler(request, friendly)
+
     router = APIRouter(prefix='/api')
 
     @router.get('/state')
@@ -256,6 +325,8 @@ def register_routes(app: FastAPI) -> None:
 
     @router.post('/domains')
     def create_domain(payload: DomainInput) -> dict[str, object]:
+        _validate_plugin_config(
+            PROVIDER_REGISTRY[payload.provider], payload.provider_config, 'provider_config')
         domain = DomainConfig(**payload.model_dump())
         app.state.config.domains.append(domain)
         _persist(app)
@@ -265,10 +336,11 @@ def register_routes(app: FastAPI) -> None:
     @router.put('/domains/{domain_id}')
     def update_domain(domain_id: str, payload: DomainInput) -> dict[str, object]:
         i, d = find_or_404(app.state.config.domains, domain_id, 'domain not found')
+        cls = PROVIDER_REGISTRY[payload.provider]
+        config = merge_secrets(cls.config_schema(), payload.provider_config, d.provider_config)
+        _validate_plugin_config(cls, config, 'provider_config')
         data = payload.model_dump()
-        data['provider_config'] = merge_secrets(
-            _provider_schema(payload.provider),
-            payload.provider_config, d.provider_config)
+        data['provider_config'] = config
         updated = DomainConfig(id=domain_id, **data)
         app.state.config.domains[i] = updated
         _persist(app)
@@ -295,7 +367,7 @@ def register_routes(app: FastAPI) -> None:
 
     @router.post('/hooks-config')
     def create_hook(payload: HookInput) -> dict[str, object]:
-        _validate_hook_events(payload.hook, payload.events)
+        _validate_plugin_config(HOOK_REGISTRY[payload.hook], payload.config, 'config')
         hook = HookConfig(**payload.model_dump())
         app.state.config.hooks.append(hook)
         _persist(app)
@@ -303,11 +375,12 @@ def register_routes(app: FastAPI) -> None:
 
     @router.put('/hooks-config/{hook_id}')
     def update_hook(hook_id: str, payload: HookInput) -> dict[str, object]:
-        _validate_hook_events(payload.hook, payload.events)
         i, h = find_or_404(app.state.config.hooks, hook_id, 'hook not found')
+        cls = HOOK_REGISTRY[payload.hook]
+        config = merge_secrets(cls.config_schema(), payload.config, h.config)
+        _validate_plugin_config(cls, config, 'config')
         data = payload.model_dump()
-        data['config'] = merge_secrets(
-            _hook_schema(payload.hook), payload.config, h.config)
+        data['config'] = config
         updated = HookConfig(id=hook_id, **data)
         app.state.config.hooks[i] = updated
         _persist(app)
