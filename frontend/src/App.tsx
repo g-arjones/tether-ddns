@@ -326,9 +326,11 @@ export default function App() {
   // Rejects on failure so ProjectModal can render the field errors inline.
   const handleSaveProject = useCallback(
     async (value: ProjectFormValue) => {
+      // The edit form starts with the masked key; blank or masked both mean "keep".
+      const keyChanged =
+        editingProject !== null && value.api_key !== '' && value.api_key !== editingProject.api_key;
       const endpointChanged =
-        editingProject !== null &&
-        (value.api_key !== '' || value.base_url !== editingProject.base_url);
+        editingProject !== null && (keyChanged || value.base_url !== editingProject.base_url);
       if (editingProject) await api.updateHealthchecks(editingProject.id, value);
       else await api.createHealthchecks(value);
       pushToast(
