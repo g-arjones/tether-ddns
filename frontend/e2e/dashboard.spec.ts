@@ -314,3 +314,52 @@ test('all four stat cards share one row geometry', async ({ page }) => {
     }
   }
 });
+
+// jsdom cannot evaluate media queries; only a real browser can prove the phone layout.
+test('on phones the stats render as a compact readout list', async ({ page }) => {
+  // The real backend has no heartbeat URL, so settings and live status are stubbed.
+  await page.route('**/api/settings', async (route) => {
+    if (route.request().method() !== 'GET') {
+      await route.fallback();
+      return;
+    }
+    const response = await route.fetch();
+    const json = { ...(await response.json()), heartbeat_url: 'https://hc-ping.com/abc', heartbeat_interval: 60 };
+    await route.fulfill({ response, json });
+  });
+  await page.routeWebSocket('**/api/ws', (ws) => {
+    const server = ws.connectToServer();
+    server.onMessage((message) => {
+      const frame = JSON.parse(String(message)) as { kind: string; payload: Record<string, unknown> };
+      if (frame.kind === 'state') {
+        frame.payload.heartbeat = { at: Date.now() / 1000 - 35, ok: true, skipped: false, error: null };
+      }
+      ws.send(JSON.stringify(frame));
+    });
+  });
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+  const rows = page.locator('.stats .stat');
+  await expect(rows).toHaveCount(4);
+  const heartbeat = rows.filter({ hasText: 'Heartbeat' });
+  await expect(heartbeat).toContainText('every 1 min');
+  await expect(heartbeat).toContainText('OK');
+  const host = heartbeat.locator('.hb-host');
+  await expect(host).toBeHidden();
+
+  const cells = await rows.evaluateAll((els) => els.map((el) => ({
+    labelRight: el.querySelector('.stat-label')!.getBoundingClientRect().right,
+    valueLeft: el.querySelector('.stat-value')!.getBoundingClientRect().left,
+  })));
+  expect(cells).toHaveLength(4);
+  for (const cell of cells) {
+    expect(cell.valueLeft).toBeGreaterThan(cell.labelRight);
+  }
+  const stats = await page.locator('.stats').boundingBox();
+  expect(stats?.height).toBeLessThan(260);
+
+  await page.setViewportSize({ width: 1400, height: 900 });
+  await expect(host).toBeVisible();
+  await expect(host).toContainText('hc-ping.com');
+});

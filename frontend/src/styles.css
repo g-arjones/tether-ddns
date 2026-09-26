@@ -719,8 +719,32 @@ header.topbar {
   .page-title { min-width: 0; }
   .page-title h2, .page-title p { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
   .page { padding: 20px max(16px, var(--sa-right)) calc(70px + var(--sa-bottom)) max(16px, var(--sa-left)); }
-  .stats { grid-template-columns: 1fr; gap: 12px; }
-  .stat-value { font-size: 26px; }
+  /* one readout panel, one row per stat; .stat-top dissolves so label + icon join the row grid */
+  .stats {
+    display: block; margin: 20px 0; padding: 2px 14px;
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+  }
+  .stat {
+    display: grid; grid-template-columns: 28px minmax(0, 1fr) auto;
+    grid-template-areas: "ico label value" "ico sub value";
+    column-gap: 11px; align-items: center; padding: 10px 0; overflow: visible;
+    background: none; border: 0; border-top: 1px solid var(--border); border-radius: 0;
+  }
+  .stat:first-child { border-top: 0; }
+  .stat:hover { transform: none; box-shadow: none; border-color: var(--border); }
+  .stat-top { display: contents; }
+  .stat-ico { grid-area: ico; width: 28px; height: 28px; border-radius: 8px; }
+  .stat-ico svg { width: 15px; height: 15px; }
+  .stat-label {
+    grid-area: label; align-self: end;
+    font-size: 13px; color: var(--text); text-transform: none; letter-spacing: normal;
+  }
+  .stat-sub { grid-area: sub; align-self: start; min-width: 0; margin-top: 0; font-size: 11.5px; color: var(--text-3); }
+  .stat-value { grid-area: value; font-size: 19px; letter-spacing: -.5px; font-variant-numeric: tabular-nums; }
+  .hb .stat-value { font-size: 15px; }
+  .hb-host { display: none; }
+  .hb-err { border-color: var(--border); }
+  .hb-err .stat-label { color: var(--err); }
   .domain-grid { grid-template-columns: 1fr; }
   .ip-pill { display: none; }
   .field-row { grid-template-columns: 1fr; }
