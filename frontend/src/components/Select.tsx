@@ -41,7 +41,15 @@ export function Select({ id, value, options, onChange, ariaLabel }: SelectProps)
   };
 
   return (
-    <div className={`cs${open ? ' open' : ''}`} ref={wrapRef}>
+    <div
+      className={`cs${open ? ' open' : ''}`}
+      ref={wrapRef}
+      onKeyDown={(e) => {
+        if (e.key !== 'Escape' || !open) return;
+        e.stopPropagation();
+        setOpen(false);
+      }}
+    >
       <select
         className="cs-native"
         id={id}

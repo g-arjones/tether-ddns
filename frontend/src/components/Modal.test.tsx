@@ -54,4 +54,62 @@ describe('Modal', () => {
     );
     expect(container.querySelector('.modal-foot')).not.toBeNull();
   });
+
+  it('closes on Escape', () => {
+    const onClose = vi.fn();
+    render(<Modal open title="Add Domain" onClose={onClose}><p>body</p></Modal>);
+    fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' });
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('ignores Escape while an IME composition is in progress', () => {
+    const onClose = vi.fn();
+    render(<Modal open title="Add Domain" onClose={onClose}><p>body</p></Modal>);
+    fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape', isComposing: true });
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it('ignores other keys', () => {
+    const onClose = vi.fn();
+    render(<Modal open title="Add Domain" onClose={onClose}><p>body</p></Modal>);
+    fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Enter' });
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it('focuses the [data-autofocus] element on open', () => {
+    const { rerender } = render(
+      <Modal open={false} title="Confirm" onClose={vi.fn()}><button data-autofocus>Cancel</button></Modal>,
+    );
+    rerender(<Modal open title="Confirm" onClose={vi.fn()}><button data-autofocus>Cancel</button></Modal>);
+    expect(screen.getByRole('button', { name: 'Cancel' })).toHaveFocus();
+  });
+
+  it('focuses the dialog itself when nothing asks for autofocus', () => {
+    const { rerender } = render(<Modal open={false} title="Day" onClose={vi.fn()}><p>body</p></Modal>);
+    rerender(<Modal open title="Day" onClose={vi.fn()}><p>body</p></Modal>);
+    expect(screen.getByRole('dialog')).toHaveFocus();
+  });
+
+  it('returns focus to the opener on close', () => {
+    const opener = document.createElement('button');
+    document.body.appendChild(opener);
+    opener.focus();
+    const { rerender } = render(<Modal open title="Day" onClose={vi.fn()}><p>body</p></Modal>);
+    expect(opener).not.toHaveFocus();
+
+    rerender(<Modal open={false} title="Day" onClose={vi.fn()}><p>body</p></Modal>);
+    expect(opener).toHaveFocus();
+    opener.remove();
+  });
+
+  it('does not throw when the opener is gone by the time it closes', () => {
+    const opener = document.createElement('button');
+    document.body.appendChild(opener);
+    opener.focus();
+    const { rerender } = render(<Modal open title="Day" onClose={vi.fn()}><p>body</p></Modal>);
+    opener.remove();
+
+    expect(() => rerender(<Modal open={false} title="Day" onClose={vi.fn()}><p>body</p></Modal>)).not.toThrow();
+    expect(opener).not.toHaveFocus();
+  });
 });

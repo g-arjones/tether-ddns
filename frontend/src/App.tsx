@@ -27,11 +27,19 @@ import { DomainModal, type DomainFormValue } from './components/DomainModal';
 import { HookModal, type HookFormValue } from './components/HookModal';
 import { ProjectModal, type ProjectFormValue } from './components/ProjectModal';
 import { IncidentModal } from './components/IncidentModal';
+import { ConfirmModal } from './components/ConfirmModal';
 import { DAY_BARS } from './components/ReachabilityPanel';
 import { Toasts, type ToastItem, type ToastKind } from './components/Toasts';
+import { domainDeleteCopy, hookDeleteCopy, projectDeleteCopy, type DeleteCopy } from './deleteCopy';
 import './styles.css';
 
 type Theme = 'dark' | 'light';
+
+type DeleteKind = 'domain' | 'hook' | 'project';
+interface PendingDelete extends DeleteCopy {
+  kind: DeleteKind;
+  id: string;
+}
 
 const TITLES: Record<ViewKey, { title: string; sub: string }> = {
   overview: { title: 'Overview', sub: 'Live status of your dynamic DNS records' },
@@ -86,6 +94,10 @@ export default function App() {
   const [projectModalOpen, setProjectModalOpen] = useState(false);
   const [editingProject, setEditingProject] = useState<HealthchecksProject | null>(null);
   const [selectedDayStart, setSelectedDayStart] = useState<number | null>(null);
+  // Kept apart from `confirmOpen` so the text survives the close fade.
+  const [pendingDelete, setPendingDelete] = useState<PendingDelete | null>(null);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const incidentWindow = useIncidents(snapshot?.reachability?.rev ?? 0, generation);
   // Derived every render, never stored: a day's observed span grows in real time,
@@ -101,7 +113,8 @@ export default function App() {
 
   // aria-modal on any open modal claims the rest of the app is inert to assistive
   // tech, so the shell must actually become inert whenever one is open.
-  const anyModalOpen = domainModalOpen || hookModalOpen || projectModalOpen || selectedDay !== null;
+  const anyModalOpen =
+    domainModalOpen || hookModalOpen || projectModalOpen || confirmOpen || selectedDay !== null;
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
@@ -249,19 +262,25 @@ export default function App() {
     }
   }, [pushToast]);
 
+  const askDelete = useCallback((kind: DeleteKind, id: string, copy: DeleteCopy) => {
+    setPendingDelete({ kind, id, ...copy });
+    setConfirmOpen(true);
+  }, []);
+
   const handleDelete = useCallback(
-    async (id: string) => {
+    (id: string) => {
       const d = domains.find((x) => x.id === id);
-      if (d && !window.confirm(`Remove "${d.hostname}"?`)) return;
-      try {
-        await api.deleteDomain(id);
-        pushToast('Domain removed', 'info');
-        await loadConfig();
-      } catch {
-        pushToast('Failed to remove domain', 'error');
-      }
+      if (d) askDelete('domain', id, domainDeleteCopy(d, providers));
     },
-    [domains, loadConfig, pushToast],
+    [domains, providers, askDelete],
+  );
+
+  const handleDeleteHook = useCallback(
+    (id: string) => {
+      const h = hooks.find((x) => x.id === id);
+      if (h) askDelete('hook', id, hookDeleteCopy(h, hookDefs));
+    },
+    [hooks, hookDefs, askDelete],
   );
 
   const handleToggle = useCallback(
@@ -343,19 +362,31 @@ export default function App() {
   );
 
   const handleDeleteProject = useCallback(
-    async (id: string) => {
+    (id: string) => {
       const p = projects.find((x) => x.id === id);
-      if (p && !window.confirm(`Remove "${p.name}"?`)) return;
-      try {
-        await api.deleteHealthchecks(id);
-        pushToast('Project removed', 'info');
-        await loadConfig();
-      } catch {
-        pushToast('Failed to remove project', 'error');
-      }
+      if (p) askDelete('project', id, projectDeleteCopy(p));
     },
-    [projects, loadConfig, pushToast],
+    [projects, askDelete],
   );
+
+  const runPendingDelete = useCallback(async () => {
+    if (!pendingDelete) return;
+    const { kind, id } = pendingDelete;
+    const remove = { domain: api.deleteDomain, hook: api.deleteHook, project: api.deleteHealthchecks }[kind];
+    setDeleting(true);
+    try {
+      await remove(id);
+      setConfirmOpen(false);
+      pushToast(`${kind.charAt(0).toUpperCase()}${kind.slice(1)} deleted`, 'info');
+      await loadConfig();
+    } catch {
+      setConfirmOpen(false);
+      pushToast(`Failed to delete ${kind}`, 'error');
+      await loadConfig();
+    } finally {
+      setDeleting(false);
+    }
+  }, [pendingDelete, loadConfig, pushToast]);
 
   const handleToggleProjectOverview = useCallback(
     async (id: string, next: boolean) => {
@@ -459,10 +490,7 @@ export default function App() {
                   setEditingHook(hook);
                   setHookModalOpen(true);
                 }}
-                onDelete={async (id) => {
-                  await api.deleteHook(id);
-                  await loadConfig();
-                }}
+                onDelete={handleDeleteHook}
               />
             )}
             {activeView === 'healthchecks' && (
@@ -530,6 +558,17 @@ export default function App() {
         nowMs={nowMs}
         onClose={() => setSelectedDayStart(null)}
       />
+
+      <ConfirmModal
+        open={confirmOpen}
+        title={pendingDelete?.title ?? ''}
+        confirmLabel={pendingDelete?.confirmLabel ?? ''}
+        busy={deleting}
+        onConfirm={() => { void runPendingDelete(); }}
+        onCancel={() => setConfirmOpen(false)}
+      >
+        {pendingDelete?.body}
+      </ConfirmModal>
 
       <Toasts toasts={toasts} />
       <ConnectionOverlay status={status} visible={disconnected} />

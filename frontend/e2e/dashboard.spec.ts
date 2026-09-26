@@ -185,6 +185,36 @@ test('the keyboard cannot escape an open modal into the rail or topbar', async (
   expect(escaped).toEqual([]);
 });
 
+// jsdom has no real focus or `inert`, so only a browser can prove the dialog takes focus
+// on its safe button and that Escape backs out without deleting.
+test('deleting a hook asks for confirmation first', async ({ page }) => {
+  const created = await page.request.post('/api/hooks-config', {
+    data: { hook: 'log', events: ['ip_changed'], config: {} },
+  });
+  expect(created.ok()).toBeTruthy();
+
+  await page.goto('/');
+  await page.getByRole('navigation').getByRole('button', { name: /Hooks/ }).click();
+  const rows = page.locator('.hook-row');
+  await expect(rows.last()).toBeVisible();
+  const before = await rows.count();
+
+  const dialog = page.getByRole('dialog', { name: 'Delete hook' });
+  await rows.last().getByRole('button', { name: 'Delete' }).click();
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByRole('button', { name: 'Cancel' })).toBeFocused();
+
+  await page.keyboard.press('Escape');
+  await expect(dialog).toBeHidden();
+  await expect(rows.last().getByRole('button', { name: 'Delete' })).toBeFocused();
+  await expect(rows).toHaveCount(before);
+
+  await rows.last().getByRole('button', { name: 'Delete' }).click();
+  await dialog.getByRole('button', { name: 'Delete hook' }).click();
+  await expect(rows).toHaveCount(before - 1);
+  await expect(dialog).toBeHidden();
+});
+
 test('recovers from a dropped connection and does not duplicate logs', async ({ page }) => {
   let live = true;
   // Assigned inside the route callback, which TS flow analysis cannot see.
