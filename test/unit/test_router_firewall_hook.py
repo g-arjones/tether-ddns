@@ -1,10 +1,11 @@
 """Tests for the ZTE router firewall hook."""
 import hashlib
+import urllib.parse
 from base64 import b64decode
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from pydantic import SecretStr
+from pydantic import SecretStr, ValidationError
 
 import pytest
 
@@ -299,3 +300,53 @@ async def test_on_ip_changed_aborts_without_salt() -> None:
     finally:
         cs.stop()
     session.post.assert_not_called()
+
+
+def test_config_rejects_bad_router_url_and_source_ip() -> None:
+    """router_url must be an http(s) URL and source_ip a real address."""
+    with pytest.raises(ValidationError) as info:
+        RouterFirewallConfig.model_validate({
+            'username': 'u', 'password': 'p',
+            'router_url': 'ftp://router', 'source_ip': '999.1.1.1'})
+    assert {e['loc'][0] for e in info.value.errors()} == {'router_url', 'source_ip'}
+
+
+def test_config_requires_username_password_and_rule_name() -> None:
+    """Blank credentials and rule name are rejected."""
+    with pytest.raises(ValidationError) as info:
+        RouterFirewallConfig.model_validate(
+            {'username': '  ', 'password': '', 'rule_name': ''})
+    assert {e['loc'][0] for e in info.value.errors()} == {
+        'username', 'password', 'rule_name'}
+
+
+def test_build_apply_payload_stringifies_source_ip() -> None:
+    """The typed source address reaches the payload as a plain string."""
+    payload = build_apply_payload(_cfg(), '1', '2001:db8::9')
+    assert payload['SourceIP'] == '::'
+    assert payload['SourceIPMask'] == '::/0'
+    assert all(isinstance(v, str) for v in payload.values())
+
+
+@pytest.mark.parametrize('source_ip', ['192.0.2.7', '2001:db8::7'])
+def test_encode_apply_body_encodes_either_family(source_ip: str) -> None:
+    """An IPv4 or IPv6 source address survives URL encoding."""
+    cfg = RouterFirewallConfig.model_validate(
+        {'username': 'u', 'password': 'p', 'source_ip': source_ip})
+    body = encode_apply_body(build_apply_payload(cfg, '1', '2001:db8::9'), 'T')
+    assert f'SourceIP={urllib.parse.quote(source_ip, safe="")}&' in body
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('url', ['https://192.168.0.1', 'https://192.168.0.1/'])
+async def test_on_ip_changed_base_url_has_no_double_slash(url: str) -> None:
+    """The typed router URL yields one trailing slash with or without input slash."""
+    session = _flow_session()
+    cs = _patch_session(session)
+    try:
+        await RouterFirewallHook().on_ip_changed(
+            IpChangedEvent(old_ip='2001:db8::1', new_ip='2001:db8::9', family='ipv6'),
+            _cfg(router_url=url))
+    finally:
+        cs.stop()
+    assert session.get.call_args_list[0].args[0] == 'https://192.168.0.1/'
