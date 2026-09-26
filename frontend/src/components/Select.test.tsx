@@ -1,5 +1,6 @@
 import { render, screen, fireEvent, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
+import { Modal } from './Modal';
 import { Select } from './Select';
 
 const options = [
@@ -36,5 +37,23 @@ describe('Select', () => {
     render(<Select id="s2" ariaLabel="Choice" value="a" options={options} onChange={onChange} />);
     fireEvent.change(screen.getByLabelText('Choice'), { target: { value: 'b' } });
     expect(onChange).toHaveBeenCalledWith('b');
+  });
+
+  it('closes its own menu on Escape without closing the enclosing modal', () => {
+    const onClose = vi.fn();
+    const { container } = render(
+      <Modal open title="Add Domain" onClose={onClose}>
+        <Select value="a" options={options} onChange={vi.fn()} />
+      </Modal>,
+    );
+    fireEvent.click(container.querySelector('.cs-trigger') as HTMLElement);
+    expect(container.querySelector('.cs')).toHaveClass('open');
+
+    fireEvent.keyDown(container.querySelector('.cs') as HTMLElement, { key: 'Escape' });
+    expect(container.querySelector('.cs')).not.toHaveClass('open');
+    expect(onClose).not.toHaveBeenCalled();
+
+    fireEvent.keyDown(container.querySelector('.cs') as HTMLElement, { key: 'Escape' });
+    expect(onClose).toHaveBeenCalledTimes(1);
   });
 });
