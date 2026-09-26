@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { ApiError, createHealthchecks, fetchHealthchecks, getHealthchecks, getProviders, pingHeartbeat, putSettings, setCheckVisible, updateHealthchecks } from './api';
+import { ApiError, createDomain, createHealthchecks, fetchHealthchecks, getHealthchecks, getProviders, pingHeartbeat, putSettings, setCheckVisible, updateHealthchecks } from './api';
 
 describe('api', () => {
   beforeEach(() => { vi.restoreAllMocks(); });
@@ -12,7 +12,7 @@ describe('api', () => {
     expect(result[0].key).toBe('duckdns');
   });
 
-  it('maps a 422 detail list to fieldErrors keyed by the last loc part', async () => {
+  it('maps a 422 detail list to fieldErrors keyed by the dotted path after body', async () => {
     const detail = [{ loc: ['body', 'heartbeat_url'], msg: 'Input should be a valid URL', type: 'url_parsing' }];
     vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, status: 422, json: async () => ({ detail }) })));
     const err = await putSettings({ heartbeat_url: 'x' }).catch((e: unknown) => e);
@@ -20,6 +20,20 @@ describe('api', () => {
     expect((err as ApiError).status).toBe(422);
     expect((err as ApiError).fieldErrors).toEqual({ heartbeat_url: 'Input should be a valid URL' });
     expect((err as ApiError).message).toBe('/api/settings -> 422');
+  });
+
+  it('keeps nested locs apart so plugin fields cannot collide with top-level ones', async () => {
+    const detail = [
+      { loc: ['body', 'provider_config', 'enabled'], msg: 'Required', type: 'missing' },
+      { loc: ['body', 'enabled'], msg: 'Input should be a valid boolean', type: 'bool_type' },
+      { loc: ['body'], msg: 'Field required', type: 'missing' },
+    ];
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, status: 422, json: async () => ({ detail }) })));
+    const err = await createDomain({}).catch((e: unknown) => e);
+    expect((err as ApiError).fieldErrors).toEqual({
+      'provider_config.enabled': 'Required',
+      enabled: 'Input should be a valid boolean',
+    });
   });
 
   it('keeps fieldErrors empty for non-422 failures', async () => {

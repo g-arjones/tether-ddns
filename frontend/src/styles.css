@@ -513,7 +513,8 @@ header.topbar {
 .hb-url input.hb-invalid { border-color: var(--err); box-shadow: 0 0 0 3px var(--err-soft); }
 .field-help.hb-error { color: var(--err); }
 .chips.hb-dim { opacity: .45; }
-.field input.hc-invalid { border-color: var(--err); box-shadow: 0 0 0 3px var(--err-soft); }
+.field :is(input, select, .cs-trigger).field-invalid { border-color: var(--err); box-shadow: 0 0 0 3px var(--err-soft); }
+.field label .req { color: var(--text-3); font-weight: 400; margin-left: 2px; }
 .act-btn:disabled { cursor: progress; transform: none; }
 
 /* ---------- Custom select (replaces native combobox chrome) ---------- */
@@ -526,6 +527,7 @@ header.topbar {
 }
 .cs-trigger:hover { border-color: var(--border-strong); }
 .cs.open .cs-trigger, .cs-trigger:focus-visible { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(59,130,246,.15); outline: none; }
+.cs.open .cs-trigger.field-invalid, .cs-trigger.field-invalid:focus-visible { border-color: var(--err); box-shadow: 0 0 0 3px var(--err-soft); }
 .cs-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cs-caret { width: 16px; height: 16px; color: var(--text-3); flex: none; transition: transform var(--transition); }
 .cs.open .cs-caret { transform: rotate(180deg); }

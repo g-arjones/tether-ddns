@@ -54,4 +54,47 @@ describe('SchemaForm', () => {
     render(<SchemaForm schema={schema} value={{}} onChange={vi.fn()} />);
     expect(screen.getByText('Your API token')).toBeInTheDocument();
   });
+
+  it('shows a field error in place of its description', () => {
+    const schema = { properties: { token: { title: 'Token', type: 'string', description: 'Your API token' } } };
+    render(<SchemaForm schema={schema} value={{}} onChange={vi.fn()} errors={{ token: 'Required' }} />);
+    const input = screen.getByLabelText('Token');
+    expect(input).toHaveAttribute('aria-invalid', 'true');
+    expect(input).toHaveClass('field-invalid');
+    expect(input).toHaveAttribute('aria-describedby', 'sf-token-help');
+    expect(document.getElementById('sf-token-help')).toHaveTextContent('Required');
+    expect(screen.queryByText('Your API token')).toBeNull();
+  });
+
+  it('decorates an enum select with its error', () => {
+    const schema = { properties: { ip_version: { type: 'string', title: 'IP Version', enum: ['ipv4', 'ipv6'] } } };
+    render(<SchemaForm schema={schema} value={{ ip_version: 'ipv4' }} onChange={vi.fn()} errors={{ ip_version: "Input should be 'ipv4' or 'ipv6'" }} />);
+    const select = screen.getByLabelText('IP Version');
+    expect(select).toHaveAttribute('aria-invalid', 'true');
+    expect(select).toHaveClass('field-invalid');
+    expect(screen.getByText("Input should be 'ipv4' or 'ipv6'")).toHaveClass('hb-error');
+  });
+
+  it('describes a valid field by its description and renders no empty help line', () => {
+    const schema = { properties: { a: { title: 'A', description: 'about a' }, b: { title: 'B' } } };
+    const { container } = render(<SchemaForm schema={schema} value={{}} onChange={vi.fn()} />);
+    expect(screen.getByLabelText('A')).toHaveAttribute('aria-describedby', 'sf-a-help');
+    expect(screen.getByLabelText('A')).not.toHaveAttribute('aria-invalid');
+    expect(screen.getByLabelText('B')).not.toHaveAttribute('aria-describedby');
+    expect(container.querySelectorAll('.field-help')).toHaveLength(1);
+  });
+
+  it('marks only schema-required fields as required', () => {
+    const schema = {
+      required: ['api_token'],
+      properties: { api_token: { title: 'API Token', format: 'password' }, ttl: { title: 'TTL', type: 'integer' } },
+    };
+    const { container } = render(<SchemaForm schema={schema} value={{}} onChange={vi.fn()} />);
+    expect(screen.getByLabelText('API Token')).toHaveAttribute('aria-required', 'true');
+    expect(screen.getByLabelText('TTL')).not.toHaveAttribute('aria-required');
+    const markers = container.querySelectorAll('label .req');
+    expect(markers).toHaveLength(1);
+    expect(markers[0]).toHaveAttribute('aria-hidden', 'true');
+    expect(markers[0].closest('label')).toHaveAttribute('for', 'sf-api_token');
+  });
 });

@@ -13,16 +13,17 @@ import os
 import re
 import urllib.parse
 from base64 import b64decode, b64encode
+from ipaddress import IPv6Address
 from typing import Annotated, Literal
 
 import aiohttp
 
-from pydantic import BaseModel, SecretStr
+from pydantic import BaseModel, HttpUrl, IPvAnyAddress
 
 from tether_ddns.errors import TetherError
 from tether_ddns.hooks.base import Hook, IpChangedEvent, register_hook
 from tether_ddns.logging_setup import get_logger
-from tether_ddns.schema_fields import labeled_field
+from tether_ddns.schema_fields import RequiredSecret, RequiredStr, labeled_field
 
 _log = get_logger()
 
@@ -57,10 +58,11 @@ _APPLY_FIELD_ORDER = (
 class RouterFirewallConfig(BaseModel):
     """Configuration for the ZTE router firewall hook."""
 
-    router_url: Annotated[str, labeled_field(title='Router URL')] = 'https://192.168.0.1'
-    username: str
-    password: SecretStr
-    rule_name: Annotated[str, labeled_field(title='Rule Name')] = 'Wireguard'
+    router_url: Annotated[HttpUrl, labeled_field(title='Router URL')] = HttpUrl(
+        'https://192.168.0.1')
+    username: RequiredStr
+    password: RequiredSecret
+    rule_name: Annotated[RequiredStr, labeled_field(title='Rule Name')] = 'Wireguard'
     ip_version: Annotated[
         Literal['ipv4', 'ipv6'],
         labeled_field(
@@ -68,7 +70,7 @@ class RouterFirewallConfig(BaseModel):
             labels={'ipv4': 'IPv4', 'ipv6': 'IPv6'}),
     ] = 'ipv6'
     allow_traffic: Annotated[bool, labeled_field(title='Allow Traffic')] = True
-    source_ip: Annotated[str, labeled_field(title='Source IP')] = '::'
+    source_ip: Annotated[IPvAnyAddress, labeled_field(title='Source IP')] = IPv6Address('::')
     source_prefix: Annotated[int, labeled_field(title='Source Prefix')] = 0
     dest_prefix: Annotated[int, labeled_field(title='Destination Prefix')] = 128
     protocol: Annotated[
@@ -210,9 +212,9 @@ def build_apply_payload(
         'FilterTarget': '1' if config.allow_traffic else '0',
         'FilterIndex': index,
         'IPVersion': _IP_VERSIONS[config.ip_version],
-        'SourceIPMask': f'{config.source_ip}/{config.source_prefix}',
+        'SourceIPMask': f'{str(config.source_ip)}/{config.source_prefix}',
         'DestIPMask': f'{ip}/{dest_mask}',
-        'SourceIP': config.source_ip,
+        'SourceIP': str(config.source_ip),
         'SMask': str(config.source_prefix),
         'DestIP': ip,
         'DMask': dest_mask,
@@ -260,7 +262,7 @@ class RouterFirewallHook(Hook[RouterFirewallConfig]):
         ip = event.new_ip
         if event.family != config.ip_version:
             return
-        base = config.router_url.rstrip('/')
+        base = str(config.router_url).rstrip('/')
         headers = {**self._XHR_HEADERS, 'Referer': f'{base}/'}
         # The router serves a self-signed certificate; verification is opt-in.
         connector = aiohttp.TCPConnector(ssl=config.verify_tls)

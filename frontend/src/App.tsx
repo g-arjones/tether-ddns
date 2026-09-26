@@ -206,22 +206,14 @@ export default function App() {
     }
   }, [pushToast]);
 
+  // Rejects on failure so DomainModal can render the field errors inline.
   const handleSaveDomain = useCallback(
     async (value: DomainFormValue) => {
-      if (!value.hostname.trim()) {
-        pushToast('Please enter a hostname', 'error');
-        return;
-      }
-      try {
-        if (editingDomain) await api.updateDomain(editingDomain.id, value);
-        else await api.createDomain(value);
-        pushToast(`Saved ${value.hostname}`, 'success');
-        setDomainModalOpen(false);
-        setEditingDomain(null);
-        await loadConfig();
-      } catch {
-        pushToast('Failed to save domain', 'error');
-      }
+      if (editingDomain) await api.updateDomain(editingDomain.id, value);
+      else await api.createDomain(value);
+      pushToast(`Saved ${value.hostname}`, 'success');
+      setDomainModalOpen(false);
+      await loadConfig();
     },
     [editingDomain, loadConfig, pushToast],
   );
@@ -290,25 +282,26 @@ export default function App() {
       try {
         await api.updateDomain(id, { ...d, enabled: !d.enabled });
         await loadConfig();
-      } catch {
-        pushToast('Failed to update domain', 'error');
+      } catch (err) {
+        pushToast(
+          err instanceof api.ApiError && err.status === 422
+            ? `${d.hostname}: fix its provider config first`
+            : 'Failed to update domain',
+          'error',
+        );
       }
     },
     [domains, loadConfig, pushToast],
   );
 
+  // Rejects on failure so HookModal can render the field errors inline.
   const handleSaveHook = useCallback(
     async (value: HookFormValue) => {
-      try {
-        if (editingHook) await api.updateHook(editingHook.id, value);
-        else await api.createHook(value);
-        pushToast('Hook saved', 'success');
-        setHookModalOpen(false);
-        setEditingHook(null);
-        await loadConfig();
-      } catch {
-        pushToast('Failed to save hook', 'error');
-      }
+      if (editingHook) await api.updateHook(editingHook.id, value);
+      else await api.createHook(value);
+      pushToast('Hook saved', 'success');
+      setHookModalOpen(false);
+      await loadConfig();
     },
     [editingHook, loadConfig, pushToast],
   );
@@ -331,9 +324,11 @@ export default function App() {
   // Rejects on failure so ProjectModal can render the field errors inline.
   const handleSaveProject = useCallback(
     async (value: ProjectFormValue) => {
+      // The edit form starts with the masked key; blank or masked both mean "keep".
+      const keyChanged =
+        editingProject !== null && value.api_key !== '' && value.api_key !== editingProject.api_key;
       const endpointChanged =
-        editingProject !== null &&
-        (value.api_key !== '' || value.base_url !== editingProject.base_url);
+        editingProject !== null && (keyChanged || value.base_url !== editingProject.base_url);
       if (editingProject) await api.updateHealthchecks(editingProject.id, value);
       else await api.createHealthchecks(value);
       pushToast(
@@ -341,7 +336,6 @@ export default function App() {
         'success',
       );
       setProjectModalOpen(false);
-      setEditingProject(null);
       await loadConfig();
     },
     [editingProject, loadConfig, pushToast],
@@ -525,10 +519,7 @@ export default function App() {
         open={domainModalOpen}
         providers={providers}
         editing={editingDomain}
-        onClose={() => {
-          setDomainModalOpen(false);
-          setEditingDomain(null);
-        }}
+        onClose={() => setDomainModalOpen(false)}
         onSave={handleSaveDomain}
       />
 
@@ -536,20 +527,14 @@ export default function App() {
         open={hookModalOpen}
         hooks={hookDefs}
         editing={editingHook}
-        onClose={() => {
-          setHookModalOpen(false);
-          setEditingHook(null);
-        }}
+        onClose={() => setHookModalOpen(false)}
         onSave={handleSaveHook}
       />
 
       <ProjectModal
         open={projectModalOpen}
         editing={editingProject}
-        onClose={() => {
-          setProjectModalOpen(false);
-          setEditingProject(null);
-        }}
+        onClose={() => setProjectModalOpen(false)}
         onSave={handleSaveProject}
       />
 

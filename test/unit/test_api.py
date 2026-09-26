@@ -131,14 +131,16 @@ def test_get_hooks_returns_per_hook_labeled_events(tmp_path: Path) -> None:
 
 
 def test_create_hook_rejects_unsupported_event(tmp_path: Path) -> None:
-    """Saving a hook with an unsupported event returns 400."""
+    """Saving a hook with an unsupported event returns a 422 on events."""
     payload: dict[str, Any] = {
         'hook': 'router_firewall', 'enabled': True,
-        'events': ['reachability_changed'], 'config': {},
+        'events': ['reachability_changed'],
+        'config': {'username': 'u', 'password': 'p'},
     }
     with _client(tmp_path) as client:
         resp: Any = client.post('/api/hooks-config', json=payload)
-    assert resp.status_code == 400
+    assert resp.status_code == 422
+    assert resp.json()['detail'][0]['loc'] == ['body', 'events']
 
 
 def test_create_hook_accepts_supported_event(tmp_path: Path) -> None:

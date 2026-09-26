@@ -5,7 +5,7 @@ from typing import Annotated
 
 import aiohttp
 
-from pydantic import BaseModel, SecretStr
+from pydantic import BaseModel
 
 from tether_ddns.hooks.base import (
     DomainUpdateErrorEvent,
@@ -15,7 +15,7 @@ from tether_ddns.hooks.base import (
     ReachabilityChangedEvent,
     register_hook,
 )
-from tether_ddns.schema_fields import labeled_field
+from tether_ddns.schema_fields import RequiredSecret, labeled_field
 
 API_URL = 'https://api.pushover.net/1/messages.json'
 
@@ -23,8 +23,8 @@ API_URL = 'https://api.pushover.net/1/messages.json'
 class PushoverConfig(BaseModel):
     """Configuration for the Pushover hook."""
 
-    token: Annotated[SecretStr, labeled_field(title='API Token')]
-    user: Annotated[SecretStr, labeled_field(title='User Key')]
+    token: Annotated[RequiredSecret, labeled_field(title='API Token')]
+    user: Annotated[RequiredSecret, labeled_field(title='User Key')]
 
 
 @register_hook

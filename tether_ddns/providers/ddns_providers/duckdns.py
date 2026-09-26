@@ -3,19 +3,20 @@ from __future__ import annotations
 
 import aiohttp
 
-from pydantic import BaseModel, SecretStr
+from pydantic import BaseModel
 
 from tether_ddns.errors import TetherError
 from tether_ddns.providers.base import (
     DDNSProvider,
     register_provider,
 )
+from tether_ddns.schema_fields import RequiredSecret
 
 
 class DuckDNSConfig(BaseModel):
     """Configuration for the DuckDNS provider."""
 
-    token: SecretStr
+    token: RequiredSecret
 
 
 @register_provider

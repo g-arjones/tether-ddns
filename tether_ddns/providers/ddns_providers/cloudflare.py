@@ -5,24 +5,33 @@ from typing import Annotated, Any, cast
 
 import aiohttp
 
-from pydantic import BaseModel, SecretStr
+from pydantic import AfterValidator, BaseModel
+
+from pydantic_core import PydanticCustomError
 
 from tether_ddns.errors import TetherError
 from tether_ddns.providers.base import (
     DDNSProvider,
     register_provider,
 )
-from tether_ddns.schema_fields import labeled_field
+from tether_ddns.schema_fields import RequiredSecret, labeled_field
 
 _API = 'https://api.cloudflare.com/client/v4'
+
+
+def _check_ttl(ttl: int) -> int:
+    """Accept Cloudflare's automatic TTL (1) or an explicit 60..86400 seconds."""
+    if ttl != 1 and not 60 <= ttl <= 86400:
+        raise PydanticCustomError('ttl_range', 'Must be 1 (auto) or between 60 and 86400')
+    return ttl
 
 
 class CloudflareConfig(BaseModel):
     """Configuration for the Cloudflare provider."""
 
-    api_token: Annotated[SecretStr, labeled_field(title='API Token')]
+    api_token: Annotated[RequiredSecret, labeled_field(title='API Token')]
     proxied: bool = False
-    ttl: Annotated[int, labeled_field(title='TTL')] = 1
+    ttl: Annotated[int, AfterValidator(_check_ttl), labeled_field(title='TTL')] = 1
 
 
 def zone_matches(zone_name: str, hostname: str) -> bool:

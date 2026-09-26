@@ -1,9 +1,12 @@
 """Helpers for declaring UI-friendly config-model fields."""
 from __future__ import annotations
 
-from typing import Any, cast
+from typing import Annotated, Any, cast
 
-from pydantic import Field
+from pydantic import Field, SecretStr, StringConstraints
+
+RequiredStr = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
+RequiredSecret = Annotated[SecretStr, Field(min_length=1)]
 
 
 def labeled_field(

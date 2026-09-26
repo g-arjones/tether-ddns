@@ -14,15 +14,16 @@ export class ApiError extends Error {
   }
 }
 
-// FastAPI 422 bodies are {detail: [{loc: [...], msg}]}; key each message by its field name.
+// FastAPI 422 bodies are {detail: [{loc: ['body', ...path], msg}]}; key each message by its dotted path.
 async function fieldErrorsOf(res: Response): Promise<Record<string, string>> {
   try {
     const body = (await res.json()) as { detail?: unknown };
     if (!Array.isArray(body.detail)) return {};
     const out: Record<string, string> = {};
     for (const entry of body.detail as { loc?: unknown[]; msg?: unknown }[]) {
-      const key = entry.loc?.at(-1);
-      if (key !== undefined && typeof entry.msg === 'string') out[String(key)] = entry.msg;
+      const loc = entry.loc ?? [];
+      const path = loc[0] === 'body' ? loc.slice(1) : loc;
+      if (path.length > 0 && typeof entry.msg === 'string') out[path.join('.')] = entry.msg;
     }
     return out;
   } catch {

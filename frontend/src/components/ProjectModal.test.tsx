@@ -41,17 +41,17 @@ describe('ProjectModal', () => {
     expect(await screen.findByText('Failed to save project')).toBeInTheDocument();
   });
 
-  it('edits with the stored values and an unchanged key', async () => {
+  it('edits with the stored values and the masked key', async () => {
     const onSave = vi.fn(async () => undefined);
     render(<ProjectModal open editing={editing} onClose={vi.fn()} onSave={onSave} />);
     expect(screen.getByRole('heading', { name: 'Edit project' })).toBeInTheDocument();
     expect(screen.getByLabelText('Name')).toHaveValue('Homelab');
-    expect(screen.getByLabelText('API key')).toHaveValue('');
-    expect(screen.getByLabelText('API key')).toHaveAttribute('placeholder', 'unchanged');
+    expect(screen.getByLabelText('API key')).toHaveValue('********');
+    expect(screen.getByLabelText('API key')).not.toHaveAttribute('placeholder');
     expect(screen.getByRole('button', { name: '15 min' })).toHaveClass('active');
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
     await waitFor(() => expect(onSave).toHaveBeenCalledWith({
-      name: 'Homelab', base_url: 'https://hc.example.lan/', api_key: '', poll_interval: 900,
+      name: 'Homelab', base_url: 'https://hc.example.lan/', api_key: '********', poll_interval: 900,
     }));
   });
 });
