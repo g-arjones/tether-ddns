@@ -147,7 +147,7 @@ export function humanTime(totalSeconds: number): string {
 
 export function relStable(changedAt: number | null, now: number = Date.now()): string {
   if (changedAt == null) return '—';
-  return humanTime(now / 1000 - changedAt);
+  return humanTime(Math.max(0, now / 1000 - changedAt));
 }
 
 export function formatCountdown(nextCheckAt: number | null, now: number = Date.now()): string {

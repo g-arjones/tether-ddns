@@ -43,6 +43,9 @@ describe('relStable', () => {
     const now = (2 * 3600 + 14 * 60) * 1000;
     expect(relStable(0, now)).toBe('2h 14m');
   });
+  it('clamps a timestamp slightly ahead of now to 0s', () => {
+    expect(relStable(100.4, 100_000)).toBe('0s');
+  });
 });
 
 const DAY = 86400;
