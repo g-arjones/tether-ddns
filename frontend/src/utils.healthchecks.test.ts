@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { CheckStatus, HealthcheckRef, ProjectRuntime } from './types';
-import { ago, checkDisplayStatus, hostOf, humanDuration, projectSummary } from './utils';
+import { ago, checkDisplayStatus, elapsedShort, hostOf, humanDuration, overviewPill, projectSummary } from './utils';
 
 const NOW_MS = new Date(2026, 8, 25, 12, 0, 0).getTime();
 const status = (s: CheckStatus['status']): CheckStatus => ({
@@ -70,5 +70,63 @@ describe('hostOf', () => {
   it('returns the host, or the input when it is not a URL', () => {
     expect(hostOf('https://hc.example.lan:8000/sub/')).toBe('hc.example.lan:8000');
     expect(hostOf('not a url')).toBe('not a url');
+  });
+});
+
+describe('elapsedShort', () => {
+  const at = (secondsAgo: number) => NOW_MS / 1000 - secondsAgo;
+  it('renders the largest unit without the "ago" suffix', () => {
+    expect(elapsedShort(at(0), NOW_MS)).toBe('0s');
+    expect(elapsedShort(at(14), NOW_MS)).toBe('14s');
+    expect(elapsedShort(at(60), NOW_MS)).toBe('1m');
+    expect(elapsedShort(at(11 * 3600), NOW_MS)).toBe('11h');
+    expect(elapsedShort(at(130 * 86400), NOW_MS)).toBe('4mo');
+  });
+  it('renders a dash for never', () => {
+    expect(elapsedShort(null, NOW_MS)).toBe('—');
+  });
+});
+
+describe('overviewPill', () => {
+  const row = (checks: Record<string, CheckStatus>, over: Partial<ProjectRuntime> = {}) => ({
+    refs: Object.keys(checks).map(ref),
+    runtime: rt({ checks, ...over }),
+  });
+  it('headlines the down count across every project', () => {
+    expect(overviewPill([
+      row({ a: status('up'), b: status('down') }),
+      row({ c: status('down'), d: status('grace') }),
+    ])).toEqual({ status: 'down', text: '2 down' });
+  });
+  it('headlines late checks when nothing is down', () => {
+    expect(overviewPill([row({ a: status('up'), b: status('grace') })])).toEqual({ status: 'grace', text: '1 late' });
+  });
+  it('reports unknown when a project cannot be polled and nothing is failing', () => {
+    expect(overviewPill([
+      row({ a: status('up') }),
+      row({ b: status('up') }, { offline: true }),
+    ])).toEqual({ status: 'unknown', text: 'unknown' });
+  });
+  it('lets a real failure outrank an unknown project', () => {
+    expect(overviewPill([
+      row({ a: status('down') }),
+      { refs: [ref('z')], runtime: undefined },
+    ])).toEqual({ status: 'down', text: '1 down' });
+  });
+  it('lets a late check outrank an unknown project', () => {
+    expect(overviewPill([
+      row({ a: status('grace') }),
+      { refs: [ref('z')], runtime: undefined },
+    ])).toEqual({ status: 'grace', text: '1 late' });
+  });
+  it('says All up only when every shown check is up', () => {
+    expect(overviewPill([row({ a: status('up'), b: status('up') })])).toEqual({ status: 'up', text: 'All up' });
+  });
+  it('counts up checks when some are paused, new or gone', () => {
+    const r = row({ a: status('up'), b: status('paused') });
+    expect(overviewPill([{ ...r, refs: [...r.refs, ref('gone-key')] }])).toEqual({ status: 'up', text: '1 up' });
+  });
+  it('stays neutral when no shown check is up', () => {
+    expect(overviewPill([row({ a: status('paused'), b: status('new') })])).toEqual({ status: 'paused', text: '0 up' });
   });
 });

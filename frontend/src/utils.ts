@@ -193,6 +193,28 @@ export function projectSummary(
   return { unknown: false, parts };
 }
 
+export interface OverviewRow { refs: HealthcheckRef[]; runtime: ProjectRuntime | undefined; }
+export interface OverviewPill { status: CheckDisplay; text: string; }
+
+export function overviewPill(rows: OverviewRow[]): OverviewPill {
+  const counts = new Map<CheckDisplay, number>();
+  let total = 0;
+  for (const { refs, runtime } of rows) {
+    for (const ref of refs) {
+      const display = checkDisplayStatus(runtime, ref.key);
+      counts.set(display, (counts.get(display) ?? 0) + 1);
+      total += 1;
+    }
+  }
+  const n = (s: CheckDisplay) => counts.get(s) ?? 0;
+  if (n('down') > 0) return { status: 'down', text: `${n('down')} down` };
+  if (n('grace') > 0) return { status: 'grace', text: `${n('grace')} late` };
+  if (n('unknown') > 0) return { status: 'unknown', text: 'unknown' };
+  if (n('up') === 0) return { status: 'paused', text: '0 up' };
+  if (n('up') === total) return { status: 'up', text: 'All up' };
+  return { status: 'up', text: `${n('up')} up` };
+}
+
 const WEEK = 604800;
 const DURATION_UNITS: [number, string][] = [[86400, 'day'], [3600, 'hour'], [60, 'minute'], [1, 'second']];
 const plural = (n: number, unit: string) => `${n} ${unit}${n === 1 ? '' : 's'}`;
@@ -219,12 +241,23 @@ const AGO_UNITS: [number, string, string][] = [
   [3600, 'hour', 'h'], [60, 'minute', 'm'], [1, 'second', 's'],
 ];
 
-export function ago(ts: number | null, nowMs: number, short = false): string {
-  if (ts === null) return '—';
+function elapsedUnit(ts: number, nowMs: number): [number, string, string] {
   const elapsed = Math.max(0, Math.floor(nowMs / 1000 - ts));
   const [size, unit, abbr] = AGO_UNITS.find(([s]) => elapsed >= s) ?? AGO_UNITS[AGO_UNITS.length - 1];
-  const n = Math.floor(elapsed / size);
-  return short ? `${n}${abbr} ago` : `${plural(n, unit)} ago`;
+  return [Math.floor(elapsed / size), unit, abbr];
+}
+
+export function elapsedShort(ts: number | null, nowMs: number): string {
+  if (ts === null) return '—';
+  const [n, , abbr] = elapsedUnit(ts, nowMs);
+  return `${n}${abbr}`;
+}
+
+export function ago(ts: number | null, nowMs: number, short = false): string {
+  if (ts === null) return '—';
+  if (short) return `${elapsedShort(ts, nowMs)} ago`;
+  const [n, unit] = elapsedUnit(ts, nowMs);
+  return `${plural(n, unit)} ago`;
 }
 
 export function hostOf(url: string): string {
