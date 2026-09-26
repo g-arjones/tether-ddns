@@ -125,6 +125,55 @@ test('the checks table drops columns on narrow screens and stays inside its card
   expect(fits).toBe(true);
 });
 
+// jsdom has no cascade; only a real browser proves every status × element pair is styled.
+test('every status is styled on pills, badges and dots, and an unknown class never reads as up', async ({ page }) => {
+  await page.goto('/');
+  const wrong = await page.evaluate(() => {
+    const mount = (html: string) => {
+      const host = document.createElement('div');
+      host.innerHTML = html;
+      document.body.append(host);
+      return host;
+    };
+    const resolve = (value: string) => {
+      const host = mount(`<span style="background: ${value}"></span>`);
+      const color = getComputedStyle(host.firstElementChild!).backgroundColor;
+      host.remove();
+      return color;
+    };
+    const dotOf: Record<string, string> = {
+      up: resolve('var(--ok)'), grace: resolve('var(--warn)'), down: resolve('var(--err)'),
+      paused: resolve('var(--text-3)'), new: resolve('var(--text-3)'),
+      gone: resolve('transparent'), unknown: resolve('transparent'),
+    };
+    const out: string[] = [];
+    const dots = (status: string) => {
+      const host = mount(
+        `<span class="hc-pill hc-${status}"><i></i>x</span>` +
+        `<span class="hc-badge hc-${status}"><i></i>x</span>` +
+        `<i class="hc-dot hc-${status}"></i>`,
+      );
+      const styles = [...host.querySelectorAll('i')].map((el) => getComputedStyle(el));
+      const result = styles.map((s) => ({ bg: s.backgroundColor, dashed: s.borderTopStyle === 'dashed' }));
+      host.remove();
+      return result;
+    };
+    for (const [status, expected] of Object.entries(dotOf)) {
+      const stateless = status === 'gone' || status === 'unknown';
+      dots(status).forEach((dot, i) => {
+        const kind = ['pill', 'badge', 'dot'][i];
+        if (dot.bg !== expected) out.push(`${kind}.hc-${status}: ${dot.bg} != ${expected}`);
+        if (dot.dashed !== stateless) out.push(`${kind}.hc-${status}: dashed=${dot.dashed}`);
+      });
+    }
+    for (const [i, dot] of dots('bogus').entries()) {
+      if (dot.bg === dotOf.up) out.push(`${['pill', 'badge', 'dot'][i]}.hc-bogus reads as up`);
+    }
+    return out;
+  });
+  expect(wrong).toEqual([]);
+});
+
 test('editing a project with a new API key toasts that the check list refreshed', async ({ page }) => {
   await stubHealthchecks(page);
   await page.route('**/api/healthchecks/p1', async (route) => {

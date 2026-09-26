@@ -617,18 +617,24 @@ header.topbar {
 .hc-mob, .hc-short, .hc-period-sub { display: none; }
 .hc-sr { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 /* status: pill (table), badge (overview), dot (narrow table) */
+/* Every state is declared explicitly; the base carries geometry only, so an unhandled state never reads as up. */
 .hc-pill, .hc-badge { display: inline-flex; align-items: center; gap: 6px; border-radius: 999px; font-weight: 600; white-space: nowrap; border: 1px solid transparent; }
-.hc-pill { padding: 2px 8px; font-size: 12px; color: var(--text-2); }
-.hc-badge { padding: 4px 10px; font-size: 12.5px; color: var(--text); background: var(--surface-2); border-color: var(--border); }
-.hc-pill i, .hc-badge i, .hc-dot { display: inline-block; flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--ok); }
-.hc-grace i, .hc-dot.hc-grace { background: var(--warn); }
-.hc-down i, .hc-dot.hc-down { background: var(--err); }
-.hc-paused i, .hc-new i, .hc-dot.hc-paused, .hc-dot.hc-new { background: var(--text-3); }
-.hc-gone i, .hc-unknown i, .hc-dot.hc-gone, .hc-dot.hc-unknown { background: transparent; border: 1px dashed var(--text-3); }
-.hc-pill.hc-grace, .hc-badge.hc-grace { color: var(--warn); background: var(--warn-soft); border-color: transparent; }
-.hc-pill.hc-down, .hc-badge.hc-down { color: var(--err); background: var(--err-soft); border-color: transparent; }
-.hc-badge.hc-paused, .hc-badge.hc-new { color: var(--text-2); }
+.hc-pill { padding: 2px 8px; font-size: 12px; }
+.hc-badge { padding: 4px 10px; font-size: 12.5px; }
+.hc-pill i, .hc-badge i, .hc-dot { display: inline-block; flex: none; width: 7px; height: 7px; border-radius: 50%; }
+.hc-pill.hc-paused, .hc-pill.hc-new { color: var(--text-2); }
+.hc-pill.hc-up, .hc-badge.hc-up { color: var(--ok); background: var(--ok-soft); }
+.hc-badge.hc-paused, .hc-badge.hc-new { color: var(--text-2); background: var(--surface-2); border-color: var(--border); }
+.hc-pill.hc-grace, .hc-badge.hc-grace { color: var(--warn); background: var(--warn-soft); }
+.hc-pill.hc-down, .hc-badge.hc-down { color: var(--err); background: var(--err-soft); }
 .hc-pill.hc-gone, .hc-pill.hc-unknown, .hc-badge.hc-gone, .hc-badge.hc-unknown { color: var(--text-3); background: transparent; border: 1px dashed var(--border-strong); }
+.hc-pill.hc-up i, .hc-badge.hc-up i, .hc-dot.hc-up { background: var(--ok); }
+.hc-pill.hc-grace i, .hc-badge.hc-grace i, .hc-dot.hc-grace { background: var(--warn); }
+.hc-pill.hc-down i, .hc-badge.hc-down i, .hc-dot.hc-down { background: var(--err); }
+.hc-pill.hc-paused i, .hc-badge.hc-paused i, .hc-dot.hc-paused,
+.hc-pill.hc-new i, .hc-badge.hc-new i, .hc-dot.hc-new { background: var(--text-3); }
+.hc-pill.hc-gone i, .hc-badge.hc-gone i, .hc-dot.hc-gone,
+.hc-pill.hc-unknown i, .hc-badge.hc-unknown i, .hc-dot.hc-unknown { background: transparent; border: 1px dashed var(--text-3); }
 /* overview panel */
 .hc-row { display: grid; grid-template-columns: minmax(120px, 180px) 1fr; gap: 14px; align-items: start; padding: 12px 0; }
 .hc-row + .hc-row { border-top: 1px solid var(--border); }
