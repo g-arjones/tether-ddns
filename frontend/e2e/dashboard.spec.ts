@@ -194,7 +194,7 @@ test('deleting a hook asks for confirmation first', async ({ page }) => {
   expect(created.ok()).toBeTruthy();
 
   await page.goto('/');
-  await page.getByRole('button', { name: /Hooks/ }).click();
+  await page.getByRole('navigation').getByRole('button', { name: /Hooks/ }).click();
   const rows = page.locator('.hook-row');
   await expect(rows.last()).toBeVisible();
   const before = await rows.count();
@@ -206,6 +206,7 @@ test('deleting a hook asks for confirmation first', async ({ page }) => {
 
   await page.keyboard.press('Escape');
   await expect(dialog).toBeHidden();
+  await expect(rows.last().getByRole('button', { name: 'Delete' })).toBeFocused();
   await expect(rows).toHaveCount(before);
 
   await rows.last().getByRole('button', { name: 'Delete' }).click();
