@@ -35,17 +35,17 @@ export function HeartbeatCard({ status, url, interval, onPing }: HeartbeatCardPr
   let value: string;
   let sub: ReactNode;
   let tint: StatTint;
-  let className: string | undefined;
+  let className = 'hb';
   let subTitle: string | undefined;
   const cadence = (u: string) => (
-    <>{`every ${formatInterval(interval)} · `}<span className="hb-mono">{hostOf(u)}</span></>
+    <>{`every ${formatInterval(interval)}`}<span className="hb-host">{' · '}<span className="hb-mono">{hostOf(u)}</span></span></>
   );
   if (url === null) {
-    value = 'Off'; sub = 'Set a URL in Settings'; tint = 'tint-muted'; className = 'hb-muted';
+    value = 'Off'; sub = 'Set a URL in Settings'; tint = 'tint-muted'; className = 'hb hb-muted';
   } else if (status === null) {
     value = '—'; sub = cadence(url); tint = 'tint-muted';
   } else if (status.skipped) {
-    value = 'Skipped'; sub = 'Link offline'; tint = 'tint-warn'; className = 'hb-muted';
+    value = 'Skipped'; sub = 'Link offline'; tint = 'tint-warn'; className = 'hb hb-muted';
   } else if (status.ok) {
     value = `${relStable(status.at, now)} ago`;
     sub = <><span className="hb-flag">OK</span>{' · '}{cadence(url)}</>;
@@ -55,7 +55,7 @@ export function HeartbeatCard({ status, url, interval, onPing }: HeartbeatCardPr
     sub = <span className="hb-mono">{status.error}</span>;
     subTitle = status.error ?? undefined;
     tint = 'tint-err';
-    className = 'hb-err';
+    className = 'hb hb-err';
   }
 
   return (

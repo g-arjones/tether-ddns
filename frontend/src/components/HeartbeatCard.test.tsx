@@ -1,6 +1,7 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { HeartbeatCard } from './HeartbeatCard';
+import type { HeartbeatStatus } from '../types';
 
 const NOW = new Date(2026, 7, 29, 12, 0, 0).getTime();
 const URL = 'https://hc-ping.com/5b1c7f0a';
@@ -68,5 +69,32 @@ describe('HeartbeatCard', () => {
     settle();
     await waitFor(() => expect(button).not.toBeDisabled());
     expect(button).not.toHaveClass('spin');
+  });
+
+  it('wraps the separator and host so the phone layout can hide them together', () => {
+    const status = { at: at(42), ok: true, skipped: false, error: null };
+    const { container } = render(<HeartbeatCard status={status} url={URL} interval={300} onPing={vi.fn()} />);
+    expect(container.querySelector('.stat-sub-text')?.textContent).toBe('OK · every 5 min · hc-ping.com');
+    expect(container.querySelector('.hb-host')?.textContent).toBe(' · hc-ping.com');
+    expect(container.querySelector('.hb-host .hb-mono')?.textContent).toBe('hc-ping.com');
+  });
+
+  it('never puts the failure error inside the hideable host wrapper', () => {
+    const status = { at: at(12), ok: false, skipped: false, error: 'HTTP 503' };
+    const { container } = render(<HeartbeatCard status={status} url={URL} interval={300} onPing={vi.fn()} />);
+    expect(container.querySelector('.hb-host')).toBeNull();
+    expect(container.querySelector('.stat-sub-text .hb-mono')?.textContent).toBe('HTTP 503');
+  });
+
+  const classCases: [string, HeartbeatStatus | null, string | null, string][] = [
+    ['Off', null, null, 'stat hb hb-muted'],
+    ['No data yet', null, URL, 'stat hb'],
+    ['Skipped', { at: at(5), ok: false, skipped: true, error: null }, URL, 'stat hb hb-muted'],
+    ['OK', { at: at(42), ok: true, skipped: false, error: null }, URL, 'stat hb'],
+    ['Failed', { at: at(12), ok: false, skipped: false, error: 'boom' }, URL, 'stat hb hb-err'],
+  ];
+  it.each(classCases)('marks the %s card with the stable hb class', (_name, status, url, expected) => {
+    const { container } = render(<HeartbeatCard status={status} url={url} interval={300} onPing={vi.fn()} />);
+    expect(container.querySelector('.stat')?.className).toBe(expected);
   });
 });
