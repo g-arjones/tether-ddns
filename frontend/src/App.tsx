@@ -206,22 +206,15 @@ export default function App() {
     }
   }, [pushToast]);
 
+  // Rejects on failure so DomainModal can render the field errors inline.
   const handleSaveDomain = useCallback(
     async (value: DomainFormValue) => {
-      if (!value.hostname.trim()) {
-        pushToast('Please enter a hostname', 'error');
-        return;
-      }
-      try {
-        if (editingDomain) await api.updateDomain(editingDomain.id, value);
-        else await api.createDomain(value);
-        pushToast(`Saved ${value.hostname}`, 'success');
-        setDomainModalOpen(false);
-        setEditingDomain(null);
-        await loadConfig();
-      } catch {
-        pushToast('Failed to save domain', 'error');
-      }
+      if (editingDomain) await api.updateDomain(editingDomain.id, value);
+      else await api.createDomain(value);
+      pushToast(`Saved ${value.hostname}`, 'success');
+      setDomainModalOpen(false);
+      setEditingDomain(null);
+      await loadConfig();
     },
     [editingDomain, loadConfig, pushToast],
   );
@@ -290,25 +283,27 @@ export default function App() {
       try {
         await api.updateDomain(id, { ...d, enabled: !d.enabled });
         await loadConfig();
-      } catch {
-        pushToast('Failed to update domain', 'error');
+      } catch (err) {
+        pushToast(
+          err instanceof api.ApiError && err.status === 422
+            ? `${d.hostname}: fix its provider config first`
+            : 'Failed to update domain',
+          'error',
+        );
       }
     },
     [domains, loadConfig, pushToast],
   );
 
+  // Rejects on failure so HookModal can render the field errors inline.
   const handleSaveHook = useCallback(
     async (value: HookFormValue) => {
-      try {
-        if (editingHook) await api.updateHook(editingHook.id, value);
-        else await api.createHook(value);
-        pushToast('Hook saved', 'success');
-        setHookModalOpen(false);
-        setEditingHook(null);
-        await loadConfig();
-      } catch {
-        pushToast('Failed to save hook', 'error');
-      }
+      if (editingHook) await api.updateHook(editingHook.id, value);
+      else await api.createHook(value);
+      pushToast('Hook saved', 'success');
+      setHookModalOpen(false);
+      setEditingHook(null);
+      await loadConfig();
     },
     [editingHook, loadConfig, pushToast],
   );
