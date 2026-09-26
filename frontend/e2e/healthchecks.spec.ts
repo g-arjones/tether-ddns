@@ -135,7 +135,7 @@ test('overview chips fill every wrapped row edge to edge, with the bar inline on
 
 test('on a phone the overview bar gets its own line and nothing overflows the panel', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 812 });
-  await stubHealthchecks(page, MANY_PROJECT, MANY_RUNTIME);
+  await stubHealthchecks(page, { ...MANY_PROJECT, name: 'Homelab - primary rack, basement, north wall cabinet number two' }, MANY_RUNTIME);
   await page.goto('/');
   const panel = page.locator('.hc-panel');
   await expect(panel.locator('.hcp-chip')).toHaveCount(24);
@@ -147,12 +147,14 @@ test('on a phone the overview bar gets its own line and nothing overflows the pa
     const contentLeft = box.left + parseFloat(cs.borderLeftWidth) + parseFloat(cs.paddingLeft);
     const contentRight = box.right - parseFloat(cs.borderRightWidth) - parseFloat(cs.paddingRight);
     const pill = el.querySelector('.panel-head .hc-pill')!.getBoundingClientRect();
+    const name = el.querySelector('.hcp-head strong')!.getBoundingClientRect();
     const chips = [...el.querySelectorAll('.hcp-chip')].map((c) => c.getBoundingClientRect());
-    return { pillHeight: pill.height, contentLeft, contentRight, minChipLeft: Math.min(...chips.map((c) => c.left)), maxChipRight: Math.max(...chips.map((c) => c.right)) };
+    return { pillHeight: pill.height, nameRight: name.right, contentLeft, contentRight, minChipLeft: Math.min(...chips.map((c) => c.left)), maxChipRight: Math.max(...chips.map((c) => c.right)) };
   });
   expect(g.pillHeight).toBeLessThan(30);
   expect(head.barTop).toBeGreaterThanOrEqual(Math.max(head.nameBottom, head.sumBottom));
   expect(head.barWidth).toBeGreaterThanOrEqual(0.9 * head.headWidth);
+  expect(g.nameRight).toBeLessThanOrEqual(g.contentRight + 0.5);
   expect(g.minChipLeft).toBeGreaterThanOrEqual(g.contentLeft - 0.5);
   expect(g.maxChipRight).toBeLessThanOrEqual(g.contentRight + 0.5);
 });

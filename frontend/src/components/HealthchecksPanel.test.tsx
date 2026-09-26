@@ -31,7 +31,9 @@ describe('HealthchecksPanel', () => {
     expect(chips.map((c) => c.className)).toEqual(['hcp-chip hc-up', 'hcp-chip hc-down', 'hcp-chip hc-gone']);
     expect(chips.map((c) => c.querySelector('.hcp-name')?.textContent)).toEqual(['up: Backup', 'down: SSL', 'gone: Old job']);
     expect(chips.map((c) => c.querySelector('.hcp-time')?.textContent)).toEqual(['1m', '1m', 'gone']);
-    expect(chips[1]).toHaveAttribute('title', 'down · last ping 1 minute ago');
+    expect(chips[0].querySelector('.hcp-time')).not.toHaveClass('hcp-state');
+    expect(chips[2].querySelector('.hcp-time')).toHaveClass('hcp-state');
+    expect(chips[1]).toHaveAttribute('title', 'SSL — down · last ping 1 minute ago');
     expect(screen.queryByText('Hidden')).toBeNull();
     expect(container.querySelector('.hcp-head .hc-sum')?.textContent).toBe('1 up · 1 down · 1 gone');
   });
@@ -56,6 +58,7 @@ describe('HealthchecksPanel', () => {
   it.each([
     ['offline', { ...runtime.p1, offline: true }, 'System is offline — polling paused.', false],
     ['failed', { ...runtime.p1, ok: false, error: 'HTTP 503' }, 'Last poll failed: HTTP 503', true],
+    ['failed without error', { ...runtime.p1, ok: false, error: null }, 'Last poll failed.', true],
     ['never polled', undefined, 'Waiting for first poll.', false],
   ] as const)('renders an unknown project stateless with the reason (%s)', (_, rt, text, err) => {
     const container = draw([project()], rt ? { p1: rt } : {});
@@ -71,6 +74,12 @@ describe('HealthchecksPanel', () => {
     expect(note).not.toHaveAttribute('role');
     expect(screen.getByText('status unknown')).toBeInTheDocument();
     expect(container.querySelector('.panel-head .hc-pill')?.textContent).toBe('unknown');
+  });
+
+  it('treats an absent runtime snapshot as unknown for every visible check', () => {
+    const container = render(<HealthchecksPanel projects={[project()]} runtime={undefined} nowMs={NOW_MS} />).container;
+    expect(container.querySelectorAll('.hcp-chip.hc-unknown')).toHaveLength(3);
+    expect(container.querySelector('.hcp-note')).toHaveTextContent('Waiting for first poll.');
   });
 
   it('packs the bar without gaps only above 40 checks', () => {

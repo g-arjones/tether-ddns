@@ -18,7 +18,8 @@ const TIMED: CheckDisplay[] = ['up', 'grace', 'down'];
 function unknownNote(rt: ProjectRuntime | undefined): { text: string; err: boolean } {
   if (rt?.offline) return { text: 'System is offline — polling paused.', err: false };
   if (rt && !rt.ok && rt.error) return { text: `Last poll failed: ${rt.error}`, err: true };
-  return { text: 'Waiting for first poll.', err: false };
+  if (!rt || rt.polled_at === null) return { text: 'Waiting for first poll.', err: false };
+  return { text: 'Last poll failed.', err: true };
 }
 
 interface ProjectBlockProps {
@@ -37,7 +38,7 @@ function ProjectBlock({ project, refs, rt, nowMs }: ProjectBlockProps): JSX.Elem
   return (
     <div className="hcp-proj">
       <div className="hcp-head">
-        <strong>{project.name}</strong>
+        <strong title={project.name}>{project.name}</strong>
         <div className={barClass} aria-hidden="true">
           {unknown ? null : segments.map(({ ref, display }) => <span key={ref.key} className={`hc-${display}`} />)}
         </div>
@@ -47,18 +48,19 @@ function ProjectBlock({ project, refs, rt, nowMs }: ProjectBlockProps): JSX.Elem
       <div className="hcp-chips">
         {items.map(({ ref, display }) => {
           const live = rt?.checks[ref.key];
+          const name = live?.name ?? ref.name;
           return (
             <span
               key={ref.key}
               className={`hcp-chip hc-${display}`}
-              title={`${DISPLAY_LABEL[display]} · last ping ${ago(live?.last_ping ?? null, nowMs)}`}
+              title={`${name} — ${DISPLAY_LABEL[display]} · last ping ${ago(live?.last_ping ?? null, nowMs)}`}
             >
               <i aria-hidden="true" />
               <span className="hcp-name">
                 <span className="hc-sr">{DISPLAY_LABEL[display]}: </span>
-                {live?.name ?? ref.name}
+                {name}
               </span>
-              <span className="hcp-time">
+              <span className={`hcp-time${TIMED.includes(display) ? '' : ' hcp-state'}`}>
                 {TIMED.includes(display) ? elapsedShort(live?.last_ping ?? null, nowMs) : DISPLAY_LABEL[display]}
               </span>
             </span>

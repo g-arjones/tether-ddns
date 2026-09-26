@@ -113,6 +113,12 @@ describe('overviewPill', () => {
       { refs: [ref('z')], runtime: undefined },
     ])).toEqual({ status: 'down', text: '1 down' });
   });
+  it('lets a late check outrank an unknown project', () => {
+    expect(overviewPill([
+      row({ a: status('grace') }),
+      { refs: [ref('z')], runtime: undefined },
+    ])).toEqual({ status: 'grace', text: '1 late' });
+  });
   it('says All up only when every shown check is up', () => {
     expect(overviewPill([row({ a: status('up'), b: status('up') })])).toEqual({ status: 'up', text: 'All up' });
   });

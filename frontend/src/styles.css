@@ -646,7 +646,7 @@ header.topbar {
 .hc-panel .panel-head .sub { margin-left: auto; }
 .hcp-proj + .hcp-proj { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--border); }
 .hcp-head { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
-.hcp-head strong { flex: none; font-size: 13px; }
+.hcp-head strong { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
 .hcp-head .hc-sum { white-space: nowrap; }
 .hcp-bar { flex: 1; min-width: 60px; display: flex; gap: 2px; height: 8px; border-radius: 4px; overflow: hidden; }
 .hcp-bar.dense { gap: 0; }
@@ -657,13 +657,14 @@ header.topbar {
 .hcp-bar .hc-paused, .hcp-bar .hc-new { background: var(--border-strong); }
 .hcp-bar .hc-gone { background: repeating-linear-gradient(90deg, var(--border-strong) 0 3px, transparent 3px 5px); }
 .hcp-bar.hc-unknown { background: repeating-linear-gradient(135deg, var(--surface-2) 0 4px, var(--border) 4px 7px); }
-.hcp-note { margin: -2px 0 10px; font-size: 12px; color: var(--text-2); }
+.hcp-note { margin: -2px 0 10px; font-size: 12px; color: var(--text-2); overflow-wrap: anywhere; }
 .hcp-note.hcp-note-err { color: var(--err); }
 .hcp-chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .hcp-chip { flex: 1 0 auto; max-width: 100%; display: inline-flex; align-items: center; gap: 8px; height: 34px; padding: 0 12px; border-radius: 9px; background: var(--surface-2); border: 1px solid var(--border); font-size: 13px; font-weight: 600; color: var(--text); }
 .hcp-chip i { flex: none; width: 8px; height: 8px; border-radius: 50%; }
 .hcp-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .hcp-time { flex: none; margin-left: auto; padding-left: 10px; font-family: var(--mono); font-size: 11.5px; font-weight: 600; letter-spacing: -.3px; color: var(--text-3); }
+.hcp-time.hcp-state { font-family: inherit; letter-spacing: normal; }
 /* Every chip state is explicit; the base dot has no fill, so an unhandled state never reads as up. */
 .hcp-chip.hc-up i { background: var(--ok); }
 .hcp-chip.hc-grace { background: var(--warn-soft); border-color: transparent; color: var(--warn); }
