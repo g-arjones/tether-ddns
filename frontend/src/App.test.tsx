@@ -41,7 +41,7 @@ describe('App shell', () => {
     expect(await screen.findByRole('heading', { name: 'Domains', level: 2 })).toBeInTheDocument();
   });
 
-  it('keeps the theme-color meta in sync with the active theme', () => {
+  it('keeps the theme-color meta in sync with the active theme', async () => {
     // index.html ships this meta; jsdom does not load it.
     const meta = document.createElement('meta');
     meta.setAttribute('name', 'theme-color');
@@ -50,6 +50,8 @@ describe('App shell', () => {
     document.documentElement.style.setProperty('--bg', '#0b0f1a');
 
     render(<App />);
+    // Let the mount-time config fetches settle inside act().
+    await act(async () => {});
     expect(meta.getAttribute('content')).toBe('#0b0f1a');
 
     document.documentElement.style.setProperty('--bg', '#f4f6fb');

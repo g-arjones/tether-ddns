@@ -40,18 +40,20 @@ describe('SettingsView', () => {
     expect(save).toBeDisabled();
   });
 
-  it('saves the trimmed URL on Enter', () => {
+  it('saves the trimmed URL on Enter', async () => {
     const { input, onSave } = view(settings);
     fireEvent.change(input, { target: { value: `  ${URL} ` } });
     fireEvent.submit(input.closest('form') as HTMLFormElement);
     expect(onSave).toHaveBeenCalledWith({ heartbeat_url: URL });
+    await waitFor(() => expect(input).toHaveValue(''));
   });
 
-  it('sends null when the URL is cleared', () => {
+  it('sends null when the URL is cleared', async () => {
     const { input, save, onSave } = view({ ...settings, heartbeat_url: URL });
     fireEvent.change(input, { target: { value: '' } });
     fireEvent.click(save);
     expect(onSave).toHaveBeenCalledWith({ heartbeat_url: null });
+    await waitFor(() => expect(save).toBeEnabled());
   });
 
   it('shows the field error inline until the draft changes', async () => {

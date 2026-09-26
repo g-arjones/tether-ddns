@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import type { HealthchecksProject } from '../types';
 import { HealthchecksView } from './HealthchecksView';
@@ -34,6 +34,7 @@ describe('HealthchecksView', () => {
     expect(p.onToggleOverview).toHaveBeenCalledWith('p1', false);
     fireEvent.click(screen.getByRole('button', { name: 'Fetch checks' }));
     expect(p.onFetch).toHaveBeenCalledWith('p1');
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Fetch checks' })).toBeEnabled());
     fireEvent.click(screen.getByRole('button', { name: 'Expand Homelab' }));
     fireEvent.click(screen.getByRole('checkbox', { name: 'Show Backup on Overview' }));
     expect(p.onToggleCheck).toHaveBeenCalledWith('p1', 'a', false);
