@@ -32,7 +32,9 @@ export function HookModal({ open, hooks, editing, onClose, onSave }: HookModalPr
   const hooksRef = useRef(hooks);
   useEffect(() => { hooksRef.current = hooks; }, [hooks]);
 
+  // Reset only on open: a closing modal keeps its content while it fades out.
   useEffect(() => {
+    if (!open) return;
     if (editing) {
       setForm({ hook: editing.hook, events: editing.events, config: editing.config ?? {} });
     } else {

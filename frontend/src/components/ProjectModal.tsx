@@ -33,7 +33,9 @@ export function ProjectModal({ open, editing, onClose, onSave }: ProjectModalPro
   const [formError, setFormError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
+  // Reset only on open: a closing modal keeps its content while it fades out.
   useEffect(() => {
+    if (!open) return;
     setForm(editing
       ? { name: editing.name, base_url: editing.base_url, api_key: editing.api_key, poll_interval: editing.poll_interval }
       : EMPTY);

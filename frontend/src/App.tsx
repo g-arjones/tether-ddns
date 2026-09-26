@@ -213,7 +213,6 @@ export default function App() {
       else await api.createDomain(value);
       pushToast(`Saved ${value.hostname}`, 'success');
       setDomainModalOpen(false);
-      setEditingDomain(null);
       await loadConfig();
     },
     [editingDomain, loadConfig, pushToast],
@@ -302,7 +301,6 @@ export default function App() {
       else await api.createHook(value);
       pushToast('Hook saved', 'success');
       setHookModalOpen(false);
-      setEditingHook(null);
       await loadConfig();
     },
     [editingHook, loadConfig, pushToast],
@@ -338,7 +336,6 @@ export default function App() {
         'success',
       );
       setProjectModalOpen(false);
-      setEditingProject(null);
       await loadConfig();
     },
     [editingProject, loadConfig, pushToast],
@@ -522,10 +519,7 @@ export default function App() {
         open={domainModalOpen}
         providers={providers}
         editing={editingDomain}
-        onClose={() => {
-          setDomainModalOpen(false);
-          setEditingDomain(null);
-        }}
+        onClose={() => setDomainModalOpen(false)}
         onSave={handleSaveDomain}
       />
 
@@ -533,20 +527,14 @@ export default function App() {
         open={hookModalOpen}
         hooks={hookDefs}
         editing={editingHook}
-        onClose={() => {
-          setHookModalOpen(false);
-          setEditingHook(null);
-        }}
+        onClose={() => setHookModalOpen(false)}
         onSave={handleSaveHook}
       />
 
       <ProjectModal
         open={projectModalOpen}
         editing={editingProject}
-        onClose={() => {
-          setProjectModalOpen(false);
-          setEditingProject(null);
-        }}
+        onClose={() => setProjectModalOpen(false)}
         onSave={handleSaveProject}
       />
 

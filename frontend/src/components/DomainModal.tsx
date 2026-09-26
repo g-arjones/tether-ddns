@@ -40,7 +40,9 @@ export function DomainModal({ open, providers, editing, onClose, onSave }: Domai
   const providersRef = useRef(providers);
   useEffect(() => { providersRef.current = providers; }, [providers]);
 
+  // Reset only on open: a closing modal keeps its content while it fades out.
   useEffect(() => {
+    if (!open) return;
     if (editing) {
       setForm({
         hostname: editing.hostname,
