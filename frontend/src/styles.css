@@ -565,6 +565,8 @@ header.topbar {
   will-change: transform;
 }
 .modal-overlay.open .modal { transform: none; }
+/* The dialog is focused programmatically on open; it is not an interactive control. */
+.modal:focus { outline: none; }
 .modal-head { flex: none; display: flex; align-items: center; justify-content: space-between; padding: 20px 22px; border-bottom: 1px solid var(--border); }
 .modal-head h3 { font-size: 17px; font-weight: 700; }
 .modal-head .icon-btn { width: 34px; height: 34px; }
