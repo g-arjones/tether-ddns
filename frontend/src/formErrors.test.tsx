@@ -1,7 +1,7 @@
 import { act, renderHook } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { ApiError } from './api';
-import { invalidProps, useFormErrors } from './formErrors';
+import { invalidProps, subErrors, useFormErrors } from './formErrors';
 
 describe('useFormErrors', () => {
   it('keeps 422 field errors from a rejected save', async () => {
@@ -43,6 +43,24 @@ describe('useFormErrors', () => {
     expect(result.current.errors).toEqual({ 'provider_config.token': 'Required' });
     act(() => result.current.reset());
     expect(result.current.errors).toEqual({});
+  });
+});
+
+describe('subErrors', () => {
+  it('narrows to one section keyed by its first segment', () => {
+    const errors = {
+      hostname: 'Required',
+      'provider_config.api_token': 'Required',
+      'provider_config.ports.0': 'Input should be a valid integer',
+      'provider_config.ports.1': 'second',
+      provider_config: 'Invalid config',
+      provider_configs: 'not mine',
+    };
+    expect(subErrors(errors, 'provider_config')).toEqual({
+      api_token: 'Required',
+      ports: 'Input should be a valid integer',
+      '': 'Invalid config',
+    });
   });
 });
 

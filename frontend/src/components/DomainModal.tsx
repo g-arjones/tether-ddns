@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { subErrors } from '../api';
-import { invalidProps, useFormErrors } from '../formErrors';
+import { invalidProps, subErrors, useFormErrors } from '../formErrors';
 import type { DomainConfig, Provider } from '../types';
 import { FieldHelp } from './FieldHelp';
 import { SchemaForm, type JsonSchema } from './SchemaForm';
@@ -79,7 +78,7 @@ export function DomainModal({ open, providers, editing, onClose, onSave }: Domai
 
   const selected = providers.find((p) => p.key === form.provider);
   const schema = (selected?.schema ?? {}) as JsonSchema;
-  const configErrors = subErrors(errors, CONFIG) ?? {};
+  const configErrors = subErrors(errors, CONFIG);
   const alert = formError ?? configErrors[''] ?? null;
 
   return (

@@ -145,7 +145,10 @@ which are unaffected.
   `['body', 'hostname']` → `hostname`. Existing top-level keys (`api_key`,
   `base_url`, `heartbeat_url`, …) are unchanged, so `ProjectModal` and
   `SettingsView` need no changes beyond the CSS class rename below.
-- New export `subErrors(errors, prefix)`: returns the errors under `prefix.`, keyed by
+
+### `formErrors.ts`
+
+- New export in `formErrors.ts`: `subErrors(errors, prefix)`: returns the errors under `prefix.`, keyed by
   the **first** segment after the prefix (`provider_config.ports.0` → `ports`). An
   error whose key equals `prefix` exactly is returned under the key `''` (a
   whole-config error).

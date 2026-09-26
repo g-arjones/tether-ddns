@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { ApiError, createDomain, createHealthchecks, fetchHealthchecks, getHealthchecks, getProviders, pingHeartbeat, putSettings, setCheckVisible, subErrors, updateHealthchecks } from './api';
+import { ApiError, createDomain, createHealthchecks, fetchHealthchecks, getHealthchecks, getProviders, pingHeartbeat, putSettings, setCheckVisible, updateHealthchecks } from './api';
 
 describe('api', () => {
   beforeEach(() => { vi.restoreAllMocks(); });
@@ -33,22 +33,6 @@ describe('api', () => {
     expect((err as ApiError).fieldErrors).toEqual({
       'provider_config.enabled': 'Required',
       enabled: 'Input should be a valid boolean',
-    });
-  });
-
-  it('subErrors narrows to one section keyed by its first segment', () => {
-    const errors = {
-      hostname: 'Required',
-      'provider_config.api_token': 'Required',
-      'provider_config.ports.0': 'Input should be a valid integer',
-      'provider_config.ports.1': 'second',
-      provider_config: 'Invalid config',
-      provider_configs: 'not mine',
-    };
-    expect(subErrors(errors, 'provider_config')).toEqual({
-      api_token: 'Required',
-      ports: 'Input should be a valid integer',
-      '': 'Invalid config',
     });
   });
 

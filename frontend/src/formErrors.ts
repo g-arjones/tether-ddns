@@ -1,6 +1,19 @@
 import { useCallback, useRef, useState } from 'react';
 import { ApiError } from './api';
 
+// Errors under `prefix.`, keyed by the next path segment; '' holds an error on `prefix` itself.
+export function subErrors(errors: Record<string, string>, prefix: string): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [key, msg] of Object.entries(errors)) {
+    if (key === prefix) out[''] = msg;
+    else if (key.startsWith(`${prefix}.`)) {
+      const field = key.slice(prefix.length + 1).split('.')[0];
+      if (!(field in out)) out[field] = msg;
+    }
+  }
+  return out;
+}
+
 export interface FormErrors {
   errors: Record<string, string>;
   formError: string | null;

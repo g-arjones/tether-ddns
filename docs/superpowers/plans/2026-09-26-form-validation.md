@@ -36,8 +36,8 @@
 | `test/unit/test_config_constraints.py` (new) | DuckDNS / Cloudflare / Pushover model constraints |
 | `test/unit/test_router_firewall_hook.py` | router model constraints + typed-field hook behaviour |
 | `test/unit/test_api_validation.py` (new) | end-to-end 422 shapes from the API |
-| `frontend/src/api.ts` | dotted-path `fieldErrors`, `subErrors()` |
-| `frontend/src/formErrors.ts` (new) | `useFormErrors()` hook + `invalidProps()` helper shared by both modals |
+| `frontend/src/api.ts` | dotted-path `fieldErrors` |
+| `frontend/src/formErrors.ts` (new) | `useFormErrors()` hook + `invalidProps()` helper + `subErrors()` shared by both modals |
 | `frontend/src/components/FieldHelp.tsx` (new) | help/error line that renders nothing when empty |
 | `frontend/src/components/Select.tsx` | `invalid` / `describedBy` props |
 | `frontend/src/components/SchemaForm.tsx` | `errors` prop, required markers |
@@ -803,7 +803,7 @@ git commit -m "feat(api): validate provider and hook config on save with field-l
 **Interfaces:**
 - Produces:
   - `ApiError.fieldErrors` keys = loc path without leading `'body'`, joined with `.` (e.g. `provider_config.token`).
-  - `export function subErrors(errors: Record<string, string>, prefix: string): Record<string, string>` in `api.ts` — keys are the first segment after `prefix.`; an error keyed exactly `prefix` is returned under `''`.
+  - `export function subErrors(errors: Record<string, string>, prefix: string): Record<string, string>` in `formErrors.ts` — keys are the first segment after `prefix.`; an error keyed exactly `prefix` is returned under `''`.
   - `export function useFormErrors(fallback: string): FormErrors` in `formErrors.ts`, where `FormErrors = { errors: Record<string, string>; formError: string | null; saving: boolean; reset(): void; clear(match: (key: string) => boolean): void; submit(save: () => Promise<void>): Promise<void> }`.
   - `export function invalidProps(error: string | undefined, helpId: string, hasHelp?: boolean)` → `{ className: 'field-invalid' | undefined; 'aria-invalid': true | undefined; 'aria-describedby': string | undefined }` (`hasHelp` defaults to `Boolean(error)`).
   - `export function FieldHelp(props: { id: string; error?: string; children?: ReactNode })` — renders `<div id className="field-help[ hb-error]">` or `null` when there is no text.
@@ -1442,8 +1442,7 @@ Replace `DomainModal.tsx` with:
 
 ```tsx
 import { useEffect, useRef, useState } from 'react';
-import { subErrors } from '../api';
-import { invalidProps, useFormErrors } from '../formErrors';
+import { invalidProps, subErrors, useFormErrors } from '../formErrors';
 import type { DomainConfig, Provider } from '../types';
 import { FieldHelp } from './FieldHelp';
 import { SchemaForm, type JsonSchema } from './SchemaForm';
@@ -1713,8 +1712,7 @@ Replace `HookModal.tsx` with:
 
 ```tsx
 import { useEffect, useRef, useState } from 'react';
-import { subErrors } from '../api';
-import { useFormErrors } from '../formErrors';
+import { subErrors, useFormErrors } from '../formErrors';
 import type { HookConfig, HookDef } from '../types';
 import { FieldHelp } from './FieldHelp';
 import { SchemaForm, type JsonSchema } from './SchemaForm';
@@ -1885,7 +1883,7 @@ import * as api from './api';
 // Mock every request but keep the real ApiError class and pure helpers.
 vi.mock('./api', async (importOriginal) => {
   const actual = await importOriginal<typeof import('./api')>();
-  const keep = new Set(['ApiError', 'subErrors']);
+  const keep = new Set(['ApiError']);
   return Object.fromEntries(
     Object.entries(actual).map(([name, value]) => [name, keep.has(name) ? value : vi.fn()]),
   );
