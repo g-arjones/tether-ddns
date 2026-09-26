@@ -382,6 +382,7 @@ export default function App() {
     } catch {
       setConfirmOpen(false);
       pushToast(`Failed to delete ${kind}`, 'error');
+      await loadConfig();
     } finally {
       setDeleting(false);
     }

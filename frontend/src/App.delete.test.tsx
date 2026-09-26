@@ -90,6 +90,17 @@ describe('App delete confirmation', () => {
     await screen.findByText('Failed to delete hook');
   });
 
+  it('reloads config after a failed delete so a stale row is not left undeletable', async () => {
+    vi.mocked(api.deleteHook).mockRejectedValue(new Error('boom'));
+    const dialog = await openConfirm(/Hooks/, 'hook');
+    const callsBefore = vi.mocked(api.getHooksConfig).mock.calls.length;
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Delete hook' }));
+    await screen.findByText('Failed to delete hook');
+    await waitFor(() => {
+      expect(vi.mocked(api.getHooksConfig).mock.calls.length).toBeGreaterThan(callsBefore);
+    });
+  });
+
   it('names the provider in the domain dialog', async () => {
     const dialog = await openConfirm(/Domains/, 'domain');
     expect(within(dialog).getByText('DuckDNS')).toBeInTheDocument();
