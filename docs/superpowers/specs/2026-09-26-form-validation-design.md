@@ -42,10 +42,8 @@ emits `minLength: 1` alongside `format: password` in the JSON schema.
 
 ### Tightened plugin config models
 
-Runtime code reads these fields as `str` (e.g. `config.router_url.rstrip('/')`,
-`f'{config.source_ip}/...'`), so a validator must **check without changing the
-type**: use an `AfterValidator` that returns the original string instead of
-switching the annotation to `HttpUrl` / `IPvAnyAddress`.
+Fields use real pydantic types where one exists, so the validated model carries
+the parsed value and the hook code adapts to it (see *Router firewall hook* below).
 
 | Model | Field | Rule |
 |---|---|---|
@@ -55,11 +53,34 @@ switching the annotation to `HttpUrl` / `IPvAnyAddress`.
 | `PushoverConfig` | `token`, `user` | `RequiredSecret` |
 | `RouterFirewallConfig` | `username`, `rule_name` | `RequiredStr` |
 | `RouterFirewallConfig` | `password` | `RequiredSecret` |
-| `RouterFirewallConfig` | `router_url` | `str`, must parse as an http(s) URL |
-| `RouterFirewallConfig` | `source_ip` | `str`, must parse as an IP address |
+| `RouterFirewallConfig` | `router_url` | `HttpUrl`, default `HttpUrl('https://192.168.0.1')` |
+| `RouterFirewallConfig` | `source_ip` | `IPvAnyAddress`, default `IPv6Address('::')` |
 
 Fields with defaults keep them, so they stay out of the schema's `required` list.
 `labeled_field(...)` metadata is preserved on every annotated field.
+
+### Router firewall hook
+
+The validated model now yields a pydantic `Url` and an `IPv4Address`/`IPv6Address`
+instead of `str` (verified on pydantic 2.13.4: `Url` has no `rstrip`, and
+`str(HttpUrl('https://192.168.0.1'))` is `'https://192.168.0.1/'`). Two call sites
+change in `hooks/registered_hooks/router_firewall.py`:
+
+- `on_ip_changed`: `base = str(config.router_url).rstrip('/')`. The existing
+  `rstrip` already absorbs the trailing slash `HttpUrl` adds.
+- `build_apply_payload`: `'SourceIP': str(config.source_ip)`. Without this the
+  payload is not `dict[str, str]` and `encode_apply_body`'s `urllib.parse.quote`
+  raises `TypeError`. The `SourceIPMask` f-string already stringifies.
+
+Consequence: the router receives the IPv6 source in compressed form
+(`2001:0db8::0001` → `2001:db8::1`). Same address, so the rule is unaffected.
+
+The stored config keeps the operator's raw strings; only the validated model
+carries the parsed types.
+
+The JSON schema gains `format: uri` (plus `minLength`/`maxLength`) and
+`format: ipvanyaddress`; `SchemaForm` already renders unknown formats as text
+inputs.
 
 ### Request models — `tether_ddns/api.py`
 
@@ -225,8 +246,13 @@ without touching other fields.
   `body.hook`; unsupported event → `body.events`.
 - Message rewrite: `"Required"` for `missing` and `min_length == 1`; another
   message (e.g. literal mismatch) passes through verbatim.
-- Per-model constraint tests for each tightened config model, including that
-  `router_url` / `source_ip` stay `str` after validation.
+- Per-model constraint tests for each tightened config model: bad URL (`ftp://x`,
+  `not a url`) and bad IP (`999.1.1.1`) rejected at `body.config.router_url` /
+  `body.config.source_ip`.
+- Router firewall hook tests: `build_apply_payload` values are all `str`
+  (`SourceIP == '::'` for the default); `on_ip_changed` builds the base URL without
+  a doubled slash for both `https://192.168.0.1` and `https://192.168.0.1/`;
+  `encode_apply_body` round-trips an IPv4 and an IPv6 `source_ip`.
 - **Audit:** existing tests/fixtures that create domains or hooks with incomplete
   config (e.g. `provider_config: {}`) are fixed to send valid config, or converted
   to explicit 422 tests. The existing 400-on-bad-event test becomes a 422 test.
