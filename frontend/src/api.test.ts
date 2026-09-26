@@ -36,7 +36,6 @@ describe('api', () => {
     });
   });
 
-
   it('keeps fieldErrors empty for non-422 failures', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, status: 500, json: async () => ({}) })));
     const err = await putSettings({ notify: true }).catch((e: unknown) => e);

@@ -229,6 +229,8 @@ def _friendly(error: Mapping[str, Any]) -> dict[str, Any]:
     if item.get('type') == 'missing' or (
             item.get('type') in _MIN_LENGTH_TYPES and ctx.get('min_length') == 1):
         item['msg'] = 'Required'
+    item.pop('input', None)
+    item.pop('url', None)
     return item
 
 
@@ -237,7 +239,7 @@ def _body_validation_error(
 ) -> RequestValidationError:
     """Re-shape a model ValidationError as FastAPI's 422 with body-prefixed locs."""
     errors: list[dict[str, object]] = []
-    for error in exc.errors():
+    for error in exc.errors(include_url=False, include_input=False):
         item = dict(error)
         item['loc'] = ('body', *prefix, *error['loc'])
         errors.append(item)

@@ -161,3 +161,24 @@ def test_other_endpoints_share_the_required_message(client: Any) -> None:
     """Healthchecks min-length fields also read Required."""
     resp = client.post('/api/healthchecks', json={'name': '', 'api_key': ''})
     assert _errors(resp) == {'name': 'Required', 'api_key': 'Required'}
+
+
+def test_update_hook_422_never_echoes_the_stored_secret(client: Any) -> None:
+    """A rejected update does not leak the merged config's stored password."""
+    created = client.post('/api/hooks-config', json={
+        'hook': 'router_firewall', 'events': ['ip_changed'],
+        'config': {'username': 'u', 'password': 'STORED-ROUTER-PW'}}).json()
+    resp = client.put(f"/api/hooks-config/{created['id']}", json={
+        'hook': 'router_firewall', 'events': ['ip_changed'],
+        'config': {'password': '********'}})
+    assert resp.status_code == 422, resp.text
+    assert 'STORED-ROUTER-PW' not in resp.text
+    assert all('input' not in e for e in resp.json()['detail'])
+
+
+def test_create_hook_422_never_echoes_the_submitted_secret(client: Any) -> None:
+    """A rejected create does not leak the submitted token back to the client."""
+    resp = client.post('/api/hooks-config', json={
+        'hook': 'pushover', 'events': [], 'config': {'token': 'SUBMITTED-TOKEN'}})
+    assert resp.status_code == 422, resp.text
+    assert 'SUBMITTED-TOKEN' not in resp.text
