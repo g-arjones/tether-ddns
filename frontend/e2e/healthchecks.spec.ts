@@ -1,4 +1,4 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Locator, type Page } from '@playwright/test';
 
 const NOW_S = Date.now() / 1000;
 const PROJECT = {
@@ -56,6 +56,16 @@ async function stubHealthchecks(page: Page, project: object = PROJECT, runtime: 
 async function openHealthchecks(page: Page): Promise<void> {
   await page.getByRole('button', { name: /Healthchecks/ }).click();
   await expect(page.getByRole('heading', { name: 'Healthchecks', level: 2 })).toBeVisible();
+}
+
+async function measureHead(panel: Locator) {
+  return panel.evaluate((el) => {
+    const head = el.querySelector('.hcp-head')!.getBoundingClientRect();
+    const name = el.querySelector('.hcp-head strong')!.getBoundingClientRect();
+    const summary = el.querySelector('.hcp-head .hc-sum')!.getBoundingClientRect();
+    const bar = el.querySelector('.hcp-bar')!.getBoundingClientRect();
+    return { headWidth: head.width, nameBottom: name.bottom, sumBottom: summary.bottom, barTop: bar.top, barWidth: bar.width };
+  });
 }
 
 test('a project card expands into its checks table without a trailing divider', async ({ page }) => {
@@ -130,21 +140,34 @@ test('on a phone the overview bar gets its own line and nothing overflows the pa
   const panel = page.locator('.hc-panel');
   await expect(panel.locator('.hcp-chip')).toHaveCount(24);
   await expect(panel.locator('.hcp-n-checks')).toBeHidden();
+  const head = await measureHead(panel);
   const g = await panel.evaluate((el) => {
     const cs = getComputedStyle(el);
     const box = el.getBoundingClientRect();
+    const contentLeft = box.left + parseFloat(cs.borderLeftWidth) + parseFloat(cs.paddingLeft);
     const contentRight = box.right - parseFloat(cs.borderRightWidth) - parseFloat(cs.paddingRight);
     const pill = el.querySelector('.panel-head .hc-pill')!.getBoundingClientRect();
-    const head = el.querySelector('.hcp-head')!.getBoundingClientRect();
-    const name = el.querySelector('.hcp-head strong')!.getBoundingClientRect();
-    const bar = el.querySelector('.hcp-bar')!.getBoundingClientRect();
-    const chipRights = [...el.querySelectorAll('.hcp-chip')].map((c) => c.getBoundingClientRect().right);
-    return { pillHeight: pill.height, headWidth: head.width, nameBottom: name.bottom, barTop: bar.top, barWidth: bar.width, contentRight, maxChipRight: Math.max(...chipRights) };
+    const chips = [...el.querySelectorAll('.hcp-chip')].map((c) => c.getBoundingClientRect());
+    return { pillHeight: pill.height, contentLeft, contentRight, minChipLeft: Math.min(...chips.map((c) => c.left)), maxChipRight: Math.max(...chips.map((c) => c.right)) };
   });
   expect(g.pillHeight).toBeLessThan(30);
-  expect(g.barTop).toBeGreaterThanOrEqual(g.nameBottom);
-  expect(g.barWidth).toBeGreaterThanOrEqual(0.9 * g.headWidth);
+  expect(head.barTop).toBeGreaterThanOrEqual(Math.max(head.nameBottom, head.sumBottom));
+  expect(head.barWidth).toBeGreaterThanOrEqual(0.9 * head.headWidth);
+  expect(g.minChipLeft).toBeGreaterThanOrEqual(g.contentLeft - 0.5);
   expect(g.maxChipRight).toBeLessThanOrEqual(g.contentRight + 0.5);
+});
+
+test('a narrow overview panel uses the stacked layout in a wide viewport', async ({ page }) => {
+  await page.setViewportSize({ width: 1400, height: 900 });
+  await stubHealthchecks(page, MANY_PROJECT, MANY_RUNTIME);
+  await page.goto('/');
+  await page.addStyleTag({ content: '.hc-panel { max-width: 460px; }' });
+  const panel = page.locator('.hc-panel');
+  await expect(panel.locator('.hcp-chip')).toHaveCount(24);
+  await expect(panel.locator('.hcp-n-checks')).toBeHidden();
+  const head = await measureHead(panel);
+  expect(head.barTop).toBeGreaterThanOrEqual(Math.max(head.nameBottom, head.sumBottom));
+  expect(head.barWidth).toBeGreaterThanOrEqual(0.9 * head.headWidth);
 });
 
 test('adding a project shows the upstream error inline', async ({ page }) => {
