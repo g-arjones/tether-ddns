@@ -138,12 +138,19 @@ are shown in `<strong>`. Hook event names are literal values, so they use `<code
 |---|---|---|
 | Domain | Delete domain | **{hostname}** will stop being updated. Its settings, including credentials, are removed and must be re-entered to add it again. The DNS record at **{provider display name}** is not changed. |
 | Hook | Delete hook | **{hook display name}** ({events as `code`, comma-separated, or "no events"}) will no longer run. Its settings, including any secrets, are removed and must be re-entered to add it again. |
-| Project | Delete project | **{name}** will no longer be polled or shown. Its API key is removed and must be re-entered to add it again. Checks on healthchecks.io are not changed. |
+| Project | Delete project | **{name}** will no longer be polled or shown. Its API key is removed and must be re-entered to add it again. Checks on **{hostOf(base_url)}** are not changed. |
 
 - The provider display name comes from `providers` (`key` → `display_name`). If the
   provider is not found, it falls back to the raw key.
 - The hook display name comes from `hookDefs`. If it is not found, it falls back to the
   raw `hook` key, the same way `HooksView` does.
+- The project host uses the existing `hostOf()` from `utils.ts`, so self-hosted
+  Healthchecks instances are named correctly.
+- The text is built by pure functions in `src/deleteCopy.tsx` (`domainDeleteCopy`,
+  `hookDeleteCopy`, `projectDeleteCopy`), each returning `{ title, confirmLabel, body }`.
+  This keeps `App.tsx` lean and puts the text under coverage (`App.tsx` is excluded).
+  `ConfirmModal` wraps `children` in `<p className="confirm-msg">`, so bodies are inline
+  fragments.
 
 ## Testing
 
