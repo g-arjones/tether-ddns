@@ -91,9 +91,10 @@ inputs.
     `"Unknown provider"`.
 - `HookInput`
   - `hook`: field validator, must be in `HOOK_REGISTRY`, else `"Unknown hook"`.
-  - `events`: model validator checks each event against
-    `HOOK_REGISTRY[hook].supported_events()` (skipped when `hook` already
-    failed). Error: `"Unsupported event <key>"` at loc `events`.
+  - `events`: field validator (runs after `hook`, reads it from
+    `ValidationInfo.data`) checks each event against
+    `HOOK_REGISTRY[hook].supported_events()`; skipped when `hook` already
+    failed. Error: `"Unsupported event <key>"` at loc `events`.
   - `_validate_hook_events` (plain-text 400) is removed.
 
 ### Handler helper
@@ -117,18 +118,17 @@ def validate_plugin_config(
 
 ### Message normalisation
 
-`_body_validation_error` rewrites `msg` to **`"Required"`** when:
+One `RequestValidationError` exception handler, registered in `register_routes`,
+rewrites `msg` to **`"Required"`** when:
 
 - `type == 'missing'`, or
 - `type in {'too_short', 'string_too_short'}` and `ctx['min_length'] == 1`.
 
-All other pydantic messages pass through unchanged. Settings and healthchecks
-endpoints share the helper and get the same rewrite; their existing tests assert
-locs, which are unaffected.
-
-FastAPI's own request-body 422s (raised before the handler runs, e.g. for
-`hostname`) do not go through `_body_validation_error`. A `RequestValidationError`
-exception handler applies the same message rewrite so every 422 reads the same.
+It covers both FastAPI's own request-body 422s (e.g. `hostname`, raised before the
+handler runs) and the ones raised from `_body_validation_error` /
+`_upstream_error`, so every 422 reads the same. All other messages pass through
+unchanged; settings and healthchecks tests assert locs or upstream messages,
+which are unaffected.
 
 ### Unchanged
 
@@ -156,9 +156,10 @@ exception handler applies the same message rewrite so every 422 reads the same.
 - Text/number/password inputs and enum `<select>`s get:
   - `className="field-invalid"` when in error,
   - `aria-invalid={error ? true : undefined}`,
-  - `aria-describedby="sf-<key>-help"`.
-- A help div `id="sf-<key>-help"` is always rendered; it shows the error (with
-  `hb-error`) in place of the description, or the description, or is empty.
+  - `aria-describedby="sf-<key>-help"` when a help line exists.
+- The help div `id="sf-<key>-help"` renders only when it has text: the error (with
+  `hb-error`) in place of the description, else the description. An empty div
+  would add a 7px `.field` flex gap.
 - Boolean switches are not decorated.
 - Required markers: for keys in `schema.required`, the label gets
   `<span className="req" aria-hidden="true">*</span>` and the control gets
@@ -216,7 +217,8 @@ without touching other fields.
   success toast stays, the error toast is removed.
 - The client-side `"Please enter a hostname"` check is removed.
 - `handleToggle`: on `ApiError` with status 422, toast
-  **"{hostname}: fix its provider config before enabling"**; otherwise keep
+  **"{hostname}: fix its provider config first"** (the toggle can be disabling
+  too); otherwise keep
   "Failed to update domain".
 
 ## Error handling summary
