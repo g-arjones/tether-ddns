@@ -14,20 +14,34 @@ export class ApiError extends Error {
   }
 }
 
-// FastAPI 422 bodies are {detail: [{loc: [...], msg}]}; key each message by its field name.
+// FastAPI 422 bodies are {detail: [{loc: ['body', ...path], msg}]}; key each message by its dotted path.
 async function fieldErrorsOf(res: Response): Promise<Record<string, string>> {
   try {
     const body = (await res.json()) as { detail?: unknown };
     if (!Array.isArray(body.detail)) return {};
     const out: Record<string, string> = {};
     for (const entry of body.detail as { loc?: unknown[]; msg?: unknown }[]) {
-      const key = entry.loc?.at(-1);
-      if (key !== undefined && typeof entry.msg === 'string') out[String(key)] = entry.msg;
+      const loc = entry.loc ?? [];
+      const path = loc[0] === 'body' ? loc.slice(1) : loc;
+      if (path.length > 0 && typeof entry.msg === 'string') out[path.join('.')] = entry.msg;
     }
     return out;
   } catch {
     return {};
   }
+}
+
+// Errors under `prefix.`, keyed by the next path segment; '' holds an error on `prefix` itself.
+export function subErrors(errors: Record<string, string>, prefix: string): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [key, msg] of Object.entries(errors)) {
+    if (key === prefix) out[''] = msg;
+    else if (key.startsWith(`${prefix}.`)) {
+      const field = key.slice(prefix.length + 1).split('.')[0];
+      if (!(field in out)) out[field] = msg;
+    }
+  }
+  return out;
 }
 
 async function detailOf(res: Response): Promise<string | undefined> {
