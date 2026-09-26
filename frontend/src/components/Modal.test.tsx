@@ -62,6 +62,13 @@ describe('Modal', () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
+  it('ignores Escape while an IME composition is in progress', () => {
+    const onClose = vi.fn();
+    render(<Modal open title="Add Domain" onClose={onClose}><p>body</p></Modal>);
+    fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape', isComposing: true });
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
   it('ignores other keys', () => {
     const onClose = vi.fn();
     render(<Modal open title="Add Domain" onClose={onClose}><p>body</p></Modal>);

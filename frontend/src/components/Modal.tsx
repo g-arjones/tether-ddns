@@ -33,7 +33,7 @@ export function Modal({ open, title, onClose, children, footer }: ModalProps): J
       aria-hidden={open ? undefined : true}
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
       onKeyDown={(e) => {
-        if (e.key !== 'Escape') return;
+        if (e.key !== 'Escape' || e.nativeEvent.isComposing) return;
         e.stopPropagation();
         onClose();
       }}
