@@ -56,4 +56,21 @@ describe('Select', () => {
     fireEvent.keyDown(container.querySelector('.cs') as HTMLElement, { key: 'Escape' });
     expect(onClose).toHaveBeenCalledTimes(1);
   });
+
+  it('marks the native select and trigger invalid when asked', () => {
+    const { container } = render(
+      <Select id="s3" ariaLabel="Choice" value="a" options={options} onChange={vi.fn()} invalid describedBy="s3-help" />,
+    );
+    const native = screen.getByLabelText('Choice');
+    expect(native).toHaveAttribute('aria-invalid', 'true');
+    expect(native).toHaveAttribute('aria-describedby', 's3-help');
+    expect(container.querySelector('.cs-trigger')).toHaveClass('field-invalid');
+  });
+
+  it('is undecorated by default', () => {
+    const { container } = render(<Select id="s4" ariaLabel="Choice" value="a" options={options} onChange={vi.fn()} />);
+    expect(screen.getByLabelText('Choice')).not.toHaveAttribute('aria-invalid');
+    expect(screen.getByLabelText('Choice')).not.toHaveAttribute('aria-describedby');
+    expect(container.querySelector('.cs-trigger')).not.toHaveClass('field-invalid');
+  });
 });

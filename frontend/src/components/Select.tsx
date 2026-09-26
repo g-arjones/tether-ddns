@@ -12,6 +12,8 @@ export interface SelectProps {
   options: SelectOption[];
   onChange: (value: string) => void;
   ariaLabel?: string;
+  invalid?: boolean;
+  describedBy?: string;
 }
 
 /**
@@ -21,7 +23,7 @@ export interface SelectProps {
  * form source of truth (screen readers, keyboard, and tests use it); the
  * `aria-hidden` trigger + menu provide the styled visuals for pointer users.
  */
-export function Select({ id, value, options, onChange, ariaLabel }: SelectProps) {
+export function Select({ id, value, options, onChange, ariaLabel, invalid, describedBy }: SelectProps) {
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
   const selected = options.find((o) => o.value === value);
@@ -54,6 +56,8 @@ export function Select({ id, value, options, onChange, ariaLabel }: SelectProps)
         className="cs-native"
         id={id}
         aria-label={ariaLabel}
+        aria-invalid={invalid ? true : undefined}
+        aria-describedby={describedBy}
         value={value}
         tabIndex={-1}
         onChange={(e) => onChange(e.target.value)}
@@ -64,7 +68,7 @@ export function Select({ id, value, options, onChange, ariaLabel }: SelectProps)
       </select>
       <button
         type="button"
-        className="cs-trigger"
+        className={`cs-trigger${invalid ? ' field-invalid' : ''}`}
         aria-hidden="true"
         tabIndex={-1}
         onClick={() => setOpen((o) => !o)}

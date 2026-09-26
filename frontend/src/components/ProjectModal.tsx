@@ -71,7 +71,7 @@ export function ProjectModal({ open, editing, onClose, onSave }: ProjectModalPro
     </div>
   );
   const invalid = (key: string) => ({
-    className: errors[key] ? 'hc-invalid' : undefined,
+    className: errors[key] ? 'field-invalid' : undefined,
     'aria-invalid': errors[key] ? true : undefined,
     'aria-describedby': `hc-${key}-help`,
   });

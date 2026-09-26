@@ -513,7 +513,8 @@ header.topbar {
 .hb-url input.hb-invalid { border-color: var(--err); box-shadow: 0 0 0 3px var(--err-soft); }
 .field-help.hb-error { color: var(--err); }
 .chips.hb-dim { opacity: .45; }
-.field input.hc-invalid { border-color: var(--err); box-shadow: 0 0 0 3px var(--err-soft); }
+.field :is(input, select, .cs-trigger).field-invalid { border-color: var(--err); box-shadow: 0 0 0 3px var(--err-soft); }
+.field label .req { color: var(--text-3); font-weight: 400; margin-left: 2px; }
 .act-btn:disabled { cursor: progress; transform: none; }
 
 /* ---------- Custom select (replaces native combobox chrome) ---------- */
