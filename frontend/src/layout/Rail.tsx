@@ -1,5 +1,5 @@
 import type { JSX, PointerEvent as ReactPointerEvent } from 'react';
-import { IconDashboard, IconGlobe, IconHeartPulse, IconHook, IconLogs, IconSettings, IconInfo } from '../components/icons';
+import { IconDashboard, IconGlobe, IconHeartPulse, IconHook, IconLogo, IconLogs, IconSettings, IconInfo } from '../components/icons';
 
 export type ViewKey = 'overview' | 'domains' | 'hooks' | 'healthchecks' | 'logs' | 'settings' | 'about';
 
@@ -63,7 +63,7 @@ export function Rail(props: RailProps): JSX.Element {
     <aside className={`rail${mobileOpen ? ' open' : ''}`}>
       <div className="brand">
         <div className="logo">
-          <IconGlobe />
+          <IconLogo />
         </div>
         <div className="brand-text"><h1>Tether</h1><p>Self-hosted DDNS</p></div>
       </div>

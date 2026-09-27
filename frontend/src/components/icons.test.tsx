@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { render } from '@testing-library/react';
-import { IconClose, IconPlus, IconPlay, IconGlobe } from './icons';
+import { IconClose, IconPlus, IconPlay, IconGlobe, IconLogo } from './icons';
 
 describe('icons', () => {
   it('emits the shared svg preamble', () => {
@@ -30,5 +30,17 @@ describe('icons', () => {
     const { container } = render(<IconGlobe />);
     expect(container.querySelector('circle')).toHaveAttribute('r', '10');
     expect(container.querySelectorAll('path')).toHaveLength(1);
+  });
+
+  it('cuts the orbit gap with a per-instance mask on an unrotated wrapper', () => {
+    const { container } = render(<><IconLogo /><IconLogo /></>);
+    const masks = [...container.querySelectorAll('mask')];
+    expect(masks).toHaveLength(2);
+    expect(masks[0].id).not.toBe(masks[1].id);
+    masks.forEach((m) => expect(m).toHaveAttribute('stroke', 'none'));
+    const wrappers = [...container.querySelectorAll('g[mask]')];
+    expect(wrappers).toHaveLength(2);
+    wrappers.forEach((g, i) => expect(g).toHaveAttribute('mask', `url(#${masks[i].id})`));
+    expect(container.querySelector('ellipse[mask]')).toBeNull();
   });
 });
