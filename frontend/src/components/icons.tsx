@@ -1,4 +1,4 @@
-import type { JSX, ReactNode } from 'react';
+import { useId, type JSX, type ReactNode } from 'react';
 
 export interface IconProps {
   strokeWidth?: number;
@@ -48,6 +48,27 @@ export function IconGlobe(p: IconProps): JSX.Element {
     <Svg {...p}>
       <circle cx="12" cy="12" r="10" />
       <path d="M2 12h20M12 2a15 15 0 0 1 0 20 15 15 0 0 1 0-20z" />
+    </Svg>
+  );
+}
+
+// Brand mark: a record (bead) held on an orbit around the host (center dot).
+// The mask must wrap the ellipse, not sit on it, or the cut lands in rotated space.
+export function IconLogo(p: IconProps): JSX.Element {
+  const gap = useId();
+  return (
+    <Svg {...p}>
+      <mask id={gap} maskUnits="userSpaceOnUse" x="0" y="0" width="24" height="24" stroke="none">
+        <rect width="24" height="24" fill="#fff" />
+        <circle cx="19.8" cy="6.5" r="3.8" fill="#000" />
+      </mask>
+      <g mask={`url(#${gap})`}>
+        <ellipse cx="12" cy="12" rx="9.5" ry="4.5" transform="rotate(-35 12 12)" />
+      </g>
+      <g fill="currentColor" stroke="none">
+        <circle cx="12" cy="12" r="2.4" />
+        <circle cx="19.8" cy="6.5" r="2.1" />
+      </g>
     </Svg>
   );
 }
