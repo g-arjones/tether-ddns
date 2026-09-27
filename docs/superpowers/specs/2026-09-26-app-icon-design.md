@@ -14,7 +14,12 @@ Same grammar as `components/icons.tsx`: `fill="none" stroke="currentColor"`, rou
 
 - Orbit: `<ellipse cx="12" cy="12" rx="9.5" ry="4.5" transform="rotate(-35 12 12)"/>`, stroke 2.
 - Orbit gap: the ellipse is masked by a black `circle cx="19.8" cy="6.5" r="3.8"` over a white
-  `rect 24×24` (`maskUnits="userSpaceOnUse"`), so the bead sits in clear air.
+  `rect 24×24` (`maskUnits="userSpaceOnUse"`), so the bead floats in clear air (option 2 of the
+  gap review). Two construction rules, both verified visually:
+  - The mask goes on a wrapping `<g mask>` around the ellipse, never on the rotated ellipse itself;
+    otherwise the cut is placed in the ellipse's rotated space and lands off the bead.
+  - The `<mask>` carries `stroke="none"`; mask content otherwise inherits the icon's stroke and
+    leaves a half-opacity ring around the cut.
 - Bead: `circle cx="19.8" cy="6.5" r="2.1"`, `fill="currentColor" stroke="none"`.
 - Host: `circle cx="12" cy="12" r="2.4"`, `fill="currentColor" stroke="none"`.
 
@@ -60,8 +65,10 @@ are rendered from the SVG masters above (headless Chromium via `playwright-core`
 - Existing Rail/App tests keep passing; `npx tsc --noEmit -p tsconfig.app.json`; `npm run build`.
 - Visual check: screenshot the rail (dark + light, expanded + collapsed) and the favicon in a tab.
 
+## Cleanup
+
+- Delete `frontend/public/icons.svg`, an unreferenced Vite template sprite (Bluesky/GitHub symbols).
+
 ## Out of scope
 
-- `frontend/public/icons.svg` is an unreferenced Vite template sprite (Bluesky/GitHub symbols).
-  Leaving it; deleting it is a separate call.
 - README/docs logo usage of the light/dark variants.
