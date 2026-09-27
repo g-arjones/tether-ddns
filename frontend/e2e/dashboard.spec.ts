@@ -1,4 +1,4 @@
-import { test, expect, type WebSocketRoute } from '@playwright/test';
+import { test, expect, type Page, type WebSocketRoute } from '@playwright/test';
 
 test('app starts on Overview', async ({ page }) => {
   await page.goto('/');
@@ -315,9 +315,7 @@ test('all four stat cards share one row geometry', async ({ page }) => {
   }
 });
 
-// jsdom cannot evaluate media queries; only a real browser can prove the phone layout.
-test('on phones the stats render as a compact readout list', async ({ page }) => {
-  // The real backend has no heartbeat URL, so settings and live status are stubbed.
+async function stubHeartbeat(page: Page, heartbeat: () => object): Promise<void> {
   await page.route('**/api/settings', async (route) => {
     if (route.request().method() !== 'GET') {
       await route.fallback();
@@ -332,12 +330,16 @@ test('on phones the stats render as a compact readout list', async ({ page }) =>
     server.onMessage((message) => {
       const frame = JSON.parse(String(message)) as { kind: string; payload: Record<string, unknown> };
       if (frame.kind === 'state') {
-        frame.payload.heartbeat = { at: Date.now() / 1000 - 35, ok: true, skipped: false, error: null };
+        frame.payload.heartbeat = heartbeat();
       }
       ws.send(JSON.stringify(frame));
     });
   });
+}
 
+// jsdom cannot evaluate media queries; only a real browser can prove the phone layout.
+test('on phones the stats render as a compact readout list', async ({ page }) => {
+  await stubHeartbeat(page, () => ({ at: Date.now() / 1000 - 35, ok: true, skipped: false, error: null }));
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');
   const rows = page.locator('.stats .stat');
@@ -369,4 +371,23 @@ test('on phones the stats render as a compact readout list', async ({ page }) =>
   await page.setViewportSize({ width: 1400, height: 900 });
   await expect(host).toBeVisible();
   await expect(host).toContainText('hc-ping.com');
+});
+
+test('on phones a failed heartbeat stays loud', async ({ page }) => {
+  await stubHeartbeat(page, () => ({
+    at: Date.now() / 1000 - 12, ok: false, skipped: false, error: 'HTTP 503 Service Unavailable',
+  }));
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+
+  const heartbeat = page.locator('.stats .stat').filter({ hasText: 'Heartbeat' });
+  await expect(heartbeat).toHaveClass(/\bhb-err\b/);
+  await expect(heartbeat.locator('.stat-value')).toHaveText('Failed');
+  const error = heartbeat.locator('.stat-sub .hb-mono');
+  await expect(error).toHaveText('HTTP 503 Service Unavailable');
+  await expect(error).toBeVisible();
+  await expect(heartbeat.locator('.hb-host')).toHaveCount(0);
+  for (const sel of ['.stat-label', '.stat-value', '.stat-sub']) {
+    await expect(heartbeat.locator(sel)).toHaveCSS('color', 'rgb(239, 68, 68)');
+  }
 });
