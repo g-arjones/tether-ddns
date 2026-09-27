@@ -98,7 +98,7 @@ replacing its current `.stats { grid-template-columns: 1fr; gap: 12px; }` and
   - Labels read "Total Domains", "Synced", "Needs Update", "Heartbeat".
 - `.stat-sub`
   - `grid-area: sub; align-self: start; margin-top: 0;`
-  - `font-size: 11.5px; color: var(--text-3);`
+  - `font-size: 11.5px; color: var(--text-2);`
   - `.stat-sub-text` keeps its ellipsis.
 - `.stat-value`
   - `grid-area: value; font-size: 19px; letter-spacing: -.5px; font-variant-numeric: tabular-nums;`
