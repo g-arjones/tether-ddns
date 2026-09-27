@@ -1,4 +1,4 @@
-import { test, expect, type WebSocketRoute } from '@playwright/test';
+import { test, expect, type Page, type WebSocketRoute } from '@playwright/test';
 
 test('app starts on Overview', async ({ page }) => {
   await page.goto('/');
@@ -312,5 +312,82 @@ test('all four stat cards share one row geometry', async ({ page }) => {
       expect(box.top, `${part} top`).toBeCloseTo(boxes[0].top, 0);
       expect(box.height, `${part} height`).toBeCloseTo(boxes[0].height, 0);
     }
+  }
+});
+
+async function stubHeartbeat(page: Page, heartbeat: () => object): Promise<void> {
+  await page.route('**/api/settings', async (route) => {
+    if (route.request().method() !== 'GET') {
+      await route.fallback();
+      return;
+    }
+    const response = await route.fetch();
+    const json = { ...(await response.json()), heartbeat_url: 'https://hc-ping.com/abc', heartbeat_interval: 60 };
+    await route.fulfill({ response, json });
+  });
+  await page.routeWebSocket('**/api/ws', (ws) => {
+    const server = ws.connectToServer();
+    server.onMessage((message) => {
+      const frame = JSON.parse(String(message)) as { kind: string; payload: Record<string, unknown> };
+      if (frame.kind === 'state') {
+        frame.payload.heartbeat = heartbeat();
+      }
+      ws.send(JSON.stringify(frame));
+    });
+  });
+}
+
+// jsdom cannot evaluate media queries; only a real browser can prove the phone layout.
+test('on phones the stats render as a compact readout list', async ({ page }) => {
+  await stubHeartbeat(page, () => ({ at: Date.now() / 1000 - 35, ok: true, skipped: false, error: null }));
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+  const rows = page.locator('.stats .stat');
+  await expect(rows).toHaveCount(4);
+  const heartbeat = rows.filter({ hasText: 'Heartbeat' });
+  await expect(heartbeat).toContainText('every 1 min');
+  await expect(heartbeat).toContainText('OK');
+  const host = heartbeat.locator('.hb-host');
+  await expect(host).toBeHidden();
+  await expect(heartbeat.getByRole('button', { name: 'Ping now' })).toBeVisible();
+
+  const cells = await rows.evaluateAll((els) => els.map((el) => ({
+    iconRight: el.querySelector('.stat-ico')!.getBoundingClientRect().right,
+    labelLeft: el.querySelector('.stat-label')!.getBoundingClientRect().left,
+    labelRight: el.querySelector('.stat-label')!.getBoundingClientRect().right,
+    labelBottom: el.querySelector('.stat-label')!.getBoundingClientRect().bottom,
+    subTop: el.querySelector('.stat-sub')!.getBoundingClientRect().top,
+    valueLeft: el.querySelector('.stat-value')!.getBoundingClientRect().left,
+  })));
+  expect(cells).toHaveLength(4);
+  for (const cell of cells) {
+    expect(cell.iconRight).toBeLessThan(cell.labelLeft);
+    expect(cell.subTop).toBeGreaterThanOrEqual(cell.labelBottom - 1);
+    expect(cell.valueLeft).toBeGreaterThan(cell.labelRight);
+  }
+  const stats = await page.locator('.stats').boundingBox();
+  expect(stats?.height).toBeLessThan(260);
+
+  await page.setViewportSize({ width: 1400, height: 900 });
+  await expect(host).toBeVisible();
+  await expect(host).toContainText('hc-ping.com');
+});
+
+test('on phones a failed heartbeat stays loud', async ({ page }) => {
+  await stubHeartbeat(page, () => ({
+    at: Date.now() / 1000 - 12, ok: false, skipped: false, error: 'HTTP 503 Service Unavailable',
+  }));
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+
+  const heartbeat = page.locator('.stats .stat').filter({ hasText: 'Heartbeat' });
+  await expect(heartbeat).toHaveClass(/\bhb-err\b/);
+  await expect(heartbeat.locator('.stat-value')).toHaveText('Failed');
+  const error = heartbeat.locator('.stat-sub .hb-mono');
+  await expect(error).toHaveText('HTTP 503 Service Unavailable');
+  await expect(error).toBeVisible();
+  await expect(heartbeat.locator('.hb-host')).toHaveCount(0);
+  for (const sel of ['.stat-label', '.stat-value', '.stat-sub']) {
+    await expect(heartbeat.locator(sel)).toHaveCSS('color', 'rgb(239, 68, 68)');
   }
 });
