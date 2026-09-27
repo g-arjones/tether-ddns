@@ -49,7 +49,7 @@ function startResize(e: ReactPointerEvent<HTMLDivElement>, collapsed: boolean): 
 }
 
 export function Rail(props: RailProps): JSX.Element {
-  const { active, onSelect, domainCount, hookCount, healthchecksCount, online, mobileOpen, collapsed } = props;
+  const { active, onSelect, domainCount, hookCount, healthchecksCount, online, mobileOpen, collapsed, onCloseMobile } = props;
   const items: NavDef[] = [
     { key: 'overview', label: 'Overview', icon: <IconDashboard /> },
     { key: 'domains', label: 'Domains', count: domainCount, icon: <IconGlobe /> },
@@ -74,7 +74,10 @@ export function Rail(props: RailProps): JSX.Element {
             type="button"
             className={`nav-item${active === it.key ? ' active' : ''}`}
             title={it.label}
-            onClick={() => onSelect(it.key)}
+            onClick={() => {
+              onSelect(it.key);
+              onCloseMobile();
+            }}
           >
             {it.icon}
             <span className="nav-label">{it.label}</span>

@@ -35,6 +35,13 @@ describe('Rail', () => {
     expect(onSelect).toHaveBeenCalledWith('hooks');
   });
 
+  it('closes the mobile rail when a nav item is clicked', () => {
+    const onCloseMobile = vi.fn();
+    render(<Rail {...base} mobileOpen onCloseMobile={onCloseMobile} />);
+    fireEvent.click(screen.getByRole('button', { name: /Logs/ }));
+    expect(onCloseMobile).toHaveBeenCalledTimes(1);
+  });
+
   it('shows offline dot when offline', () => {
     const { container } = render(<Rail {...base} online={false} />);
     expect(container.querySelector('.rail-status .dot.offline')).toBeTruthy();
