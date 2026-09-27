@@ -350,11 +350,17 @@ test('on phones the stats render as a compact readout list', async ({ page }) =>
   await expect(heartbeat.getByRole('button', { name: 'Ping now' })).toBeVisible();
 
   const cells = await rows.evaluateAll((els) => els.map((el) => ({
+    iconRight: el.querySelector('.stat-ico')!.getBoundingClientRect().right,
+    labelLeft: el.querySelector('.stat-label')!.getBoundingClientRect().left,
     labelRight: el.querySelector('.stat-label')!.getBoundingClientRect().right,
+    labelBottom: el.querySelector('.stat-label')!.getBoundingClientRect().bottom,
+    subTop: el.querySelector('.stat-sub')!.getBoundingClientRect().top,
     valueLeft: el.querySelector('.stat-value')!.getBoundingClientRect().left,
   })));
   expect(cells).toHaveLength(4);
   for (const cell of cells) {
+    expect(cell.iconRight).toBeLessThan(cell.labelLeft);
+    expect(cell.subTop).toBeGreaterThanOrEqual(cell.labelBottom - 1);
     expect(cell.valueLeft).toBeGreaterThan(cell.labelRight);
   }
   const stats = await page.locator('.stats').boundingBox();
