@@ -347,6 +347,7 @@ test('on phones the stats render as a compact readout list', async ({ page }) =>
   await expect(heartbeat).toContainText('OK');
   const host = heartbeat.locator('.hb-host');
   await expect(host).toBeHidden();
+  await expect(heartbeat.getByRole('button', { name: 'Ping now' })).toBeVisible();
 
   const cells = await rows.evaluateAll((els) => els.map((el) => ({
     labelRight: el.querySelector('.stat-label')!.getBoundingClientRect().right,
