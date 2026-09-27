@@ -743,7 +743,6 @@ header.topbar {
   .stat-value { grid-area: value; font-size: 19px; letter-spacing: -.5px; font-variant-numeric: tabular-nums; }
   .hb .stat-value { font-size: 15px; }
   .hb-host { display: none; }
-  .hb-err { border-color: var(--border); }
   .hb-err .stat-label { color: var(--err); }
   .domain-grid { grid-template-columns: 1fr; }
   .ip-pill { display: none; }

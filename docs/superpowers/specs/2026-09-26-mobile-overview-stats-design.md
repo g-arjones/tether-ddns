@@ -108,7 +108,7 @@ replacing its current `.stats { grid-template-columns: 1fr; gap: 12px; }` and
 
 - `.hb-host { display: none; }`
 - `.hb-err` has no border to colour on phones, so it turns the label red instead:
-  `.hb-err { border-color: var(--border); }` and `.hb-err .stat-label { color: var(--err); }`.
+  `.hb-err .stat-label { color: var(--err); }`.
 - `.hb-err .stat-value` and `.hb-err .stat-sub` are already red (desktop rule).
 - `.hb-muted .stat-value` is already `--text-3` (desktop rule).
 
